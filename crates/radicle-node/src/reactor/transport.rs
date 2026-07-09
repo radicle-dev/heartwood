@@ -1,13 +1,12 @@
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::Write;
 use std::{fmt, io};
 
 use mio::event::{Event, Source};
 use mio::{Interest, Registry, Token};
 
+use crate::reactor::EventHandler;
 use crate::reactor::session::Session;
-use crate::reactor::{EventHandler, WriteAtomic};
 
 const READ_BUFFER_SIZE: usize = u16::MAX as usize;
 
@@ -19,6 +18,12 @@ pub enum SessionEvent<S: Session> {
     Established(S::Artifact),
     Data(Vec<u8>),
     Terminated(io::Error),
+}
+
+impl<S: Session> SessionEvent<S> {
+    fn is_connection_reset(&self) -> bool {
+        matches!(self, SessionEvent::Terminated(err) if err.kind() == io::ErrorKind::ConnectionReset)
+    }
 }
 
 /// A state of [`Transport`] network transport.
@@ -143,12 +148,15 @@ impl<S: Session> Transport<S> {
         SessionEvent::Terminated(reason)
     }
 
-    fn handle_io(&mut self, interest: Interest) -> Option<SessionEvent<S>> {
-        if self.state == TransportState::Terminated {
-            log::debug!(target: "transport", "Transport {self} is terminated, ignoring I/O event");
-            return None;
-        }
-
+    /// This function is responsible for draining readiness.
+    /// According to the `mio` documentation, this means that I/O operations
+    /// should be performed until they would block.
+    ///
+    /// Therefore [`Self::handle_readable`] and [`Self::handle_writable`]
+    /// implement corresponding loops.
+    ///
+    /// See <https://github.com/tokio-rs/mio/blob/v1.1.1/src/poll.rs#L108-L115>.
+    fn handle_io(&mut self, interest: Interest, events: &mut Vec<SessionEvent<S>>) {
         let mut force_write_intent = false;
         if self.state == TransportState::Init {
             log::debug!(target: "transport", "Transport {self} is connected, initializing handshake");
@@ -161,9 +169,9 @@ impl<S: Session> Transport<S> {
             log::trace!(target: "transport", "Transport {self} got I/O while in handshake mode");
         }
 
-        let resp = match interest {
-            Interest::READABLE => self.handle_readable(),
-            Interest::WRITABLE => self.handle_writable(),
+        match interest {
+            Interest::READABLE => self.handle_readable(events),
+            Interest::WRITABLE => self.handle_writable(events),
             _ => unreachable!(),
         };
 
@@ -174,108 +182,132 @@ impl<S: Session> Transport<S> {
             self.write_intent = interest == Interest::READABLE;
         }
 
-        if matches!(&resp, Some(SessionEvent::Terminated(e)) if e.kind() == io::ErrorKind::ConnectionReset)
+        if events.iter().any(|event| event.is_connection_reset())
             && self.state != TransportState::Handshake
         {
             log::debug!(target: "transport", "Peer {self} has reset the connection");
 
             self.state = TransportState::Terminated;
-            resp
         } else if self.session.is_established() && self.state == TransportState::Handshake {
             log::debug!(target: "transport", "Handshake with {self} is complete");
 
             // We just got connected; may need to send output
             self.write_intent = true;
             self.state = TransportState::Active;
-            Some(SessionEvent::Established(
+            events.push(SessionEvent::Established(
                 self.session.artifact().expect("session is established"),
-            ))
-        } else {
-            resp
+            ));
         }
     }
 
-    fn handle_writable(&mut self) -> Option<SessionEvent<S>> {
+    fn handle_writable(&mut self, events: &mut Vec<SessionEvent<S>>) {
+        use io::ErrorKind::*;
+
         if !self.session.is_established() {
             let _ = self.session.write(&[]);
             self.write_intent = true;
-            return None;
+            return;
         }
-        match self.flush() {
-            Ok(_) => None,
-            // In this case, the write could not complete. Leave `write_intent` set
-            // to be notified when the socket is ready to write again.
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::WouldBlock
-                        | io::ErrorKind::WriteZero
-                        | io::ErrorKind::OutOfMemory
-                        | io::ErrorKind::Interrupted
-                ) =>
-            {
-                log::debug!(target: "transport", "Resource {} was not able to consume any data even though it has announced its write readiness", self.display());
-                self.write_intent = true;
-                None
-            }
-            Err(err) => Some(self.terminate(err)),
+
+        self.write_buffer.make_contiguous();
+        let n = self.write_buffer.len();
+
+        log::trace!(target: "transport", "Resource {} is flushing its buffer of {n} bytes", self.display());
+
+        /// Accumulates multiple writes.
+        struct Written {
+            /// The cumulative number of bytes successfully written to
+            /// `self.session` and drained from `self.write_buffer`.
+            n: usize,
+            /// The first error encountered while writing to `self.session`,
+            /// if any. Note that this error might be of kind
+            /// [`WouldBlock`] which only indicates that
+            /// `self.session` is not ready to accept more data.
+            err: Option<io::Error>,
         }
-    }
 
-    fn handle_readable(&mut self) -> Option<SessionEvent<S>> {
-        // Since `poll`, which this reactor is based on, is *level-triggered*,
-        // we will be notified again if there is still data to be read on the socket.
-        // Hence, there is no use in putting this socket read in a loop, as the second
-        // invocation would likely block.
-        match self.session.read(self.read_buffer.as_mut()) {
-            Ok(0) if !self.session.is_established() => None,
-            Ok(0) => Some(SessionEvent::Terminated(
-                io::ErrorKind::ConnectionReset.into(),
-            )),
-            Ok(len) => Some(SessionEvent::Data(self.read_buffer[..len].to_vec())),
-            Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
-                // This should not happen, since this function is only called
-                // when there's data on the socket. We leave it here in case external
-                // conditions change.
+        let written = {
+            let mut n = 0;
 
-                log::trace!(target: "transport",
-                    "WOULD_BLOCK on resource which had read intent - probably normal thing to happen"
-                );
-                None
-            }
-            Err(err) => Some(self.terminate(err)),
-        }
-    }
+            // This loop is a bit like [`std::io::copy`], but by breaking on
+            // `Written`, we keep track of how many bytes were successfully
+            // written, even if an error (in particular [`WouldBlock`])
+            // occurs.
+            loop {
+                // Since `self.write_buffer` is contiguous, we can get a single slice of it.
+                let slice = {
+                    let slices = self.write_buffer.as_slices();
 
-    fn flush_buffer(&mut self) -> io::Result<()> {
-        let orig_len = self.write_buffer.len();
+                    // Assert guarantees of earlier call to `self.write_buffer.make_contiguous()`.
+                    debug_assert_eq!(
+                        slices.0.len(),
+                        self.write_buffer.len(),
+                        "write buffer is not contiguous"
+                    );
+                    debug_assert_eq!(slices.1.len(), 0, "write buffer is not contiguous");
 
-        log::trace!(target: "transport", "Resource {} is flushing its buffer of {orig_len} bytes", self.display());
-        let len =
-            self.session.write(self.write_buffer.make_contiguous()).or_else(|err| {
-                match err.kind() {
-                    io::ErrorKind::WouldBlock
-                    | io::ErrorKind::OutOfMemory
-                    | io::ErrorKind::WriteZero
-                    | io::ErrorKind::Interrupted => {
-                        log::trace!(target: "transport", "Resource {} kernel buffer is full (system message is '{err}')", self.display());
-                        Ok(0)
-                    },
-                    _ => {
-                        log::warn!(target: "transport", "Resource {} failed write operation with message '{err}'", self.display());
-                        Err(err)
-                    },
+                    // Since `self.write_buffer` is contiguous, disregard the second
+                    // (empty!) slice.
+                    slices.0
+                };
+
+                if slice.is_empty() {
+                    // There are no more bytes in `self.write_buffer` to write.
+                    break Written { n, err: None };
                 }
-            })?;
-        if orig_len > len {
-            log::debug!(target: "transport", "Resource {} was able to consume only a part of the buffered data ({len} of {orig_len} bytes)", self.display());
-            self.write_intent = true;
+
+                n += match self.session.write(slice) {
+                    Ok(n) => {
+                        self.write_buffer.drain(..n);
+                        n
+                    }
+                    Err(err) if err.kind() == Interrupted => 0,
+                    Err(err) => break Written { n, err: Some(err) },
+                };
+            }
+        };
+
+        debug_assert!(
+            written.n <= n,
+            "written more bytes than were in the write buffer (wrote {} out of {} bytes)",
+            written.n,
+            n
+        );
+
+        self.write_intent = n > written.n;
+
+        if self.write_intent {
+            log::debug!(target: "transport", "Resource {} was able to consume only a part of the buffered data ({} of {n} bytes)", written.n, self.display());
         } else {
-            log::trace!(target: "transport", "Resource {} was able to consume all of the buffered data ({len} of {orig_len} bytes)", self.display());
-            self.write_intent = false;
+            log::trace!(target: "transport", "Resource {} was able to consume all of the buffered data ({} of {n} bytes)", written.n, self.display());
         }
-        self.write_buffer.drain(..len);
-        Ok(())
+
+        if let Some(err) = written.err
+            && err.kind() != WouldBlock
+            && err.kind() != WriteZero
+        {
+            events.push(self.terminate(err))
+        }
+    }
+
+    fn handle_readable(&mut self, events: &mut Vec<SessionEvent<S>>) {
+        use io::ErrorKind::*;
+
+        loop {
+            match self.session.read(self.read_buffer.as_mut()) {
+                Ok(0) => {}
+                Ok(len) => {
+                    events.push(SessionEvent::Data(self.read_buffer[..len].to_vec()));
+                    continue;
+                }
+                Err(err) if err.kind() == Interrupted => continue,
+                Err(err) if err.kind() == WouldBlock => {}
+                Err(err) => {
+                    events.push(self.terminate(err));
+                }
+            }
+            return;
+        }
     }
 }
 
@@ -297,42 +329,38 @@ impl<S: Session + Source> EventHandler for Transport<S> {
     }
 
     fn handle(&mut self, event: &Event) -> Vec<Self::Reaction> {
-        let mut events = Vec::with_capacity(2);
-        if event.is_writable()
-            && let Some(event) = self.handle_io(Interest::WRITABLE)
-        {
-            events.push(event);
+        let mut events = Vec::new();
+
+        if self.state == TransportState::Terminated {
+            log::debug!(target: "transport", "Transport {self} is terminated, ignoring I/O event");
+            return events;
         }
-        if event.is_readable()
-            && let Some(event) = self.handle_io(Interest::READABLE)
-        {
-            events.push(event);
+
+        if event.is_writable() {
+            self.handle_io(Interest::WRITABLE, &mut events);
         }
+
+        if event.is_readable() {
+            self.handle_io(Interest::READABLE, &mut events);
+        }
+
         events
     }
 }
 
-impl<S: Session> Write for Transport<S> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.write_atomic(buf).map(|_| buf.len())
-    }
+impl<S: Session> super::BufferWrite for Transport<S> {
+    fn buffer_write(&mut self, buf: &[u8]) {
+        assert_eq!(
+            self.state,
+            TransportState::Active,
+            "buffer_write called when transport is not active"
+        );
 
-    fn flush(&mut self) -> io::Result<()> {
-        let res = self.flush_buffer();
-        self.session.flush().and(res)
-    }
-}
-
-impl<S: Session> WriteAtomic for Transport<S> {
-    fn is_ready_to_write(&self) -> bool {
-        self.state == TransportState::Active
-    }
-
-    fn write_or_buf(&mut self, buf: &[u8]) -> io::Result<()> {
         if buf.is_empty() {
-            return Ok(());
+            return;
         }
+
         self.write_buffer.extend(buf);
-        self.flush_buffer()
+        self.write_intent = true;
     }
 }

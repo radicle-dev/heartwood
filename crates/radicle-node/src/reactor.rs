@@ -7,7 +7,6 @@ mod transport;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::ErrorKind;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -55,51 +54,17 @@ pub trait EventHandler {
     fn handle(&mut self, event: &Event) -> Vec<Self::Reaction>;
 }
 
-/// The trait guarantees that the data are either written in full or, in case
-/// of an error, none of the data is written. Types implementing the trait must
-/// also guarantee that multiple attempts to write do not result in
-/// data to be written out of the initial ordering.
-pub trait WriteAtomic: std::io::Write {
-    /// Atomic non-blocking I/O write operation, which must either write the whole buffer to a
-    /// resource without blocking or fail.
-    ///
-    /// # Panics
-    ///
-    /// If [`WriteAtomic::write_or_buf`] returns an [`std::io::Error`] of kind
-    /// [`ErrorKind::Interrupted`], [`ErrorKind::WouldBlock`], [`ErrorKind::WriteZero`].
-    /// In this case, [`WriteAtomic::write_or_buf`] is expected to buffer.
-    fn write_atomic(&mut self, buf: &[u8]) -> io::Result<()> {
-        use ErrorKind::*;
-
-        if !self.is_ready_to_write() {
-            panic!("WriteAtomic::write_atomic was called when the resource is not ready to write");
-        }
-
-        let result = self.write_or_buf(buf);
-
-        debug_assert!(
-            !matches!(
-                result.as_ref().err().map(|err| err.kind()),
-                Some(Interrupted | WouldBlock | WriteZero)
-            ),
-            "WriteAtomic::write_or_buf must handle errors of kind {Interrupted:?}, {WouldBlock:?}, {WriteZero:?} by buffering",
-        );
-
-        result
-    }
-
-    /// Checks whether resource can be written to without blocking.
-    fn is_ready_to_write(&self) -> bool;
-
-    /// Writes to the resource in a non-blocking way, buffering the data if necessary,
-    /// or failing with a system-level error.
-    ///
-    /// This method shouldn't be called directly; call [`WriteAtomic::write_atomic`] instead.
-    ///
-    /// The method must handle [`std::io::Error`] of kind
-    /// [`ErrorKind::Interrupted`], [`ErrorKind::WouldBlock`], [`ErrorKind::WriteZero`].
-    /// and buffer the data in such cases.
-    fn write_or_buf(&mut self, buf: &[u8]) -> io::Result<()>;
+/// Like [`io::Write`] this is a trait for objects which are byte-oriented sinks.
+/// However, this trait is intended to be used in a non-blocking context, where
+/// the object carries an internal write buffer like [`io::BufWriter`].
+/// The difference to [`io::BufWriter`] is that this trait gives the object
+/// more freedom in handling its internal buffer, e.g., allows it to wait for
+/// a write readiness notification, and supports special handling of errors
+/// like [`io::ErrorKind::WouldBlock`] which is common in the non-blocking
+/// context, which [`io::BufWriter`] does not do.
+pub trait BufferWrite {
+    /// Copies bytes from `buf` into the internal write buffer.
+    fn buffer_write(&mut self, buf: &[u8]);
 }
 
 /// Reactor errors
@@ -214,7 +179,7 @@ pub trait ReactionHandler: Send + Iterator<Item = Action<Self::Listener, Self::T
     ///
     /// Transport is a "full" resource which can be read from - and written to. Usual files, network
     /// connections, database connections etc are all fall into this category.
-    type Transport: EventHandler + Source + Send + Debug + WriteAtomic;
+    type Transport: EventHandler + Source + Send + Debug + BufferWrite;
 
     /// Method called by the reactor on the start of each event loop once the poll has returned.
     fn tick(&mut self);
@@ -565,12 +530,7 @@ impl<H: ReactionHandler> Runtime<H> {
                 log::trace!(target: "reactor", token=token.0; "Sending {} bytes to {token:?}", data.len());
 
                 if let Some(transport) = self.transports.get_mut(&token) {
-                    if let Err(e) = transport.write_atomic(&data) {
-                        log::error!(target: "reactor", "Fatal error writing to transport {token:?}, disconnecting. Error details: {e:?}");
-                        if let Some(transport) = self.deregister_transport(token) {
-                            return Err(Error::TransportDisconnect(token, transport));
-                        }
-                    }
+                    transport.buffer_write(&data);
                 } else {
                     log::debug!(target: "reactor", token=token.0; "No transport with token {token:?} is known!");
                 }
