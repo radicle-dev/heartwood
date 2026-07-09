@@ -2,7 +2,7 @@ use std::error;
 use std::fmt::{Debug, Display};
 use std::io;
 use std::io::{Read, Write};
-use std::net::{Shutdown, SocketAddr};
+use std::net::SocketAddr;
 
 use cyphernet::encrypt::noise::NoiseState;
 use cyphernet::proxy::socks5;
@@ -15,28 +15,13 @@ pub type NoiseSession<E, D, S> = Protocol<NoiseState<E, D>, S>;
 pub type Socks5Session<S> = Protocol<socks5::Socks5, S>;
 
 pub trait Session: Send + Read + Write {
-    type Inner: Session;
     type Artifact: Display;
 
     fn is_established(&self) -> bool {
         self.artifact().is_some()
     }
 
-    fn run_handshake(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn display(&self) -> String {
-        self.artifact()
-            .map(|artifact| artifact.to_string())
-            .unwrap_or_else(|| "<no-id>".to_string())
-    }
-
     fn artifact(&self) -> Option<Self::Artifact>;
-
-    fn stream(&mut self) -> &mut TcpStream;
-
-    fn disconnect(self) -> io::Result<()>;
 }
 
 pub trait StateMachine: Sized + Send {
@@ -51,34 +36,6 @@ pub trait StateMachine: Sized + Send {
     fn advance(&mut self, input: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
     fn artifact(&self) -> Option<Self::Artifact>;
-
-    // Blocking
-    fn run_handshake<RW>(&mut self, stream: &mut RW) -> io::Result<()>
-    where
-        RW: Read + Write,
-    {
-        let mut input = vec![];
-        while !self.is_complete() {
-            let act = self.advance(&input).map_err(|err| {
-                log::error!(target: Self::NAME, "Handshake failure: {err}");
-                io::Error::other(err)
-            })?;
-            if !act.is_empty() {
-                log::trace!(target: Self::NAME, "Sending handshake act {act:02x?}");
-
-                stream.write_all(&act)?;
-            }
-            if !self.is_complete() {
-                input = vec![0u8; self.next_read_len()];
-                stream.read_exact(&mut input)?;
-
-                log::trace!(target: Self::NAME, "Receiving handshake act {input:02x?}");
-            }
-        }
-
-        log::debug!(target: Self::NAME, "Handshake protocol {} successfully completed", Self::NAME);
-        Ok(())
-    }
 
     fn is_complete(&self) -> bool {
         self.artifact().is_some()
@@ -185,32 +142,13 @@ impl<M: StateMachine, S: Session> Write for Protocol<M, S> {
 }
 
 impl<M: StateMachine, S: Session> Session for Protocol<M, S> {
-    type Inner = S;
     type Artifact = ProtocolArtifact<M, S>;
-
-    fn run_handshake(&mut self) -> io::Result<()> {
-        log::debug!(target: M::NAME, "Starting handshake protocol {}", M::NAME);
-
-        if !self.session.is_established() {
-            self.session.run_handshake()?;
-        }
-
-        self.state.run_handshake(self.session.stream())
-    }
 
     fn artifact(&self) -> Option<Self::Artifact> {
         Some(ProtocolArtifact {
             session: self.session.artifact()?,
             state: self.state.artifact()?,
         })
-    }
-
-    fn stream(&mut self) -> &mut TcpStream {
-        self.session.stream()
-    }
-
-    fn disconnect(self) -> io::Result<()> {
-        self.session.disconnect()
     }
 }
 
@@ -239,19 +177,10 @@ impl<M: StateMachine, S: Session + Source> Source for Protocol<M, S> {
 }
 
 impl Session for TcpStream {
-    type Inner = Self;
     type Artifact = SocketAddr;
 
     fn artifact(&self) -> Option<Self::Artifact> {
         self.peer_addr().ok()
-    }
-
-    fn stream(&mut self) -> &mut TcpStream {
-        self
-    }
-
-    fn disconnect(self) -> io::Result<()> {
-        self.shutdown(Shutdown::Both)
     }
 }
 

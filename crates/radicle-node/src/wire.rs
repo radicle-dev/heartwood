@@ -544,7 +544,7 @@ where
                     connection,
                     self.signer.clone().into_inner(),
                 );
-                let transport = match Transport::with_session(session, Link::Inbound) {
+                let transport = match Transport::with_session(session) {
                     Ok(transport) => transport,
                     Err(err) => {
                         log::warn!(target: "wire", "Failed to create transport for accepted connection: {err}");
@@ -968,9 +968,8 @@ where
                         self.signer.clone().into_inner(),
                         self.service.config(),
                     )
-                    .and_then(|session| {
-                        Transport::<WireSession<G>>::with_session(session, Link::Outbound)
-                    }) {
+                    .and_then(Transport::<WireSession<G>>::with_session)
+                    {
                         Ok(transport) => {
                             let token = self.tokens.advance();
                             self.outbound.insert(

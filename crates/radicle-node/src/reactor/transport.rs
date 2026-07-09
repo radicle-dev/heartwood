@@ -5,7 +5,6 @@ use std::{fmt, io};
 
 use mio::event::{Event, Source};
 use mio::{Interest, Registry, Token};
-use radicle::node::Link;
 
 use crate::reactor::session::Session;
 use crate::reactor::{EventHandler, WriteAtomic};
@@ -54,7 +53,6 @@ pub enum TransportState {
 pub struct Transport<S: Session> {
     state: TransportState,
     session: S,
-    link_direction: Link,
     write_intent: bool,
     read_buffer: Box<[u8; READ_BUFFER_SIZE]>,
     write_buffer: VecDeque<u8>,
@@ -63,9 +61,7 @@ pub struct Transport<S: Session> {
 impl<S: Session> std::fmt::Debug for Transport<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Transport")
-            .field("session", &self.session.display())
             .field("state", &self.state)
-            .field("link_direction", &self.link_direction)
             .field("write_intent", &self.write_intent)
             .finish()
     }
@@ -101,7 +97,6 @@ impl<S: Session> Display for Transport<S> {
             None => f
                 .debug_struct("Transport")
                 .field("state", &self.state)
-                .field("link_direction", &self.link_direction)
                 .field("write_intent", &self.write_intent)
                 .finish(),
             Some(id) => Display::fmt(&id, f),
@@ -117,7 +112,7 @@ impl<S: Session> Transport<S> {
     /// # Errors
     ///
     /// If a session can be put into a non-blocking mode.
-    pub fn with_session(session: S, link_direction: Link) -> io::Result<Self> {
+    pub fn with_session(session: S) -> io::Result<Self> {
         let state = if session.is_established() {
             // If we are disconnected, we will get instantly updated from the
             // reactor and the state will change automatically
@@ -128,7 +123,6 @@ impl<S: Session> Transport<S> {
         Ok(Self {
             state,
             session,
-            link_direction,
             write_intent: true,
             read_buffer: Box::new([0u8; READ_BUFFER_SIZE]),
             write_buffer: VecDeque::new(),
@@ -136,7 +130,10 @@ impl<S: Session> Transport<S> {
     }
 
     pub fn display(&self) -> impl Display {
-        self.session.display()
+        self.session
+            .artifact()
+            .map(|artifact| artifact.to_string())
+            .unwrap_or_else(|| "<no-artifact>".to_string())
     }
 
     fn terminate(&mut self, reason: io::Error) -> SessionEvent<S> {
