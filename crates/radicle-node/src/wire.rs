@@ -1117,17 +1117,22 @@ pub fn dial(
     let inet_addr: Address = match (remote_addr.host(), config.proxy) {
         // For IP and DNS addresses, use the global proxy if set; otherwise, use the address as-is.
         (Host::Ip(_), Some(proxy)) => proxy.into(),
-        (Host::Ip(ip), None) => Address::new(Host::Ip(*ip), remote_addr.port()),
+        (Host::Ip(ip), None) => Address::new(Host::Ip(*ip), remote_addr.port().unwrap().get()),
         (Host::Dns(_), Some(proxy)) => proxy.into(),
-        (Host::Dns(dns), None) => Address::new(Host::Dns(dns.clone()), remote_addr.port()),
+        (Host::Dns(dns), None) => {
+            Address::new(Host::Dns(dns.clone()), remote_addr.port().unwrap().get())
+        }
         // For onion addresses, handle with care.
         #[cfg(feature = "tor")]
-        (host @ Host::Tor(_), proxy) => {
-            proxy_or_forward(&config.onion, proxy, host, remote_addr.port())?
-        }
+        (host @ Host::Tor(_), proxy) => proxy_or_forward(
+            &config.onion,
+            proxy,
+            host,
+            remote_addr.port().unwrap().get(),
+        )?,
         #[cfg(feature = "i2p")]
         (host @ Host::I2p(_), proxy) => {
-            proxy_or_forward(&config.i2p, proxy, host, remote_addr.port())?
+            proxy_or_forward(&config.i2p, proxy, host, remote_addr.port().unwrap().get())?
         }
         _ => {
             return Err(io::Error::new(

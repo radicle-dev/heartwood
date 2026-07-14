@@ -2669,7 +2669,7 @@ where
             AddressType::Onion => self.config.onion != radicle::node::config::AddressConfig::Drop,
             #[cfg(feature = "i2p")]
             AddressType::I2p => self.config.i2p != radicle::node::config::AddressConfig::Drop,
-            AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
+            AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 | AddressType::Iroh => true,
             _ => false,
         }
     }

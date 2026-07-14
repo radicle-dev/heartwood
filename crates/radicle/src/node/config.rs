@@ -335,7 +335,8 @@ pub struct RateLimits {
     schemars(description = "\
         A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
         followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
-        name, or an I2P address, followed by the symbol ':', followed by a TCP port number.\
+        name, or an I2P address, followed by the symbol ':', followed by a TCP port number,
+        or the string 'iroh'.\
     ",
     extend("examples" = [
         "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.network:8776",
@@ -343,8 +344,9 @@ pub struct RateLimits {
         "z6Mkvky2mnSYCTUMKRdAUoZXBXLLKtnWEkWeYQcGjjnmobAU@f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
         "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
         "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
+        "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iroh",
     ],
-    "pattern" = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
+    "pattern" = r"^.+@((.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4})))|iroh)$",
     ),
 ))]
 #[serde(into = "String", try_from = "String")]
@@ -356,6 +358,13 @@ pub struct ConnectAddress {
 impl ConnectAddress {
     pub fn new(id: NodeId, addr: Address) -> Self {
         Self { id, addr }
+    }
+
+    pub fn iroh(id: NodeId) -> Self {
+        Self {
+            id,
+            addr: Address::iroh(),
+        }
     }
 
     pub fn id(&self) -> &NodeId {
@@ -1063,6 +1072,42 @@ mod test {
         expected.external_addresses = vec![address.parse().unwrap()];
         assert_eq!(got.alias, expected.alias);
         assert_eq!(got.external_addresses, expected.external_addresses);
+    }
+
+    #[test]
+    fn iroh() {
+        let config = json!({
+            "alias": "radicle",
+            "connect": [
+                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iroh"
+            ],
+        });
+        let got: super::Config = serde_json::from_value(config).unwrap();
+        assert_eq!(got.alias.to_string(), "radicle");
+        assert_eq!(
+            got.connect[0].addr().address_type(),
+            crate::node::address::AddressType::Iroh
+        );
+    }
+
+    #[cfg(feature = "schemars")]
+    #[test]
+    fn iroh_schema() {
+        use super::Config;
+        use serde_json::to_value;
+
+        let config = json!({
+            "alias": "radicle",
+            "connect": [
+                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iroh"
+            ],
+        });
+        let got: Config = serde_json::from_value(config).unwrap();
+
+        let schema = to_value(schemars::schema_for!(Config)).unwrap();
+        let config = to_value(got).unwrap();
+        jsonschema::validate(&schema, &config)
+            .expect("generated configuration should validate under generated JSON Schema");
     }
 
     #[test]
