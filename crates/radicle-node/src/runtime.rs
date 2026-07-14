@@ -4,6 +4,7 @@ pub mod thread;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::str::FromStr as _;
+use std::sync::mpsc;
 use std::{fs, io, net};
 
 #[cfg(unix)]
@@ -11,7 +12,6 @@ use std::os::unix::net::UnixListener;
 #[cfg(windows)]
 use uds_windows::UnixListener;
 
-use crossbeam_channel as chan;
 use cyphernet::Ecdh;
 use radicle::cob::migrate;
 use radicle::crypto;
@@ -117,7 +117,7 @@ pub struct Runtime {
     pub reactor: Reactor,
     pub pool: worker::Pool,
     pub local_addrs: Vec<net::SocketAddr>,
-    pub signals: chan::Receiver<Signal>,
+    pub signals: mpsc::Receiver<Signal>,
 }
 
 impl Runtime {
@@ -129,7 +129,7 @@ impl Runtime {
         config: radicle::node::Config,
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
-        signals: chan::Receiver<Signal>,
+        signals: mpsc::Receiver<Signal>,
         signer: Device<G>,
     ) -> Result<Runtime, Error>
     where
@@ -222,7 +222,8 @@ impl Runtime {
         );
         service.initialize(clock)?;
 
-        let (worker_send, worker_recv) = chan::bounded::<worker::Task>(MAX_PENDING_TASKS);
+        let (worker_send, worker_recv) =
+            crossbeam_channel::bounded::<worker::Task>(MAX_PENDING_TASKS);
         let mut wire = Wire::new(service, worker_send, signer.clone());
         let mut local_addrs = Vec::new();
 

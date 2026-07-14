@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
 
-use crossbeam_channel as chan;
 use thiserror::Error;
 
 use radicle::node::device::Device;
@@ -354,7 +353,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
     }
 
     let signals = {
-        let (notify, signals) = chan::bounded(1);
+        let (notify, signals) = std::sync::mpsc::sync_channel(1);
         signals::install(notify)?;
         signals
     };

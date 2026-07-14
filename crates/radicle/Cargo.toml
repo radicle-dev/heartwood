@@ -32,7 +32,6 @@ tor = ["cyphernet/tor"]
 [dependencies]
 base64 = "0.21.3"
 bytesize = { version = "2", features = ["serde"] }
-crossbeam-channel = { workspace = true }
 cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
 dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }

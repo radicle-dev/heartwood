@@ -15,9 +15,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::IpAddr;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::{fmt, net, time};
 
-use crossbeam_channel as chan;
 use fastrand::Rng;
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -248,7 +248,7 @@ pub struct FetchState {
     /// What refs we're fetching.
     pub refs_at: Vec<RefsAt>,
     /// Channels waiting for fetch results.
-    pub subscribers: Vec<chan::Sender<FetchResult>>,
+    pub subscribers: Vec<mpsc::Sender<FetchResult>>,
 }
 
 /// Holds all node stores.

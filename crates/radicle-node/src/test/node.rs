@@ -3,13 +3,12 @@ use std::io::BufRead as _;
 use std::mem::ManuallyDrop;
 use std::net::Ipv4Addr;
 use std::path::Path;
+use std::sync::mpsc;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs, io, iter, net, process, thread, time,
     time::Duration,
 };
-
-use crossbeam_channel as chan;
 
 use crate::node::NodeId;
 use crate::node::device::Device;
@@ -479,7 +478,7 @@ impl<G: cyphernet::Ecdh<Pk = NodeId> + Signer<Signature> + Clone + Debug> Node<G
     pub fn spawn(self) -> NodeHandle<G> {
         let alias = self.config.alias.clone();
         let listen = vec![(Ipv4Addr::LOCALHOST, 0).into()];
-        let (_, signals) = chan::bounded(1);
+        let (_, signals) = mpsc::sync_channel(1);
         let rt = Runtime::init(
             self.home.clone(),
             self.config,

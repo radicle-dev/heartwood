@@ -2910,7 +2910,6 @@ version = "0.24.0"
 dependencies = [
  "base64 0.21.7",
  "bytesize",
- "crossbeam-channel",
  "cyphernet",
  "dunce",
  "emojis",
@@ -3199,7 +3198,6 @@ version = "0.8.0"
 dependencies = [
  "bloomy",
  "bytes",
- "crossbeam-channel",
  "cypheraddr",
  "fastrand",
  "log",
@@ -3242,7 +3240,6 @@ dependencies = [
 name = "radicle-signals"
 version = "0.11.0"
 dependencies = [
- "crossbeam-channel",
  "libc",
  "signals_receipts",
  "windows 0.62.2",
@@ -3286,7 +3283,6 @@ name = "radicle-term"
 version = "0.18.0"
 dependencies = [
  "anstyle-query",
- "crossbeam-channel",
  "crossterm",
  "git2",
  "indicatif",

@@ -1,8 +1,5 @@
 use std::{collections::HashSet, fmt, sync::Arc, time};
 
-use crossbeam_channel::Receiver;
-use crossbeam_channel::SendError;
-use crossbeam_channel::Sender;
 use radicle::crypto::PublicKey;
 use radicle::node::FetchResult;
 use radicle::node::Seeds;
@@ -11,6 +8,9 @@ use radicle::node::{Address, Alias, Config, ConnectOptions};
 use radicle::storage::refs;
 use radicle::storage::refs::RefsAt;
 use radicle_core::{NodeId, RepoId};
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SendError;
+use std::sync::mpsc::SyncSender;
 use thiserror::Error;
 
 use super::ServiceState;
@@ -34,13 +34,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// - [`Responder::err`]
 #[derive(Debug)]
 pub struct Responder<T> {
-    channel: Sender<Result<T>>,
+    channel: SyncSender<Result<T>>,
 }
 
 impl<T> Responder<T> {
     /// Construct a new [`Responder`] and its corresponding [`Receiver`].
     pub fn oneshot() -> (Self, Receiver<Result<T>>) {
-        let (sender, receiver) = crossbeam_channel::bounded(1);
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         (Self { channel: sender }, receiver)
     }
 
@@ -107,9 +107,9 @@ pub enum Command {
     /// Unfollow the given node.
     Unfollow(NodeId, Responder<bool>),
     /// Block the given node.
-    Block(NodeId, Sender<bool>),
+    Block(NodeId, SyncSender<bool>),
     /// Query the internal service state.
-    QueryState(Arc<QueryState>, Sender<Result<()>>),
+    QueryState(Arc<QueryState>, SyncSender<Result<()>>),
 }
 
 impl Command {
@@ -192,7 +192,7 @@ impl Command {
         (Self::Unfollow(node_id, responder), receiver)
     }
 
-    pub fn query_state(state: Arc<QueryState>, sender: Sender<Result<()>>) -> Self {
+    pub fn query_state(state: Arc<QueryState>, sender: SyncSender<Result<()>>) -> Self {
         Self::QueryState(state, sender)
     }
 }

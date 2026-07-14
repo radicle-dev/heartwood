@@ -3,6 +3,7 @@ use std::net;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::{fmt, io, time};
 
 #[cfg(unix)]
@@ -10,7 +11,6 @@ use std::os::unix::net::UnixStream;
 #[cfg(windows)]
 use uds_windows::UnixStream;
 
-use crossbeam_channel as chan;
 use radicle::crypto::PublicKey;
 use radicle::node::events::{Event, Events};
 use radicle::node::policy;
@@ -49,23 +49,23 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-impl From<chan::RecvError> for Error {
-    fn from(_: chan::RecvError) -> Self {
+impl From<mpsc::RecvError> for Error {
+    fn from(_: mpsc::RecvError) -> Self {
         Self::ChannelDisconnected
     }
 }
 
-impl From<chan::RecvTimeoutError> for Error {
-    fn from(err: chan::RecvTimeoutError) -> Self {
+impl From<mpsc::RecvTimeoutError> for Error {
+    fn from(err: mpsc::RecvTimeoutError) -> Self {
         match err {
-            chan::RecvTimeoutError::Timeout => Self::Timeout,
-            chan::RecvTimeoutError::Disconnected => Self::ChannelDisconnected,
+            mpsc::RecvTimeoutError::Timeout => Self::Timeout,
+            mpsc::RecvTimeoutError::Disconnected => Self::ChannelDisconnected,
         }
     }
 }
 
-impl<T> From<chan::SendError<T>> for Error {
-    fn from(_: chan::SendError<T>) -> Self {
+impl<T> From<mpsc::SendError<T>> for Error {
+    fn from(_: mpsc::SendError<T>) -> Self {
         Self::ChannelDisconnected
     }
 }
@@ -145,12 +145,12 @@ impl radicle::node::Handle for Handle {
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (sender, receiver) = mpsc::sync_channel(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
             sender.send(*state.nid()).ok();
             Ok(())
         });
-        let (err_sender, err_receiver) = chan::bounded(1);
+        let (err_sender, err_receiver) = mpsc::sync_channel(1);
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -268,7 +268,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn block(&mut self, id: NodeId) -> Result<bool, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (sender, receiver) = mpsc::sync_channel(1);
         self.command(service::Command::Block(id, sender))?;
         receiver.recv().map_err(Error::from)
     }
@@ -315,7 +315,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn sessions(&self) -> Result<Self::Sessions, Error> {
-        let (sender, receiver) = chan::unbounded();
+        let (sender, receiver) = mpsc::channel();
         let query: Arc<QueryState> = Arc::new(move |state| {
             let sessions = state
                 .sessions()
@@ -326,7 +326,7 @@ impl radicle::node::Handle for Handle {
 
             Ok(())
         });
-        let (err_sender, err_receiver) = chan::bounded(1);
+        let (err_sender, err_receiver) = mpsc::sync_channel(1);
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -336,14 +336,14 @@ impl radicle::node::Handle for Handle {
     }
 
     fn session(&self, nid: NodeId) -> Result<Option<radicle::node::Session>, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (sender, receiver) = mpsc::sync_channel(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
             let session = state.sessions().get(&nid).map(radicle::node::Session::from);
             sender.send(session).ok();
 
             Ok(())
         });
-        let (err_sender, err_receiver) = chan::bounded(1);
+        let (err_sender, err_receiver) = mpsc::sync_channel(1);
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -374,7 +374,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn debug(&self) -> Result<serde_json::Value, Self::Error> {
-        let (sender, receiver) = chan::bounded(1);
+        let (sender, receiver) = mpsc::sync_channel(1);
         let query: Arc<QueryState> = Arc::new(move |state| {
             let fetching = debug::Fetching::new(state.fetching());
             let debug = serde_json::json!({
@@ -388,7 +388,7 @@ impl radicle::node::Handle for Handle {
                 }).collect::<Vec<_>>(),
                 "events": json!({
                     "subscribers": state.emitter().subscriptions(),
-                    "pending": state.emitter().pending(),
+                    "pending": serde_json::Value::Null,
                 }),
                 "metrics": state.metrics(),
             });
@@ -396,7 +396,7 @@ impl radicle::node::Handle for Handle {
 
             Ok(())
         });
-        let (err_sender, err_receiver) = chan::bounded(1);
+        let (err_sender, err_receiver) = mpsc::sync_channel(1);
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 

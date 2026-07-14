@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
+use std::sync::mpsc;
 use std::{fmt, time};
 
-use crossbeam_channel as chan;
 use radicle::node::{FetchResult, Severity};
 use radicle::node::{Link, Timestamp};
 pub use radicle::node::{PingState, State};
@@ -91,7 +91,7 @@ pub struct QueuedFetch {
     /// The timeout given for the fetch request.
     pub timeout: time::Duration,
     /// Result channel.
-    pub channel: Option<chan::Sender<FetchResult>>,
+    pub channel: Option<mpsc::Sender<FetchResult>>,
 }
 
 impl PartialEq for QueuedFetch {

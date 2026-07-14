@@ -143,7 +143,7 @@ pub fn spinner_to(
     let progress = Arc::new(Mutex::new(Progress::new(Paint::new(message.clone()))));
 
     #[cfg(unix)]
-    let (sig_tx, sig_rx) = crossbeam_channel::unbounded();
+    let (sig_tx, sig_rx) = std::sync::mpsc::sync_channel(1);
 
     #[cfg(unix)]
     let sig_result = radicle_signals::install(sig_tx);

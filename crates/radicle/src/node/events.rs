@@ -5,9 +5,8 @@ pub use upload_pack::UploadPack;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc;
 use std::time;
-
-use crossbeam_channel as chan;
 
 use crate::git::Oid;
 use crate::git::fmt::Qualified;
@@ -142,25 +141,25 @@ impl From<upload_pack::UploadPack> for Event {
 }
 
 /// Events feed.
-pub struct Events(chan::Receiver<Event>);
+pub struct Events(mpsc::Receiver<Event>);
 
 impl IntoIterator for Events {
     type Item = Event;
-    type IntoIter = chan::IntoIter<Event>;
+    type IntoIter = mpsc::IntoIter<Event>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl From<chan::Receiver<Event>> for Events {
-    fn from(value: chan::Receiver<Event>) -> Self {
+impl From<mpsc::Receiver<Event>> for Events {
+    fn from(value: mpsc::Receiver<Event>) -> Self {
         Self(value)
     }
 }
 
 impl Deref for Events {
-    type Target = chan::Receiver<Event>;
+    type Target = mpsc::Receiver<Event>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -170,7 +169,7 @@ impl Deref for Events {
 impl Events {
     /// Listen for events, and wait for the given predicate to return something,
     /// or timeout if the specified amount of time has elapsed.
-    pub fn wait<F, T>(&self, mut f: F, timeout: time::Duration) -> Result<T, chan::RecvTimeoutError>
+    pub fn wait<F, T>(&self, mut f: F, timeout: time::Duration) -> Result<T, mpsc::RecvTimeoutError>
     where
         F: FnMut(&Event) -> Option<T>,
     {
@@ -184,16 +183,16 @@ impl Events {
                             return Ok(output);
                         }
                     }
-                    Err(err @ chan::RecvTimeoutError::Disconnected) => {
+                    Err(err @ mpsc::RecvTimeoutError::Disconnected) => {
                         return Err(err);
                     }
-                    Err(chan::RecvTimeoutError::Timeout) => {
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
                         // Keep trying until our timeout reaches zero.
                         continue;
                     }
                 }
             } else {
-                return Err(chan::RecvTimeoutError::Timeout);
+                return Err(mpsc::RecvTimeoutError::Timeout);
             }
         }
     }
@@ -202,7 +201,7 @@ impl Events {
 /// Publishes events to subscribers.
 #[derive(Debug, Clone)]
 pub struct Emitter<T> {
-    subscribers: Arc<Mutex<Vec<chan::Sender<T>>>>,
+    subscribers: Arc<Mutex<Vec<mpsc::SyncSender<T>>>>,
 }
 
 impl<T> Default for Emitter<T> {
@@ -238,8 +237,8 @@ impl<T: Clone> Emitter<T> {
     }
 
     /// Subscribe to events stream.
-    pub fn subscribe(&self) -> chan::Receiver<T> {
-        let (sender, receiver) = chan::bounded(MAX_PENDING_EVENTS);
+    pub fn subscribe(&self) -> mpsc::Receiver<T> {
+        let (sender, receiver) = mpsc::sync_channel(MAX_PENDING_EVENTS);
         // SAFETY: We deliberately propagate panics from other threads holding the lock.
         #[allow(clippy::unwrap_used)]
         let mut subs = self.subscribers.lock().unwrap();
@@ -253,17 +252,5 @@ impl<T: Clone> Emitter<T> {
         // SAFETY: We deliberately propagate panics from other threads holding the lock.
         #[allow(clippy::unwrap_used)]
         self.subscribers.lock().unwrap().len()
-    }
-
-    /// Number of messages that have not yet been received.
-    pub fn pending(&self) -> usize {
-        // SAFETY: We deliberately propagate panics from other threads holding the lock.
-        #[allow(clippy::unwrap_used)]
-        self.subscribers
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|ch| ch.len())
-            .sum()
     }
 }

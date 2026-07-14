@@ -17,7 +17,7 @@ use crate::fetcher::{
 /// and all notified when the fetch completes.
 ///
 /// # Type Parameter
-/// - `S`: The subscriber type (e.g., `chan::Sender<FetchResult>`).
+/// - `S`: The subscriber type (e.g., `mpsc::Sender<FetchResult>`).
 #[derive(Debug)]
 pub struct FetcherService<S> {
     state: FetcherState,
