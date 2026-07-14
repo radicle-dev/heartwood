@@ -9,10 +9,6 @@ use std::time::Instant;
 use std::{io, net, time};
 
 use crossbeam_channel as chan;
-use cyphernet::addr::{HostName, InetHost, NetAddr};
-use cyphernet::encrypt::noise::{HandshakePattern, Keyset, NoiseState};
-use cyphernet::proxy::socks5;
-use cyphernet::{Digest, Sha256};
 use localtime::{LocalDuration, LocalTime};
 use mio::net::TcpStream;
 use protocol::deserializer::Deserializer;
@@ -25,25 +21,19 @@ use protocol::wire::*;
 use protocol::worker::{FetchRequest, FetchResult};
 use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto::{self, Signer as _};
-use radicle::node::Link;
 use radicle::node::NodeId;
 #[cfg(any(feature = "i2p", feature = "tor"))]
 use radicle::node::config::AddressConfig;
+use radicle::node::{Address, Host, Link};
 use radicle::storage::WriteStorage;
 
 use crate::reactor;
+use crate::reactor::SessionEvent;
 use crate::reactor::{Listener, Transport};
-use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
 use crate::reactor::{Token, Tokens};
 use crate::worker;
 use crate::worker::channels::{ChannelEvent, ChannelsConfig};
 use crate::worker::{Task, TaskResult};
-
-/// NoiseXK handshake pattern.
-pub const NOISE_XK: HandshakePattern = HandshakePattern {
-    initiator: cyphernet::encrypt::noise::InitiatorPattern::Xmitted,
-    responder: cyphernet::encrypt::noise::OneWayPattern::Known,
-};
 
 /// Default time to wait until a network connection is considered inactive.
 pub const DEFAULT_CONNECTION_TIMEOUT: time::Duration = time::Duration::from_secs(6);
@@ -64,7 +54,7 @@ pub enum Control {
 }
 
 /// Peer session type.
-type WireSession = NoiseSession<crypto::SigningKey, Sha256, Socks5Session<TcpStream>>;
+type WireSession = TcpStream;
 
 /// Reactor action.
 type Action = reactor::Action<Listener, Transport<WireSession>>;
@@ -173,7 +163,7 @@ struct Outbound {
     /// Token for I/O event notification.
     token: Token,
     /// Remote address.
-    addr: NetAddr<HostName>,
+    addr: Address,
     /// Remote Node ID.
     nid: NodeId,
 }
@@ -184,7 +174,7 @@ enum Peer {
     /// Peers in this state are handled by the underlying service.
     Connected {
         #[allow(dead_code)]
-        addr: NetAddr<HostName>,
+        addr: Address,
         link: Link,
         nid: NodeId,
         inbox: Deserializer<MAX_INBOX_SIZE, Frame>,
@@ -225,7 +215,7 @@ impl Peer {
     }
 
     /// Connected peer.
-    fn connected(nid: NodeId, addr: NetAddr<HostName>, link: Link) -> Self {
+    fn connected(nid: NodeId, addr: Address, link: Link) -> Self {
         Self::Connected {
             link,
             addr,
@@ -524,8 +514,8 @@ where
     ) {
         match event {
             Ok((connection, peer)) => {
-                let remote = NetAddr::from(peer);
-                let InetHost::Ip(ip) = remote.host else {
+                let remote = Address::from(peer);
+                let Host::Ip(ip) = remote.host() else {
                     log::debug!(target: "wire", "Unexpected host type for inbound connection {remote}; dropping..");
                     drop(connection);
 
@@ -535,14 +525,14 @@ where
 
                 // If the service doesn't want to accept this connection,
                 // we drop the connection here, which disconnects the socket.
-                if !self.service.accepted(ip) {
+                if !self.service.accepted(*ip) {
                     log::debug!(target: "wire", "Rejecting inbound connection from {ip}..");
                     drop(connection);
 
                     return;
                 }
 
-                let session = accept(remote.clone().into(), connection, self.secret_key.clone());
+                let session = accept(remote.clone(), connection, self.secret_key.clone());
                 let transport = match Transport::with_session(session) {
                     Ok(transport) => transport,
                     Err(err) => {
@@ -582,9 +572,10 @@ where
 
     fn transport_reacted(&mut self, token: Token, event: SessionEvent<WireSession>, _: Instant) {
         match event {
-            SessionEvent::Established(ProtocolArtifact { state, session }) => {
-                // SAFETY: With the NoiseXK protocol, there is always a remote static key.
-                let nid: NodeId = NodeId::from(*state.remote_static_key.unwrap().public_key());
+            SessionEvent::Established(addr) => {
+                // NOTE: The Noise handshake was removed, so there is no way to obtain
+                // the remote peer's static public key.
+                let nid: NodeId = NodeId::from_bytes([0u8; 32]);
                 // Make sure we don't try to connect to ourselves by mistake.
                 if &nid == self.secret_key.public_key() {
                     log::warn!(target: "wire", "Self-connection detected, disconnecting..");
@@ -593,7 +584,7 @@ where
                     return;
                 }
 
-                let established_addr: NetAddr<HostName> = session.state;
+                let established_addr: Address = addr.into();
                 let (addr, link) = if self.inbound.remove(&token) {
                     self.metrics.peer(nid).inbound_connection_attempts += 1;
                     (established_addr, Link::Inbound)
@@ -681,7 +672,7 @@ where
                 if !disconnect.contains(&token) {
                     self.peers
                         .insert(token, Peer::connected(nid, addr.clone(), link));
-                    self.service.connected(nid, addr.into(), link);
+                    self.service.connected(nid, addr, link);
                 }
             }
             SessionEvent::Data(data) => {
@@ -964,7 +955,7 @@ where
                     self.metrics.peer(node_id).outbound_connection_attempts += 1;
 
                     match dial(
-                        (*addr).clone(),
+                        addr.clone(),
                         node_id,
                         self.secret_key.clone(),
                         self.service.config(),
@@ -978,7 +969,7 @@ where
                                 Outbound {
                                     token,
                                     nid: node_id,
-                                    addr: (*addr).clone(),
+                                    addr: addr.clone(),
                                 },
                             );
                             log::debug!(
@@ -1087,7 +1078,7 @@ where
 
 /// Establish a new outgoing connection.
 pub fn dial(
-    remote_addr: NetAddr<HostName>,
+    remote_addr: Address,
     remote_id: crypto::PublicKey,
     signer: crypto::SigningKey,
     config: &radicle::node::Config,
@@ -1097,21 +1088,22 @@ pub fn dial(
         .map_err(|source| io::Error::new(io::ErrorKind::InvalidInput, source.to_string()))?;
 
     #[cfg(any(feature = "i2p", feature = "tor"))]
-    fn proxy_or_forward<H: std::fmt::Display>(
+    fn proxy_or_forward(
         config: &AddressConfig,
         global_proxy: Option<net::SocketAddr>,
-        host: H,
+        host: &Host,
         port: u16,
-    ) -> io::Result<NetAddr<InetHost>> {
+    ) -> io::Result<Address> {
         match config {
             // In proxy mode, simply use the configured proxy address.
             // This takes precedence over any global proxy.
             AddressConfig::Proxy { address } => Ok((*address).into()),
             // In "forward" mode, if a global proxy is set, we use that; otherwise,
             // we treat the address as a regular DNS name.
-            AddressConfig::Forward => Ok(global_proxy
-                .map(Into::into)
-                .unwrap_or_else(|| NetAddr::new(InetHost::Dns(host.to_string()), port))),
+            AddressConfig::Forward => match global_proxy {
+                Some(proxy) => Ok(proxy.into()),
+                None => Ok(Address::new(host.clone(), port)),
+            },
             // If address type support isn't configured, refuse to connect.
             AddressConfig::Drop => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -1122,19 +1114,21 @@ pub fn dial(
 
     // Determine what address to establish a TCP connection with, given the remote peer
     // address and our node configuration.
-    let inet_addr: NetAddr<InetHost> = match (&remote_addr.host, config.proxy) {
+    let inet_addr: Address = match (remote_addr.host(), config.proxy) {
         // For IP and DNS addresses, use the global proxy if set; otherwise, use the address as-is.
-        (HostName::Ip(_), Some(proxy)) => proxy.into(),
-        (HostName::Ip(ip), None) => NetAddr::new(InetHost::Ip(*ip), remote_addr.port),
-        (HostName::Dns(_), Some(proxy)) => proxy.into(),
-        (HostName::Dns(dns), None) => NetAddr::new(InetHost::Dns(dns.clone()), remote_addr.port),
+        (Host::Ip(_), Some(proxy)) => proxy.into(),
+        (Host::Ip(ip), None) => Address::new(Host::Ip(*ip), remote_addr.port()),
+        (Host::Dns(_), Some(proxy)) => proxy.into(),
+        (Host::Dns(dns), None) => Address::new(Host::Dns(dns.clone()), remote_addr.port()),
         // For onion addresses, handle with care.
         #[cfg(feature = "tor")]
-        (HostName::Tor(onion), proxy) => {
-            proxy_or_forward(&config.onion, proxy, onion, remote_addr.port)?
+        (host @ Host::Tor(_), proxy) => {
+            proxy_or_forward(&config.onion, proxy, host, remote_addr.port())?
         }
         #[cfg(feature = "i2p")]
-        (HostName::I2p(i2p), proxy) => proxy_or_forward(&config.i2p, proxy, i2p, remote_addr.port)?,
+        (host @ Host::I2p(_), proxy) => {
+            proxy_or_forward(&config.i2p, proxy, host, remote_addr.port())?
+        }
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -1173,7 +1167,7 @@ pub fn dial(
 
 /// Accept a new connection.
 pub fn accept(
-    remote_addr: NetAddr<HostName>,
+    remote_addr: Address,
     connection: TcpStream,
     secret_key: crypto::SigningKey,
 ) -> WireSession {
@@ -1182,11 +1176,11 @@ pub fn accept(
 
 /// Create a new [`WireSession`].
 fn session(
-    remote_addr: NetAddr<HostName>,
-    remote_id: Option<crypto::VerifyingKey>,
+    _remote_addr: Address,
+    _remote_id: Option<crypto::VerifyingKey>,
     connection: TcpStream,
-    force_proxy: bool,
-    secret_key: crypto::SigningKey,
+    _force_proxy: bool,
+    _secret_key: crypto::SigningKey,
 ) -> WireSession {
     if let Err(e) = connection.set_nodelay(true) {
         log::warn!(target: "wire", "Unable to set TCP_NODELAY on socket {connection:?}: {e}");
@@ -1251,28 +1245,7 @@ fn session(
     #[cfg(not(feature = "socket2"))]
     log::debug!(target: "wire", "Not attempting to set TCP_KEEPALIVE on socket {connection:?}");
 
-    let connection = TcpStream::from_std(connection);
-
-    let proxy = {
-        let socks5 = socks5::Socks5::with(remote_addr, force_proxy);
-        Socks5Session::new(connection, socks5)
-    };
-
-    let mut random = [0; 32];
-    getrandom::fill(&mut random).expect("failed get random bytes from the operating system");
-
-    let noise = {
-        let keyset = Keyset {
-            e: crypto::SigningKey::from_seed(crypto::Seed::new(random)),
-            s: Some(secret_key),
-            re: None,
-            rs: remote_id,
-        };
-
-        NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, remote_id.is_some(), &[], keyset)
-    };
-
-    WireSession::new(proxy, noise)
+    TcpStream::from_std(connection)
 }
 
 mod logger {
@@ -1437,7 +1410,7 @@ mod test {
         Wire<radicle::node::Database, MockStorage>,
         RepoId,
         NodeId,
-        NetAddr<HostName>,
+        Address,
     ) {
         use crate::test::peer::Peer as TestPeer;
 
@@ -1446,10 +1419,10 @@ mod test {
         let mut alice = TestPeer::with_storage("alice", 7, storage);
         let bob = TestPeer::bob();
         let bob_id = *bob.nid();
-        let bob_addr = NetAddr {
-            host: HostName::Ip(net::IpAddr::from([8, 8, 8, 8])),
-            port: node::DEFAULT_PORT,
-        };
+        let bob_addr = Address::new(
+            Host::Ip(net::IpAddr::from([8, 8, 8, 8])),
+            node::DEFAULT_PORT,
+        );
 
         // Start a fetch from Bob so the service holds `active[rid] = { from: bob }`.
         alice.connect_to(&bob);

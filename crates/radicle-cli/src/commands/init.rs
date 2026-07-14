@@ -308,11 +308,11 @@ fn sync(
 
     // Connect to preferred seeds in case we aren't connected.
     for seed in config.preferred_seeds.iter() {
-        if !sessions.iter().any(|s| s.nid == seed.id) {
+        if !sessions.iter().any(|s| s.nid == *seed.id()) {
             commands::node::control::connect(
                 node,
-                seed.id,
-                seed.addr.clone(),
+                *seed.id(),
+                seed.addr().clone(),
                 radicle::node::DEFAULT_TIMEOUT,
             )
             .ok();
@@ -335,7 +335,7 @@ fn sync(
                 term::success!("Repository successfully synced to {remote}");
                 replicas.insert(remote);
                 // If we manage to replicate to one of our preferred seeds, we can stop waiting.
-                if config.preferred_seeds.iter().any(|s| s.id == remote) {
+                if config.preferred_seeds.iter().any(|s| *s.id() == remote) {
                     break;
                 }
             }
@@ -387,9 +387,13 @@ fn sync(
         spinner.finish();
 
         for seed in config.preferred_seeds.iter() {
-            if replicas.contains(&seed.id) {
+            if replicas.contains(seed.id()) {
                 return Ok(SyncResult::Synced {
-                    result: Some(config.public_explorer.url(seed.addr.host.to_string(), rid)),
+                    result: Some(
+                        config
+                            .public_explorer
+                            .url(seed.addr().host().to_string(), rid),
+                    ),
                 });
             }
         }

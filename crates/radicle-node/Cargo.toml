@@ -13,16 +13,15 @@ rust-version.workspace = true
 [features]
 default = ["backtrace", "i2p", "systemd", "structured-logger", "socket2", "tor"]
 dhat-heap = ["dep:dhat"]
-i2p = ["cyphernet/i2p", "radicle/i2p", "radicle-protocol/i2p"]
+i2p = ["radicle/i2p", "radicle-protocol/i2p"]
 systemd = ["dep:radicle-systemd"]
-test = ["radicle/test", "radicle-crypto/test", "radicle-crypto/cyphernet", "radicle-protocol/test", "qcheck", "snapbox"]
-tor = ["cyphernet/tor", "radicle/tor", "radicle-protocol/tor"]
+test = ["radicle/test", "radicle-crypto/test", "radicle-protocol/test", "qcheck", "snapbox"]
+tor = ["radicle/tor", "radicle-protocol/tor"]
 
 [dependencies]
 backtrace = { workspace = true, optional = true }
 bytes = { workspace = true }
 crossbeam-channel = "0.5.6"
-cyphernet = { workspace = true, features = ["dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
 dhat = { version = "0.3.3", optional = true }
 fastrand = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
@@ -59,6 +58,6 @@ qcheck = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-log = { workspace = true, features = ["test"] }
 radicle-protocol = { workspace = true, features = ["test"] }
-radicle-crypto = { workspace = true, features = ["test", "cyphernet"] }
+radicle-crypto = { workspace = true, features = ["test"] }
 snapbox = { workspace = true }
 test-log = "0.2.19"

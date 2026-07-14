@@ -1,9 +1,9 @@
 use std::str::FromStr as _;
 
+use radicle::node::DEFAULT_TIMEOUT;
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::Scope;
 use radicle::node::{Alias, Handle as _};
-use radicle::node::{DEFAULT_TIMEOUT, PeerAddr};
 use radicle::prelude::RepoId;
 use radicle::profile;
 
@@ -59,41 +59,26 @@ fn rad_config() {
 
 #[test]
 fn rad_warn_old_nodes() {
-    use std::str::FromStr as _;
-
     let mut environment = Environment::new();
     let alias = Alias::new("alice");
+
+    let rosa = "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo"
+        .parse()
+        .unwrap();
+    let iris = "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7"
+        .parse()
+        .unwrap();
 
     let mut config = profile::Config::new(alias);
 
     config.preferred_seeds = vec![
-        ConnectAddress::from(
-            PeerAddr::from_str(
-                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
-            )
-            .unwrap(),
-        ),
-        ConnectAddress::from(
-            PeerAddr::from_str(
-                "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776",
-            )
-            .unwrap(),
-        ),
+        ConnectAddress::new(iris, "seed.radicle.garden:8776".parse().unwrap()),
+        ConnectAddress::new(rosa, "rosa.radicle.xyz:8776".parse().unwrap()),
     ];
 
     config.node.connect = [
-        ConnectAddress::from(
-            PeerAddr::from_str(
-                "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
-            )
-            .unwrap(),
-        ),
-        ConnectAddress::from(
-            PeerAddr::from_str(
-                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776",
-            )
-            .unwrap(),
-        ),
+        ConnectAddress::new(rosa, "ash.radicle.garden:8776".parse().unwrap()),
+        ConnectAddress::new(iris, "iris.radicle.xyz:8776".parse().unwrap()),
     ]
     .into_iter()
     .collect();

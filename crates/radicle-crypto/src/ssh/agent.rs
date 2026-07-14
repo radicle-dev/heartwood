@@ -219,8 +219,10 @@ mod test {
     fn test_agent_encoding_remove() {
         use std::str::FromStr;
 
-        let pk =
-            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let pk = VerifyingKey::try_from(
+            &PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap(),
+        )
+        .unwrap();
         let expected = [
             0, 0, 0, 56, // Message length
             18, // Message type (remove identity)
@@ -254,8 +256,10 @@ mod test {
     fn test_agent_encoding_sign() {
         use std::str::FromStr;
 
-        let pk =
-            VerifyingKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
+        let pk = VerifyingKey::try_from(
+            &PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap(),
+        )
+        .unwrap();
         let expected = [
             0, 0, 0, 73, // Message length
             13, // Message type (sign request)

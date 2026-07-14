@@ -98,7 +98,7 @@ where
 
     match cmd {
         Command::Connect { addr, opts } => {
-            let (nid, addr) = addr.into();
+            let (nid, addr) = addr.into_pair();
             match handle.connect(nid, addr, opts) {
                 Err(e) => return Err(CommandError::Runtime(e)),
                 Ok(result) => {

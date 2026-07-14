@@ -5,10 +5,6 @@ use std::str::FromStr;
 use std::{iter, net};
 
 use crypto::PublicKey;
-#[cfg(feature = "i2p")]
-use cyphernet::addr::i2p::I2pAddr;
-#[cfg(feature = "tor")]
-use cyphernet::{EcPk, addr::tor::OnionAddrV3};
 use qcheck::Arbitrary;
 
 use crate::identity::doc::Visibility;
@@ -19,7 +15,7 @@ use crate::identity::{
     project::Project,
 };
 use crate::node::address::{AddressType, Source};
-use crate::node::{Address, Alias, KnownAddress, Timestamp, UserAgent};
+use crate::node::{Address, Alias, Host, KnownAddress, Timestamp, UserAgent};
 use crate::storage;
 use crate::test::storage::{MockRepository, MockStorage};
 use crate::{cob, git};
@@ -232,29 +228,24 @@ impl Arbitrary for AddressType {
 impl Arbitrary for Address {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let host = match AddressType::arbitrary(g) {
-            AddressType::Ipv4 => cyphernet::addr::HostName::Ip(net::IpAddr::V4(
-                net::Ipv4Addr::from(u32::arbitrary(g)),
-            )),
+            AddressType::Ipv4 => Host::Ip(net::IpAddr::V4(net::Ipv4Addr::from(u32::arbitrary(g)))),
             AddressType::Ipv6 => {
                 let octets: [u8; 16] = Arbitrary::arbitrary(g);
-                cyphernet::addr::HostName::Ip(net::IpAddr::V6(net::Ipv6Addr::from(octets)))
+                Host::Ip(net::IpAddr::V6(net::Ipv6Addr::from(octets)))
             }
-            AddressType::Dns => cyphernet::addr::HostName::Dns(
+            AddressType::Dns => Host::Dns(
                 g.choose(&["iris.radicle.example.com", "rosa.radicle.example.com"])
                     .unwrap()
                     .to_string(),
             ),
             #[cfg(feature = "tor")]
-            AddressType::Onion => {
-                let pk = PublicKey::arbitrary(g);
-                let addr = OnionAddrV3::from(
-                    cyphernet::ed25519::PublicKey::from_pk_compressed(pk.into_inner().into())
-                        .unwrap(),
-                );
-                cyphernet::addr::HostName::Tor(addr)
-            }
+            AddressType::Onion => Host::Tor(tor_hscrypto::pk::HsId::from(
+                PublicKey::arbitrary(g).into_inner(),
+            )),
             #[cfg(feature = "i2p")]
             AddressType::I2p => {
+                use crate::node::Host;
+
                 let address = if bool::arbitrary(g) {
                     let name: String = iter::repeat_with(|| {
                         char::from(
@@ -281,14 +272,11 @@ impl Arbitrary for Address {
 
                 let address = address + suffix;
 
-                cyphernet::addr::HostName::I2p(I2pAddr::from_str(&address).unwrap())
+                Host::I2p(address)
             }
         };
 
-        Address::from(cyphernet::addr::NetAddr {
-            host,
-            port: u16::arbitrary(g),
-        })
+        Address::new(host, u16::arbitrary(g))
     }
 }
 

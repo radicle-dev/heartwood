@@ -28,7 +28,7 @@ use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::address::{AddressBook, AddressType, KnownAddress};
-use radicle::node::config::{PeerConfig, RateLimit};
+use radicle::node::config::{ConnectAddress, PeerConfig, RateLimit};
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::seed;
@@ -51,7 +51,7 @@ use radicle::identity::RepoId;
 use radicle::node::events::Emitter;
 use radicle::node::routing;
 use radicle::node::routing::InsertResult;
-use radicle::node::{Address, Features, FetchResult, HostName, Seed, Seeds, SyncStatus, SyncedAt};
+use radicle::node::{Address, Features, FetchResult, Host, Seed, Seeds, SyncStatus, SyncedAt};
 use radicle::prelude::*;
 use radicle::storage;
 use radicle::storage::{Namespaces, ReadStorage, refs::RefsAt};
@@ -499,7 +499,7 @@ where
         self.filter = Filter::allowed_by(self.policies.seed_policies()?);
         // Connect to configured peers.
         let addrs = self.config.connect.clone();
-        for (id, addr) in addrs.into_iter().map(|ca| ca.into()) {
+        for (id, addr) in addrs.into_iter().map(|ca| ca.into_pair()) {
             if let Err(e) = self.connect(id, addr) {
                 debug!(target: "service", "Service::initialization connection error: {e}");
             }
@@ -806,7 +806,9 @@ where
         match cmd {
             Command::Connect(nid, addr, opts) => {
                 if opts.persistent {
-                    self.config.connect.insert((nid, addr.clone()).into());
+                    self.config
+                        .connect
+                        .insert(ConnectAddress::new(nid, addr.clone()));
                 }
                 if let Err(e) = self.connect(nid, addr) {
                     match e {
@@ -1224,7 +1226,7 @@ where
             }
             Err(e) => warn!(target: "service", "Failed to query ban status for {ip}: {e}"),
         }
-        let host: HostName = ip.into();
+        let host: Host = ip.into();
         let tokens = self.config.limits.rate.inbound;
 
         if self.limiter.limit(host.clone(), None, &tokens, self.clock) {
@@ -1294,12 +1296,12 @@ where
                     self.outbox.write_all(peer, msgs);
                 }
                 Entry::Vacant(e) => {
-                    if let HostName::Ip(ip) = addr.host
-                        && !address::is_local(&ip)
+                    if let Host::Ip(ip) = addr.host()
+                        && !address::is_local(ip)
                         && let Err(e) =
                             self.db
                                 .addresses_mut()
-                                .record_ip(&remote, ip, self.clock.into())
+                                .record_ip(&remote, *ip, self.clock.into())
                     {
                         log::debug!(target: "service", "Failed to record IP address for {remote}: {e}");
                     }
@@ -1764,7 +1766,7 @@ where
         };
         if self
             .limiter
-            .limit(peer.addr.clone().into(), Some(remote), &limit, self.clock)
+            .limit(peer.addr.host().clone(), Some(remote), &limit, self.clock)
         {
             debug!(target: "service", "Rate limiting message from {remote} ({})", peer.addr);
             return Ok(());
@@ -2661,7 +2663,7 @@ where
     /// If the [`Address`] is an I2P address and the service supports I2P
     /// connections then this will return `true`.
     fn is_supported_address(&self, address: &Address) -> bool {
-        match AddressType::from(address) {
+        match address.address_type() {
             // Only consider onion addresses if configured.
             #[cfg(feature = "tor")]
             AddressType::Onion => self.config.onion != radicle::node::config::AddressConfig::Drop,

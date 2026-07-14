@@ -1,15 +1,14 @@
-use std::ops::Deref;
 use std::str::FromStr;
 use std::{fmt, net};
 
-use cyphernet::addr::PeerAddr;
 use indexmap::IndexSet;
 use localtime::LocalDuration;
 use serde::{Deserialize, Serialize};
 use serde_json as json;
 
+use crate::crypto::PublicKeyError;
 use crate::node::policy::SeedingPolicy;
-use crate::node::{self, UserAgent};
+use crate::node::{self, ParseAddressError, UserAgent};
 use crate::node::{Address, Alias, NodeId};
 use crate::storage::refs::FeatureLevel;
 
@@ -22,17 +21,15 @@ pub type ProtocolVersion = u8;
 pub mod seeds {
     use std::{str::FromStr, sync::LazyLock};
 
-    #[cfg(feature = "tor")]
-    use cyphernet::addr::tor::OnionAddrV3;
-    use cyphernet::addr::{HostName, NetAddr};
+    use crate::node::{Address, Host};
 
-    use super::{ConnectAddress, NodeId, PeerAddr};
+    use super::{ConnectAddress, NodeId};
 
     /// A helper to generate many connect addresses for a node, using port 8776.
-    fn to_connect_addresses(id: NodeId, hostnames: Vec<HostName>) -> Vec<ConnectAddress> {
-        hostnames
+    fn to_connect_addresses(id: NodeId, hosts: Vec<Host>) -> Vec<ConnectAddress> {
+        hosts
             .into_iter()
-            .map(|hostname| PeerAddr::new(id, NetAddr::new(hostname, 8776).into()).into())
+            .map(|hostname| ConnectAddress::new(id, Address::new(hostname, 8776)))
             .collect()
     }
 
@@ -42,14 +39,14 @@ pub mod seeds {
             #[allow(clippy::unwrap_used)] // Value is manually verified.
             NodeId::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7").unwrap(),
             vec![
-                HostName::Dns("iris.radicle.network".to_owned()),
+                Host::Dns("iris.radicle.network".to_owned()),
                 #[cfg(feature = "tor")]
-                #[allow(clippy::unwrap_used)] // Value is manually verified.
-                OnionAddrV3::from_str(
-                    "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion",
-                )
-                .unwrap()
-                .into(),
+                Host::Tor(
+                    #[allow(clippy::unwrap_used)] // Value is manually verified.
+                    "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion"
+                        .parse()
+                        .unwrap(),
+                ),
             ],
         )
     });
@@ -60,14 +57,14 @@ pub mod seeds {
             #[allow(clippy::unwrap_used)] // Value is manually verified.
             NodeId::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo").unwrap(),
             vec![
-                HostName::Dns("rosa.radicle.network".to_owned()),
+                Host::Dns("rosa.radicle.network".to_owned()),
                 #[cfg(feature = "tor")]
-                #[allow(clippy::unwrap_used)] // Value is manually verified.
-                OnionAddrV3::from_str(
-                    "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion",
-                )
-                .unwrap()
-                .into(),
+                Host::Tor(
+                    #[allow(clippy::unwrap_used)] // Value is manually verified.
+                    "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion"
+                        .parse()
+                        .unwrap(),
+                ),
             ],
         )
     });
@@ -336,56 +333,84 @@ pub struct RateLimits {
     feature = "schemars",
     derive(schemars::JsonSchema),
     schemars(description = "\
-    A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
-    followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
-    name, or an I2P address, followed by the symbol ':', followed by a TCP port number.\
-")
-)]
-pub struct ConnectAddress(
-    #[serde(with = "crate::serde_ext::string")]
-    #[cfg_attr(feature = "schemars", schemars(
-        with = "String",
-        regex(pattern = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"),
-        extend("examples" = [
-            "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.network:8776",
-            "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
-            "z6Mkvky2mnSYCTUMKRdAUoZXBXLLKtnWEkWeYQcGjjnmobAU@f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
-            "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
-            "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
-        ]),
-    ))]
-    PeerAddr<NodeId, Address>,
-);
+        A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
+        followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
+        name, or an I2P address, followed by the symbol ':', followed by a TCP port number.\
+    ",
+    extend("examples" = [
+        "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.network:8776",
+        "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
+        "z6Mkvky2mnSYCTUMKRdAUoZXBXLLKtnWEkWeYQcGjjnmobAU@f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
+        "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
+        "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
+    ],
+    "pattern" = r"^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
+    ),
+))]
+#[serde(into = "String", try_from = "String")]
+pub struct ConnectAddress {
+    id: NodeId,
+    addr: Address,
+}
 
-impl From<PeerAddr<NodeId, Address>> for ConnectAddress {
-    fn from(value: PeerAddr<NodeId, Address>) -> Self {
-        Self(value)
+impl ConnectAddress {
+    pub fn new(id: NodeId, addr: Address) -> Self {
+        Self { id, addr }
+    }
+
+    pub fn id(&self) -> &NodeId {
+        &self.id
+    }
+
+    pub fn addr(&self) -> &Address {
+        &self.addr
+    }
+
+    pub fn into_pair(self) -> (NodeId, Address) {
+        (self.id, self.addr)
     }
 }
 
-impl From<ConnectAddress> for (NodeId, Address) {
+#[derive(thiserror::Error, Debug)]
+pub enum ParseConnectAddressError {
+    #[error(transparent)]
+    NodeId(#[from] PublicKeyError),
+    #[error(transparent)]
+    Address(#[from] ParseAddressError),
+    #[error("missing '@' delimiter")]
+    At,
+}
+
+impl TryFrom<String> for ConnectAddress {
+    type Error = ParseConnectAddressError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str(&s)
+    }
+}
+
+impl std::str::FromStr for ConnectAddress {
+    type Err = ParseConnectAddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (node, address) = s.split_once('@').ok_or(ParseConnectAddressError::At)?;
+
+        let id = NodeId::from_str(node).map_err(ParseConnectAddressError::NodeId)?;
+        let addr = Address::from_str(address).map_err(ParseConnectAddressError::Address)?;
+
+        Ok(Self { id, addr })
+    }
+}
+
+impl From<ConnectAddress> for String {
     fn from(value: ConnectAddress) -> Self {
-        (value.0.id, value.0.addr)
+        value.to_string()
     }
 }
 
-impl From<(NodeId, Address)> for ConnectAddress {
-    fn from((id, addr): (NodeId, Address)) -> Self {
-        Self(PeerAddr { id, addr })
-    }
-}
-
-impl From<ConnectAddress> for Address {
-    fn from(value: ConnectAddress) -> Self {
-        value.0.addr
-    }
-}
-
-impl Deref for ConnectAddress {
-    type Target = PeerAddr<NodeId, Address>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl std::fmt::Display for ConnectAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}@{}", self.id, self.addr)
     }
 }
 
@@ -709,7 +734,7 @@ impl Config {
     }
 
     pub fn peers(&self) -> impl Iterator<Item = NodeId> + '_ {
-        self.connect.iter().map(|p| p.0.id)
+        self.connect.iter().map(|p| p.id)
     }
 
     pub fn is_persistent(&self, id: &NodeId) -> bool {

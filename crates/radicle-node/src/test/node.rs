@@ -138,7 +138,7 @@ impl NodeHandle {
 
     /// Get the full address of this node.
     pub fn address(&self) -> ConnectAddress {
-        (self.id, node::Address::from(self.addr)).into()
+        ConnectAddress::new(self.id, node::Address::from(self.addr))
     }
 
     /// Get routing table entries.

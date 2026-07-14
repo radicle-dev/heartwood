@@ -101,12 +101,12 @@ impl NodeSession for RealNodeSession {
 
         if let Some(result) = result {
             for seed in profile.config.preferred_seeds.iter() {
-                if result.is_synced(&seed.id) {
+                if result.is_synced(seed.id()) {
                     for resource in updated {
                         let url = profile
                             .config
                             .public_explorer
-                            .url(seed.addr.host.clone(), repo.id)
+                            .url(seed.addr().host().clone(), repo.id)
                             .resource(resource);
 
                         urls.push(url);

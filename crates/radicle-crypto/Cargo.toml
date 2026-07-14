@@ -13,18 +13,15 @@ rust-version.workspace = true
 [features]
 default = ["multibase", "std"]
 alloc = ["ed25519-dalek/alloc", "curve25519-dalek/alloc", "zeroize/alloc"]
-cyphernet = ["dep:cyphernet", "alloc", "diffie-hellman", "getrandom", "multibase"]
 diffie-hellman = []
-multibase = ["dep:multibase", "cyphernet?/multibase"]
+multibase = ["dep:multibase"]
 schemars = ["dep:schemars", "serde"]
 serde = ["dep:serde", "ed25519-dalek/serde", "zeroize/serde"]
 ssh = ["ssh-agent-lib", "ssh-key", "alloc"]
-std = ["alloc", "ed25519-dalek/std", "getrandom?/std", "multibase?/std", "schemars?/std", "serde?/std", "ssh-key?/std", "thiserror/std", "zeroize/std" ]
+std = ["alloc", "ed25519-dalek/std", "multibase?/std", "schemars?/std", "serde?/std", "ssh-key?/std", "thiserror/std", "zeroize/std" ]
 test = ["alloc", "qcheck"]
 
 [dependencies]
-cyphernet = { workspace = true, features = ["ed25519"], optional = true }
-getrandom = { workspace = true, optional = true }
 radicle-git-ref-format = { workspace = true, optional = true }
 multibase = { workspace = true, default-features = false, optional = true }
 qcheck = { workspace = true, optional = true }

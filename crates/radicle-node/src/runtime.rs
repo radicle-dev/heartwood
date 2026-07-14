@@ -180,7 +180,7 @@ impl Runtime {
 
             for (alias, version, addrs) in config.network.bootstrap() {
                 for addr in addrs {
-                    let (id, addr) = addr.into();
+                    let (id, addr) = addr.into_pair();
 
                     stores.addresses_mut().insert(
                         &id,

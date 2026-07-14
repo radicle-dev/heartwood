@@ -232,8 +232,8 @@ fn persistent_peer_connect() {
     let bob = Peer::bob();
     let cid = Peer::cid();
     let connect = IndexSet::<ConnectAddress>::from_iter([
-        (*bob.nid(), bob.address()).into(),
-        (*cid.nid(), cid.address()).into(),
+        ConnectAddress::new(*bob.nid(), bob.address()),
+        ConnectAddress::new(*cid.nid(), cid.address()),
     ]);
 
     let mut amy = Peer::amy_with(move |config| {
@@ -1185,8 +1185,8 @@ fn persistent_peer_reconnect_attempt() {
     let mut bob = Peer::bob();
     let mut cid = Peer::cid();
 
-    let bob_connect = (*bob.nid(), bob.address()).into();
-    let cid_connect = (*cid.nid(), cid.address()).into();
+    let bob_connect = ConnectAddress::new(*bob.nid(), bob.address());
+    let cid_connect = ConnectAddress::new(*cid.nid(), cid.address());
 
     let mut amy = Peer::amy_with(move |config| {
         config.config.connect = IndexSet::from_iter([bob_connect, cid_connect])
@@ -1229,7 +1229,7 @@ fn persistent_peer_reconnect_success() {
 
     let bob = Peer::bob();
 
-    let bob_connect = (*bob.nid(), bob.address()).into();
+    let bob_connect = ConnectAddress::new(*bob.nid(), bob.address());
 
     let mut amy =
         Peer::amy_with(move |config| config.config.connect = IndexSet::from_iter([bob_connect]));
