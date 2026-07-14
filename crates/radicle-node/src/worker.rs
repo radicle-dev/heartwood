@@ -9,7 +9,6 @@ use std::path::PathBuf;
 
 use channels::Channels;
 use crossbeam_channel as chan;
-use protocol::wire::StreamId;
 use protocol::worker::{AuthorizationError, FetchError, FetchRequest, FetchResult, UploadError};
 use radicle::identity::RepoId;
 use radicle::node::notifications;
@@ -20,7 +19,12 @@ use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{Storage, cob, crypto};
 
-use crate::runtime::{handle::Handle, thread};
+use crate::runtime::thread;
+
+pub use channels::{ChannelEvent, ChannelsConfig};
+
+/// Runtime-local identifier for one independent Git connection.
+pub type JobId = u64;
 
 /// Worker pool configuration.
 pub struct Config {
@@ -40,8 +44,9 @@ pub struct Config {
 /// This is either going to be an outgoing or incoming fetch.
 pub struct Task {
     pub fetch: FetchRequest,
-    pub stream: StreamId,
+    pub job: JobId,
     pub channels: Channels,
+    pub result: tokio::sync::oneshot::Sender<TaskResult>,
 }
 
 /// Worker response.
@@ -49,7 +54,8 @@ pub struct Task {
 pub struct TaskResult {
     pub remote: NodeId,
     pub result: FetchResult,
-    pub stream: StreamId,
+    #[allow(unused)] // TODO: We should probably make use of this…
+    pub job: JobId,
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +72,6 @@ struct Worker {
     storage: Storage,
     fetch_config: FetchConfig,
     tasks: chan::Receiver<Task>,
-    handle: Handle,
     policies: policy::Config<policy::store::Read>,
     notifications: notifications::StoreWriter,
     cache: cob::cache::StoreWriter,
@@ -88,20 +93,20 @@ impl Worker {
         Task {
             fetch,
             channels,
-            stream,
+            job,
+            result: result_tx,
         }: Task,
     ) {
         let remote = fetch.remote();
-        let channels = channels::ChannelsFlush::new(self.handle.clone(), channels, remote, stream);
-        let result = self._process(fetch, stream, channels, self.notifications.clone());
+        let channels = channels::ChannelsFlush::new(channels);
+        let result = self._process(fetch, job, channels, self.notifications.clone());
 
         log::trace!(target: "worker", "Sending response back to service..");
 
-        if self
-            .handle
-            .worker_result(TaskResult {
+        if result_tx
+            .send(TaskResult {
                 remote,
-                stream,
+                job,
                 result,
             })
             .is_err()
@@ -113,7 +118,7 @@ impl Worker {
     fn _process(
         &mut self,
         fetch: FetchRequest,
-        stream: StreamId,
+        job: JobId,
         mut channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
     ) -> FetchResult {
@@ -129,7 +134,7 @@ impl Worker {
                 FetchResult::Initiator { rid, result }
             }
             FetchRequest::Responder { remote, emitter } => {
-                log::debug!(target: "worker", "Worker processing incoming fetch for {remote} on stream {stream}..");
+                log::debug!(target: "worker", "Worker processing incoming fetch for {remote} in job {job}..");
 
                 let timeout = channels.timeout();
                 let (mut stream_r, stream_w) = channels.split();
@@ -178,7 +183,7 @@ impl Worker {
                     };
                 };
 
-                log::debug!(target: "worker", "Spawning upload-pack process for {} on stream {stream}..", header.repo);
+                log::debug!(target: "worker", "Spawning upload-pack process for {} in job {job}..", header.repo);
 
                 if let Err(e) = self.is_authorized(remote, header.repo) {
                     return FetchResult::Responder {
@@ -199,7 +204,7 @@ impl Worker {
                 )
                 .map(drop)
                 .map_err(UploadError::UploadPack);
-                log::debug!(target: "worker", "Upload process on stream {stream} exited with result {result:?}");
+                log::debug!(target: "worker", "Upload process in job {job} exited with result {result:?}");
 
                 FetchResult::Responder {
                     rid: Some(header.repo),
@@ -210,6 +215,9 @@ impl Worker {
     }
 
     fn is_authorized(&self, remote: NodeId, rid: RepoId) -> Result<(), AuthorizationError> {
+        if self.policies.is_blocked(&remote)? {
+            return Err(AuthorizationError::Unauthorized(remote, rid));
+        }
         let policy = self.policies.seed_policy(&rid)?.policy;
         // Check policy first, since if we're blocking then we likely don't have
         // the repository.
@@ -281,7 +289,6 @@ impl Pool {
     pub fn with(
         tasks: chan::Receiver<Task>,
         nid: NodeId,
-        handle: Handle,
         notifications: notifications::StoreWriter,
         cache: cob::cache::StoreWriter,
         db: radicle::node::Database,
@@ -294,7 +301,6 @@ impl Pool {
             let worker = Worker {
                 nid,
                 tasks: tasks.clone(),
-                handle: handle.clone(),
                 storage: config.storage.clone(),
                 fetch_config: config.fetch.clone(),
                 policies,

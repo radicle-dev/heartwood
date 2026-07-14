@@ -3,6 +3,8 @@ use std::io::BufReader;
 use std::io::LineWriter;
 use std::io::prelude::*;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, net, time};
 
 #[cfg(unix)]
@@ -33,8 +35,12 @@ pub enum Error {
     Node(#[from] runtime::handle::Error),
 }
 
-/// Listen for commands on the control socket, and process them.
-pub fn listen<E, H>(listener: UnixListener, handle: H) -> Result<(), Error>
+/// Listen until the runtime requests shutdown. The listener must be non-blocking.
+pub fn listen<E, H>(
+    listener: UnixListener,
+    handle: H,
+    stopping: Arc<AtomicBool>,
+) -> Result<(), Error>
 where
     H: Handle<Error = runtime::handle::Error> + 'static,
     H::Sessions: serde::Serialize,
@@ -43,28 +49,37 @@ where
 {
     log::debug!(target: "control", "Control thread listening on socket..");
     let nid = handle.nid()?;
-
-    for incoming in listener.incoming() {
-        match incoming {
-            Ok(mut stream) => {
+    let mut handlers = Vec::new();
+    while !stopping.load(Ordering::Acquire) {
+        match listener.accept() {
+            Ok((mut stream, _)) => {
                 let handle = handle.clone();
-
-                thread::spawn(&nid, "control", move || {
+                let shutdown = stream.try_clone().ok();
+                let join = thread::spawn(&nid, "control", move || {
                     if let Err(e) = command(&stream, handle) {
                         log::debug!(target: "control", "Command returned error: {e}");
-
                         CommandResult::error(e).to_writer(&mut stream).ok();
-
                         stream.flush().ok();
                         stream.shutdown(net::Shutdown::Both).ok();
                     }
                 });
+                handlers.push((shutdown, join));
             }
-            Err(e) => log::warn!(target: "control", "Failed to accept incoming connection: {e}"),
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                std::thread::sleep(time::Duration::from_millis(25));
+            }
+            Err(e) => log::warn!(target: "control", "Failed to accept control connection: {e}"),
         }
     }
-    log::debug!(target: "control", "Exiting control loop..");
-
+    log::debug!(target: "control", "Shutting down.");
+    for (stream, _) in &handlers {
+        if let Some(stream) = stream {
+            let _ = stream.shutdown(net::Shutdown::Both);
+        }
+    }
+    for (_, handler) in handlers {
+        let _ = handler.join();
+    }
     Ok(())
 }
 
@@ -286,11 +301,12 @@ mod tests {
         let rids = arbitrary::set::<RepoId>(1..3);
         let listener = UnixListener::bind(&socket).unwrap();
         let nid = handle.nid().unwrap();
+        let stopping = Arc::new(AtomicBool::new(false));
 
         thread::spawn({
             let handle = handle.clone();
 
-            move || listen(listener, handle)
+            move || listen(listener, handle, stopping)
         });
 
         for rid in &rids {
@@ -336,11 +352,12 @@ mod tests {
         let peer = arbitrary::r#gen::<NodeId>(1);
         let listener = UnixListener::bind(&socket).unwrap();
         let mut handle = Node::new(&socket);
+        let stopping = Arc::new(AtomicBool::new(false));
 
         thread::spawn({
             let handle = crate::test::handle::Handle::default();
 
-            move || crate::control::listen(listener, handle)
+            move || crate::control::listen(listener, handle, stopping)
         });
 
         // Wait for node to be online.

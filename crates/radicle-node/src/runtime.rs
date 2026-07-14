@@ -1,91 +1,119 @@
 pub mod handle;
 pub mod thread;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::FromStr as _;
-use std::sync::mpsc;
-use std::{fs, io, net};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::{fs, io, net, time};
 
 #[cfg(unix)]
 use std::os::unix::net::UnixListener;
 #[cfg(windows)]
 use uds_windows::UnixListener;
 
+use crate::control;
+use crate::wire::{self, GIT_ALPN, GOSSIP_ALPN};
+use crate::worker;
+use crate::worker::{ChannelEvent, ChannelsConfig, Task, TaskResult};
+use crossbeam_channel as chan;
 use handle::Handle;
+use iroh::endpoint::{Connection, RecvStream, SendStream, presets};
+use iroh::protocol::{AcceptError, ProtocolHandler, Router};
+use iroh::{Endpoint, EndpointAddr, RelayMode};
 use localtime::LocalTime;
 use protocol::service;
-use protocol::service::gossip;
+use protocol::service::DisconnectReason;
+use protocol::service::Metrics;
+use protocol::service::session;
 use radicle::cob::migrate;
 use radicle::crypto::{Signer as _, SigningKey};
-use radicle::node;
-use radicle::node::Event;
-use radicle::node::UserAgent;
-use radicle::node::address;
 use radicle::node::address::Store as _;
 use radicle::node::events::Emitter;
 use radicle::node::notifications;
 use radicle::node::policy::config as policy;
+use radicle::node::{self, Address, Event, Link, UserAgent};
 use radicle::node::{NodeId, routing};
 use radicle::profile::Home;
 use radicle::{Storage, cob, git, storage};
+use radicle_protocol::service::io::Io;
+use radicle_protocol::worker::{FetchRequest, FetchResult};
 use radicle_signals::Signal;
 use thiserror::Error;
-
-use crate::control;
-use crate::wire::Wire;
-use crate::worker;
+use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::task::JoinSet;
 
 /// Maximum pending worker tasks allowed.
 pub const MAX_PENDING_TASKS: usize = 1024;
 
-// TODO: This is a stub, left over from our custom reactor implementation.
-type Reactor = ();
+/// A command delivered to the synchronous service actor.
+pub(crate) enum ServiceInput {
+    User(service::Command),
+    Worker(TaskResult),
+    Attempted(NodeId, Address),
+    Connected(NodeId, Address, Link),
+    Disconnected(NodeId, Link, DisconnectReason),
+    Message(NodeId, service::Message),
+    Listening(net::SocketAddr),
+    FetchFailed {
+        rid: radicle::identity::RepoId,
+        remote: NodeId,
+        error: String,
+    },
+    Shutdown,
+}
 
-/// A client error.
+/// Cloneable synchronous entry point into the service actor.
+#[derive(Clone)]
+pub(crate) struct Controller(chan::Sender<ServiceInput>);
+
+impl Controller {
+    pub fn send(
+        &self,
+        input: ServiceInput,
+    ) -> Result<(), chan::SendError<PhantomData<ServiceInput>>> {
+        self.0
+            .send(input)
+            .map_err(|_: chan::SendError<ServiceInput>| chan::SendError(PhantomData))
+    }
+}
+
+/// Runtime initialization or execution error.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// A routing database error.
     #[error("routing database error: {0}")]
     Routing(#[from] routing::Error),
-    /// A cobs cache database error.
     #[error("cobs cache database error: {0}")]
     CobsCache(#[from] cob::cache::Error),
-    /// A node database error.
     #[error("node database error: {0}")]
     Database(#[from] node::db::Error),
-    /// A storage error.
     #[error("storage error: {0}")]
     Storage(#[from] storage::Error),
-    /// A policies database error.
     #[error("policies database error: {0}")]
     Policy(#[from] policy::Error),
-    /// A notifications database error.
     #[error("notifications database error: {0}")]
     Notifications(#[from] notifications::Error),
-    /// A gossip database error.
     #[error("gossip database error: {0}")]
-    Gossip(#[from] gossip::Error),
-    /// An address database error.
+    Gossip(#[from] service::gossip::Error),
     #[error("address database error: {0}")]
-    Address(#[from] address::Error),
-    /// A service error.
+    Address(#[from] node::address::Error),
     #[error("service error: {0}")]
     Service(Box<service::Error>),
-    /// An I/O error.
-    #[error("i/o error: {0}")]
-    Io(#[from] io::Error),
-    /// A control socket error.
+    #[error("failed to send message to service")]
+    ServiceSend,
     #[error("control socket error: {0}")]
     Control(#[from] control::Error),
-    /// Another node is already running.
+    #[error("iroh error: {0}")]
+    Iroh(String),
+    #[error("unsupported legacy transport configuration: {0}")]
+    UnsupportedTransport(&'static str),
     #[error(
-        "another node appears to be running; \
-        if this isn't the case, delete the socket file at '{0}' \
-        and restart the node"
+        "another node appears to be running; if this isn't the case, delete the socket file at '{0}' and restart the node"
     )]
     AlreadyRunning(PathBuf),
-    /// A git version error.
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
 }
@@ -96,76 +124,90 @@ impl From<service::Error> for Error {
     }
 }
 
-/// Wraps a [`UnixListener`] but tracks its origin.
+impl From<chan::SendError<PhantomData<ServiceInput>>> for Error {
+    fn from(_: chan::SendError<PhantomData<ServiceInput>>) -> Self {
+        Self::ServiceSend
+    }
+}
+
+/// A control listener together with its ownership provenance.
 pub enum ControlSocket {
-    /// The listener was created by binding to it.
     Bound(UnixListener, PathBuf),
-    /// The listener was received via socket activation.
     Received(UnixListener),
 }
 
-/// Holds join handles to the client threads, as well as a client handle.
+enum RuntimeOutput {
+    Io(Io),
+    Shutdown,
+}
+
+/// Node runtime. All database-owning state is moved to the service thread.
 pub struct Runtime {
     pub id: NodeId,
     pub home: Home,
     pub control: ControlSocket,
     pub handle: Handle,
     pub storage: Storage,
-    pub reactor: Reactor,
     pub pool: worker::Pool,
-    pub local_addrs: Vec<net::SocketAddr>,
-    pub signals: mpsc::Receiver<Signal>,
+    pub signals: std::sync::mpsc::Receiver<Signal>,
+    config: node::Config,
+    listen: Vec<net::SocketAddr>,
+    secret_key: SigningKey,
+    controller: Controller,
+    worker: chan::Sender<Task>,
+    output: mpsc::UnboundedReceiver<RuntimeOutput>,
+    service_thread: std::thread::JoinHandle<()>,
+    emitter: Emitter<Event>,
 }
 
 impl Runtime {
-    /// Initialize the runtime.
-    ///
-    /// This function spawns threads.
+    /// Initialize databases, blocking actors, channels, workers and control socket.
     pub fn init(
         home: Home,
-        config: radicle::node::Config,
+        config: node::Config,
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
-        signals: mpsc::Receiver<Signal>,
+        signals: std::sync::mpsc::Receiver<Signal>,
         secret_key: SigningKey,
     ) -> Result<Runtime, Error> {
+        if config.proxy.is_some() {
+            return Err(Error::UnsupportedTransport("SOCKS5 proxy"));
+        }
+        #[cfg(feature = "tor")]
+        if config.onion != node::config::AddressConfig::Drop {
+            return Err(Error::UnsupportedTransport("Tor"));
+        }
+        #[cfg(feature = "i2p")]
+        if config.i2p != node::config::AddressConfig::Drop {
+            return Err(Error::UnsupportedTransport("I2P"));
+        }
+
         let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
         let network = config.network;
         let rng = fastrand::Rng::new();
         let clock = LocalTime::now();
-        let timestamp = clock.into();
         let storage = Storage::open(home.storage(), git::UserInfo { alias, key: id })?;
-        let policy = config.seeding_policy.into();
+        let seeding_policy = config.seeding_policy.into();
 
         for (key, _) in &config.extra {
             log::warn!(target: "node", "Unused or deprecated configuration attribute {key:?}");
         }
 
-        log::info!(target: "node", "Opening policy database..");
-        let policies = home.policies_mut()?;
-        let policies = policy::Config::new(policy, policies);
+        let policies = policy::Config::new(seeding_policy, home.policies_mut()?);
         let notifications = home.notifications_mut()?;
         let mut cobs_cache = cob::cache::Store::open(home.cobs().join(cob::cache::COBS_DB_FILE))?;
-
-        match cobs_cache.check_version() {
-            Ok(()) => {}
-            Err(cob::cache::Error::OutOfDate) => {
-                log::info!(target: "node", "Migrating COBs cache..");
-                let version = cobs_cache.migrate(migrate::log)?;
-                log::info!(target: "node", "Migration of COBs cache complete (version={version})..");
-            }
-            Err(e) => return Err(e.into()),
+        if let Err(cob::cache::Error::OutOfDate) = cobs_cache.check_version() {
+            cobs_cache.migrate(migrate::log)?;
+        } else {
+            cobs_cache.check_version()?;
         }
 
-        log::info!(target: "node", "Default seeding policy set to '{}'", policy);
         log::info!(target: "node", "Initializing service ({network:?})..");
 
-        let announcement = service::gossip::node(&config, timestamp)
+        let announcement = service::gossip::node(&config, clock.into())
             .solve(Default::default())
-            .expect("Runtime::init: unable to solve proof-of-work puzzle");
-
-        log::info!(target: "node", "Opening node database..");
+            .expect("unable to solve node announcement proof of work");
         let db = home.database_mut(config.database)?.init(
             &id,
             announcement.features,
@@ -175,28 +217,26 @@ impl Runtime {
             announcement.addresses.iter(),
         )?;
         let mut stores: service::Stores<_> = db.clone().into();
-
         if config.connect.is_empty() && stores.addresses().is_empty()? {
-            log::info!(target: "node", "Address book is empty. Adding bootstrap nodes..");
-
-            for (alias, version, addrs) in config.network.bootstrap() {
+            for (alias, version, addrs) in network.bootstrap() {
                 for addr in addrs {
-                    let (id, addr) = addr.into_pair();
-
+                    let (nid, addr) = addr.into_pair();
                     stores.addresses_mut().insert(
-                        &id,
+                        &nid,
                         version,
-                        radicle::node::Features::SEED,
+                        node::Features::SEED,
                         &alias,
                         0,
                         &UserAgent::from_str("/radicle/runtime/bootstrap/")
                             .expect("valid user agent"),
                         clock.into(),
-                        [node::KnownAddress::new(addr, address::Source::Bootstrap)],
+                        [node::KnownAddress::new(
+                            addr,
+                            node::address::Source::Bootstrap,
+                        )],
                     )?;
                 }
             }
-            log::info!(target: "node", "{} nodes added to address book", stores.addresses().len()?);
         }
 
         let emitter: Emitter<Event> = Default::default();
@@ -212,33 +252,27 @@ impl Runtime {
         );
         service.initialize(clock)?;
 
-        let (worker_send, worker_recv) =
-            crossbeam_channel::bounded::<worker::Task>(MAX_PENDING_TASKS);
-        let mut wire = Wire::new(service, worker_send, secret_key.clone());
-        let mut local_addrs = Vec::new();
+        let (input_tx, input_rx) = chan::unbounded();
+        let controller = Controller(input_tx);
+        let (output_tx, output) = mpsc::unbounded_channel();
+        let service_thread = thread::spawn(&id, "service", move || {
+            run_service(service, input_rx, output_tx)
+        });
 
-        // TODO: Replace binding to listeners with setting up iroh routing.
-        /*
-        for addr in listen {
-            let listener = reactor::Listener::bind(addr)?;
-            let local_addr = listener.local_addr();
-
-            local_addrs.push(local_addr);
-            wire.listen(listener);
-        }
-        */
-        let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
-        let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
-
-        let nid = NodeId::from(*secret_key.public_key());
+        let handle = Handle::new(
+            home.clone(),
+            socket.clone(),
+            controller.clone(),
+            emitter.clone(),
+        );
+        let (worker, worker_recv) = chan::bounded::<Task>(MAX_PENDING_TASKS);
         let fetch = worker::FetchConfig {
-            local: nid,
+            local: id,
             expiry: worker::garbage::Expiry::default(),
         };
         let pool = worker::Pool::with(
             worker_recv,
-            nid,
-            handle.clone(),
+            id,
             notifications,
             cobs_cache,
             db,
@@ -246,119 +280,644 @@ impl Runtime {
                 capacity: config.workers.into(),
                 storage: storage.clone(),
                 fetch,
-                policy,
+                policy: seeding_policy,
                 policies_db: home.node().join(node::POLICIES_DB_FILE),
             },
         )?;
         let control = Self::bind(socket)?;
 
-        Ok(Runtime {
+        Ok(Self {
             id,
             home,
             control,
-            storage,
-            reactor,
             handle,
+            storage,
             pool,
             signals,
-            local_addrs,
+            config,
+            listen,
+            secret_key,
+            controller,
+            worker,
+            output,
+            service_thread,
+            emitter,
         })
     }
 
-    pub fn run(self) -> Result<(), Error> {
-        let home = self.home;
+    /// Bind iroh and run both ALPN protocols until shutdown.
+    pub async fn run(mut self) -> Result<(), Error> {
         let (listener, remove) = match self.control {
             ControlSocket::Bound(listener, path) => (listener, Some(path)),
             ControlSocket::Received(listener) => (listener, None),
         };
 
-        log::info!(target: "node", "Running node {} in {}..", self.id, home.path().display());
+        let mut builder = if self.config.network == node::config::Network::Test {
+            Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled)
+        } else {
+            Endpoint::builder(presets::N0)
+        };
 
-        thread::spawn(&self.id, "control", {
-            let handle = self.handle.clone();
-            || control::listen(listener, handle)
+        builder = builder.secret_key(iroh::SecretKey::from(self.secret_key.as_bytes()));
+        if !self.listen.is_empty() {
+            builder = builder.clear_ip_transports();
+            for addr in &self.listen {
+                builder = builder
+                    .bind_addr(*addr)
+                    .map_err(|e| Error::Iroh(e.to_string()))?;
+            }
+        }
+        let endpoint = builder
+            .bind()
+            .await
+            .map_err(|e| Error::Iroh(e.to_string()))?;
+        for addr in endpoint.bound_sockets() {
+            self.controller.send(ServiceInput::Listening(addr))?;
+        }
+
+        let shared = Arc::new(Shared {
+            local: self.id,
+            endpoint: endpoint.clone(),
+            controller: self.controller.clone(),
+            worker: self.worker.clone(),
+            emitter: self.emitter.clone(),
+            peers: tokio::sync::Mutex::new(HashMap::new()),
+            jobs: AtomicU64::new(1),
+            git_limits: Mutex::new(HashMap::new()),
+            git_concurrency: self.config.limits.fetch_concurrency.into(),
         });
 
-        let _signals = thread::spawn(&self.id, "signals", move || {
-            loop {
-                use radicle::node::Handle as _;
+        let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel();
+        let router = Router::builder(endpoint)
+            .accept(
+                GOSSIP_ALPN,
+                IncomingHandler {
+                    kind: Protocol::Gossip,
+                    tx: incoming_tx.clone(),
+                },
+            )
+            .accept(
+                GIT_ALPN,
+                IncomingHandler {
+                    kind: Protocol::Git,
+                    tx: incoming_tx,
+                },
+            )
+            .spawn();
 
-                match self.signals.recv() {
-                    Ok(Signal::Terminate | Signal::Interrupt) => {
-                        log::info!(target: "node", "Termination signal received; shutting down..");
-                        self.handle.shutdown().ok();
-                        break;
+        let stopping = Arc::new(AtomicBool::new(false));
+        listener
+            .set_nonblocking(true)
+            .map_err(|source| Error::Control(control::Error::Bind(source)))?;
+        let control_thread = thread::spawn(&self.id, "control-listener", {
+            let stop = stopping.clone();
+            let handle = self.handle.clone();
+            move || control::listen(listener, handle, stop)
+        });
+
+        let mut poll = tokio::time::interval(time::Duration::from_millis(100));
+        let mut tasks = JoinSet::new();
+        let result = loop {
+            tokio::select! {
+                Some(incoming) = incoming_rx.recv() => {
+                    let shared = shared.clone();
+                    tasks.spawn(async move {
+                        match incoming {
+                            Incoming::Gossip(connection) => run_gossip(shared, connection, Link::Inbound).await,
+                            Incoming::Git(connection) => run_incoming_git(shared, connection).await,
+                        }
+                    });
+                }
+                Some(output) = self.output.recv() => match output {
+                    RuntimeOutput::Io(io) => dispatch(io, shared.clone(), &mut tasks).await,
+                    RuntimeOutput::Shutdown => break Ok(()),
+                },
+                Some(result) = tasks.join_next(), if !tasks.is_empty() => {
+                    if let Err(err) = result {
+                        log::warn!(target: "node", "Network task failed: {err}");
                     }
-                    Ok(Signal::Hangup) => {
-                        log::debug!(target: "node", "Hangup signal (SIGHUP) received; ignoring..");
-                    }
-                    Ok(Signal::WindowChanged) => {}
-                    Err(e) => {
-                        log::warn!(target: "node", "Signal notifications channel error: {e}");
-                        break;
+                }
+                _ = poll.tick() => {
+                    while let Ok(signal) = self.signals.try_recv() {
+                        match signal {
+                            Signal::Terminate | Signal::Interrupt => {
+                                let _ = self.controller.send(ServiceInput::Shutdown);
+                            }
+                            Signal::Hangup | Signal::WindowChanged => {}
+                        }
                     }
                 }
             }
-        });
+        };
 
-        self.pool.run().unwrap();
-        self.reactor.join().unwrap();
-
-        // Nb. We don't join the control thread here, as we have no way of notifying it that the
-        // node is shutting down.
-
-        // Remove control socket file, but don't freak out if it's not there anymore.
-        remove.map(|path| fs::remove_file(path).ok());
-
-        log::debug!(target: "node", "Node shutdown completed for {}", self.id);
-
-        Ok(())
+        stopping.store(true, Ordering::Release);
+        if let Some(path) = &remove {
+            // Wake a non-blocking control accept loop before joining it.
+            let _ = std::os::unix::net::UnixStream::connect(path);
+        }
+        router
+            .shutdown()
+            .await
+            .map_err(|e| Error::Iroh(e.to_string()))?;
+        tasks.abort_all();
+        while tasks.join_next().await.is_some() {}
+        drop(shared);
+        drop(self.worker);
+        let _ = control_thread.join();
+        let _ = self.pool.run();
+        let _ = self.service_thread.join();
+        if let Some(path) = remove {
+            let _ = fs::remove_file(path);
+        }
+        result
     }
 
     #[cfg(all(feature = "socket2", feature = "systemd", target_os = "linux"))]
     fn receive_listener() -> Option<UnixListener> {
-        // SAFETY: When `fd` is called, no other threads are spawned (yet).
-        let fd = match unsafe { radicle_systemd::listen::fd("control") } {
-            Ok(Some(fd)) => fd,
-            Ok(None) => return None,
-            Err(err) => {
-                log::error!(target: "node", "Error receiving listener from systemd: {err}");
-                return None;
-            }
-        };
-
+        let fd = unsafe { radicle_systemd::listen::fd("control") }.ok()??;
         let socket: socket2::Socket = unsafe { std::os::fd::FromRawFd::from_raw_fd(fd) };
-
-        let domain = match socket.domain() {
-            Ok(domain) => domain,
-            Err(err) => {
-                log::error!(target: "node", "Error receiving listener from systemd when inspecting domain of socket: {err}");
-                return None;
-            }
-        };
-
-        if domain != socket2::Domain::UNIX {
-            log::error!(target: "node", "Dropping listener received from systemd: Domain is not AF_UNIX.");
-            return None;
+        match socket.domain() {
+            Ok(socket2::Domain::UNIX) => Some(UnixListener::from(socket)),
+            _ => None,
         }
-
-        Some(UnixListener::from(socket))
     }
 
     fn bind(path: PathBuf) -> Result<ControlSocket, Error> {
         #[cfg(all(feature = "socket2", feature = "systemd", target_os = "linux"))]
-        {
-            if let Some(listener) = Self::receive_listener() {
-                log::info!(target: "node", "Received control socket.");
-                return Ok(ControlSocket::Received(listener));
-            }
+        if let Some(listener) = Self::receive_listener() {
+            return Ok(ControlSocket::Received(listener));
         }
 
         log::info!(target: "node", "Binding control socket {}..", path.display());
+
         match UnixListener::bind(&path) {
             Ok(sock) => Ok(ControlSocket::Bound(sock, path)),
             Err(err) if err.kind() == io::ErrorKind::AddrInUse => Err(Error::AlreadyRunning(path)),
-            Err(err) => Err(err.into()),
+            Err(source) => Err(Error::Control(control::Error::Bind(source))),
         }
     }
+}
+
+fn run_service<D, S>(
+    mut service: service::Service<D, S>,
+    input: chan::Receiver<ServiceInput>,
+    output: mpsc::UnboundedSender<RuntimeOutput>,
+) where
+    D: service::Store + Send + 'static,
+    S: storage::WriteStorage + Send + 'static,
+{
+    loop {
+        match input.recv_timeout(time::Duration::from_millis(250)) {
+            Ok(ServiceInput::User(cmd)) => service.command(cmd),
+            Ok(ServiceInput::Worker(task)) => match task.result {
+                FetchResult::Initiator { rid, result } => service.fetched(rid, task.remote, result),
+                FetchResult::Responder { rid, result } => {
+                    if let Some(rid) = rid {
+                        log::debug!(target: "worker", "Git upload of {rid} to {} completed: {result:?}", task.remote);
+                    }
+                }
+            },
+            Ok(ServiceInput::Attempted(nid, addr)) => service.attempted(nid, addr),
+            Ok(ServiceInput::Connected(nid, addr, link)) => service.connected(nid, addr, link),
+            Ok(ServiceInput::Disconnected(nid, link, reason)) => {
+                service.disconnected(nid, link, &reason)
+            }
+            Ok(ServiceInput::Message(nid, message)) => service.received_message(nid, message),
+            Ok(ServiceInput::Listening(addr)) => service.listening(addr),
+            Ok(ServiceInput::FetchFailed { rid, remote, error }) => service.fetched(
+                rid,
+                remote,
+                Err(radicle_protocol::worker::FetchError::Io(io::Error::other(
+                    error,
+                ))),
+            ),
+            Ok(ServiceInput::Shutdown) | Err(chan::RecvTimeoutError::Disconnected) => {
+                let _ = output.send(RuntimeOutput::Shutdown);
+                break;
+            }
+            Err(chan::RecvTimeoutError::Timeout) => {
+                service.tick(LocalTime::now(), &Metrics::default());
+                service.wake();
+            }
+        }
+        while let Some(io) = service.next() {
+            if output.send(RuntimeOutput::Io(io)).is_err() {
+                return;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Protocol {
+    Gossip,
+    Git,
+}
+
+enum Incoming {
+    Gossip(Connection),
+    Git(Connection),
+}
+
+#[derive(Debug, Clone)]
+struct IncomingHandler {
+    kind: Protocol,
+    tx: mpsc::UnboundedSender<Incoming>,
+}
+
+impl ProtocolHandler for IncomingHandler {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        let incoming = match self.kind {
+            Protocol::Gossip => Incoming::Gossip(connection),
+            Protocol::Git => Incoming::Git(connection),
+        };
+        self.tx
+            .send(incoming)
+            .map_err(|_| AcceptError::from_err(io::Error::from(io::ErrorKind::BrokenPipe)))
+    }
+}
+
+struct GossipPeer {
+    job: u64,
+    link: Link,
+    connection: Connection,
+    sender: mpsc::Sender<Vec<service::Message>>,
+}
+
+struct Shared {
+    local: NodeId,
+    endpoint: Endpoint,
+    controller: Controller,
+    worker: chan::Sender<Task>,
+    emitter: Emitter<Event>,
+    peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
+    jobs: AtomicU64,
+    git_limits: Mutex<HashMap<NodeId, Arc<Semaphore>>>,
+    git_concurrency: usize,
+}
+
+async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
+    match io {
+        Io::Write(remote, messages) => {
+            let sender = shared
+                .peers
+                .lock()
+                .await
+                .get(&remote)
+                .map(|p| p.sender.clone());
+            if let Some(sender) = sender {
+                let _ = sender.send(messages).await;
+            }
+        }
+        Io::Connect(remote, addr) => {
+            let shared = shared.clone();
+            tasks.spawn(async move {
+                let _ = shared
+                    .controller
+                    .send(ServiceInput::Attempted(remote, addr.clone()));
+                match endpoint_addr(remote, std::slice::from_ref(&addr)).await {
+                    Ok(endpoint_addr) => {
+                        match shared.endpoint.connect(endpoint_addr, GOSSIP_ALPN).await {
+                            Ok(connection) => run_gossip(shared, connection, Link::Outbound).await,
+                            Err(err) => {
+                                let reason = DisconnectReason::Dial(Arc::new(io::Error::other(
+                                    err.to_string(),
+                                )));
+                                let _ = shared.controller.send(ServiceInput::Disconnected(
+                                    remote,
+                                    Link::Outbound,
+                                    reason,
+                                ));
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        let reason = DisconnectReason::Dial(Arc::new(err));
+                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                            remote,
+                            Link::Outbound,
+                            reason,
+                        ));
+                    }
+                }
+            });
+        }
+        Io::Disconnect(remote, reason) => {
+            if let Some(peer) = shared.peers.lock().await.remove(&remote) {
+                peer.connection.close(0u32.into(), b"gossip disconnected");
+            }
+        }
+        Io::Fetch {
+            rid,
+            remote,
+            addresses,
+            refs_at,
+            reader_limit,
+            config,
+        } => {
+            tasks.spawn(async move {
+                if let Err(error) = run_outgoing_git(
+                    shared.clone(),
+                    rid,
+                    remote,
+                    addresses,
+                    refs_at,
+                    reader_limit,
+                    config,
+                )
+                .await
+                {
+                    let _ =
+                        shared
+                            .controller
+                            .send(ServiceInput::FetchFailed { rid, remote, error });
+                }
+            });
+        }
+        Io::Wakeup(_) => {}
+    }
+}
+
+async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
+    let remote = NodeId::from_bytes(*connection.remote_id());
+
+    if remote == shared.local {
+        connection.close(0u32.into(), b"self connection");
+        return;
+    }
+
+    let streams = match link {
+        Link::Outbound => connection.open_bi().await,
+        Link::Inbound => connection.accept_bi().await,
+    };
+
+    let (mut send, mut recv) = match streams {
+        Ok(streams) => streams,
+        Err(err) => {
+            log::debug!(target: "gossip", "Failed to open gossip stream with {remote}: {err}");
+            return;
+        }
+    };
+    let job = shared.jobs.fetch_add(1, Ordering::Relaxed);
+    let (tx, mut rx) = mpsc::channel(32);
+    {
+        let mut peers = shared.peers.lock().await;
+        if let Some(existing) = peers.get(&remote) {
+            let preferred = if shared.local < remote {
+                Link::Outbound
+            } else {
+                Link::Inbound
+            };
+            let new_wins = link == preferred && existing.link != preferred;
+            if !new_wins {
+                connection.close(0u32.into(), b"duplicate gossip connection");
+                return;
+            }
+            existing
+                .connection
+                .close(0u32.into(), b"superseded gossip connection");
+        }
+        peers.insert(
+            remote,
+            GossipPeer {
+                job,
+                link,
+                connection: connection.clone(),
+                sender: tx,
+            },
+        );
+    }
+    let addr = Address::Iroh;
+    let _ = shared
+        .controller
+        .send(ServiceInput::Connected(remote, addr, link));
+
+    let mut reason = DisconnectReason::connection();
+    'gossip: loop {
+        tokio::select! {
+            incoming = wire::read_message(&mut recv) => match incoming {
+                Ok((message, _bytes)) => {
+                    if shared.controller.send(ServiceInput::Message(remote, message)).is_err() { break; }
+                }
+                Err(err) => {
+                    if connection.close_reason().is_some() {
+                        break;
+                    }
+                    log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
+                    reason = DisconnectReason::Session(session::Error::Misbehavior);
+                    connection.close(0u32.into(), b"invalid gossip");
+                    break;
+                }
+            },
+            Some(messages) = rx.recv() => {
+                for message in messages {
+                    if let Err(err) = crate::wire::write_message(&mut send, &message).await {
+                        log::warn!(target: "gossip", "Unable to send gossip to {remote}: {err}");
+                        connection.close(0u32.into(), b"unable to encode gossip");
+                        break 'gossip;
+                    }
+                }
+            }
+            _ = connection.closed() => break,
+        }
+    }
+    let removed = {
+        let mut peers = shared.peers.lock().await;
+        if peers.get(&remote).is_some_and(|peer| peer.job == job) {
+            peers.remove(&remote);
+            true
+        } else {
+            false
+        }
+    };
+    if removed {
+        let _ = shared
+            .controller
+            .send(ServiceInput::Disconnected(remote, link, reason));
+    }
+}
+
+async fn run_incoming_git(shared: Arc<Shared>, connection: Connection) {
+    let remote = NodeId::from_bytes(*connection.remote_id());
+    let Ok(permit) = git_limiter(&shared, remote).try_acquire_owned() else {
+        connection.close(0u32.into(), b"Git concurrency limit exceeded");
+        return;
+    };
+    let Ok((send, recv)) = connection.accept_bi().await else {
+        return;
+    };
+    let config = ChannelsConfig::new(service::FETCH_TIMEOUT);
+    let fetch = FetchRequest::Responder {
+        remote,
+        emitter: shared.emitter.clone(),
+    };
+    let _ = run_git_worker(shared, connection, send, recv, fetch, config).await;
+    drop(permit);
+}
+
+async fn run_outgoing_git(
+    shared: Arc<Shared>,
+    rid: radicle::identity::RepoId,
+    remote: NodeId,
+    addresses: Vec<Address>,
+    refs_at: Option<Vec<radicle::storage::refs::RefsAt>>,
+    reader_limit: node::config::FetchPackSizeLimit,
+    config: radicle_protocol::fetcher::FetchConfig,
+) -> Result<(), String> {
+    let _permit = tokio::time::timeout(config.timeout(), git_permit(&shared, remote))
+        .await
+        .map_err(|_| "Git concurrency wait timed out".to_owned())??;
+    let addr = endpoint_addr(remote, &addresses)
+        .await
+        .map_err(|e| e.to_string())?;
+    let connection =
+        tokio::time::timeout(config.timeout(), shared.endpoint.connect(addr, GIT_ALPN))
+            .await
+            .map_err(|_| "Git dial timed out".to_owned())?
+            .map_err(|e| e.to_string())?;
+    let (send, recv) = connection.open_bi().await.map_err(|e| e.to_string())?;
+    let channels = ChannelsConfig::new(config.timeout()).with_reader_limit(reader_limit);
+    let fetch = FetchRequest::Initiator {
+        rid,
+        remote,
+        refs_at,
+        config: config.fetch_config(),
+    };
+    run_git_worker(shared, connection, send, recv, fetch, channels).await
+}
+
+async fn run_git_worker(
+    shared: Arc<Shared>,
+    _connection: Connection,
+    mut send: SendStream,
+    mut recv: RecvStream,
+    fetch: FetchRequest,
+    config: ChannelsConfig,
+) -> Result<(), String> {
+    let job = shared.jobs.fetch_add(1, Ordering::Relaxed);
+    let timeout = config.timeout();
+    let (network, worker_channels) =
+        worker::channels::Channels::pair(config).map_err(|e| e.to_string())?;
+    let (result_tx, mut result_rx) = oneshot::channel();
+    shared
+        .worker
+        .try_send(Task {
+            fetch,
+            job,
+            channels: worker_channels,
+            result: result_tx,
+        })
+        .map_err(|_| "worker queue is full".to_owned())?;
+    let mut buffer = vec![0u8; 64 * 1024];
+    let mut recv_open = true;
+    let mut send_open = true;
+    loop {
+        tokio::select! {
+            result = &mut result_rx => {
+                let result = result.map_err(|_| "worker exited without a result".to_owned())?;
+                let _ = send.finish();
+                let deadline = tokio::time::Instant::now() + timeout;
+                while recv_open {
+                    match tokio::time::timeout_at(deadline, recv.read(&mut buffer)).await {
+                        Ok(Ok(None)) => recv_open = false,
+                        Ok(Ok(Some(_))) => {}
+                        Ok(Err(err)) => return Err(err.to_string()),
+                        Err(_) => return Err("Git stream completion timed out".to_owned()),
+                    }
+                }
+                match tokio::time::timeout_at(deadline, send.stopped()).await {
+                    Ok(Ok(None)) => {}
+                    Ok(Ok(Some(code))) => return Err(format!("remote stopped Git stream: {code}")),
+                    Ok(Err(err)) => return Err(err.to_string()),
+                    Err(_) => return Err("Git stream acknowledgement timed out".to_owned()),
+                }
+                shared.controller.send(ServiceInput::Worker(result)).map_err(|e| e.to_string())?;
+                return Ok(());
+            }
+            read = recv.read(&mut buffer), if recv_open => match read {
+                Ok(None) => {
+                    recv_open = false;
+                    let _ = network.send(ChannelEvent::Eof).await;
+                }
+                Ok(Some(n)) => network.send(ChannelEvent::Data(buffer[..n].to_vec())).await.map_err(|_| "worker disconnected".to_owned())?,
+                Err(err) => return Err(err.to_string()),
+            },
+            event = network.recv() => match event.map_err(|_| "worker disconnected".to_owned())? {
+                ChannelEvent::Data(data) if send_open => send.write_all(&data).await.map_err(|e| e.to_string())?,
+                ChannelEvent::Data(_) => return Err("worker wrote after closing Git stream".to_owned()),
+                ChannelEvent::Eof if send_open => {
+                    send_open = false;
+                    let _ = send.finish();
+                }
+                ChannelEvent::Eof => {}
+                ChannelEvent::Close => return Err("worker closed Git stream".to_owned()),
+            }
+        }
+    }
+}
+
+async fn git_permit(
+    shared: &Arc<Shared>,
+    remote: NodeId,
+) -> Result<tokio::sync::OwnedSemaphorePermit, String> {
+    if shared.git_concurrency == 0 {
+        return Err("Git concurrency is disabled".to_owned());
+    }
+    git_limiter(shared, remote)
+        .acquire_owned()
+        .await
+        .map_err(|_| "Git limiter closed".to_owned())
+}
+
+fn git_limiter(shared: &Arc<Shared>, remote: NodeId) -> Arc<Semaphore> {
+    shared
+        .git_limits
+        .lock()
+        .expect("Git limiter poisoned")
+        .entry(remote)
+        .or_insert_with(|| Arc::new(Semaphore::new(shared.git_concurrency)))
+        .clone()
+}
+
+async fn endpoint_addr(remote: NodeId, addresses: &[Address]) -> io::Result<EndpointAddr> {
+    let id = iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote))
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut result = EndpointAddr::new(id);
+    for address in addresses {
+        match address {
+            Address::Ipv4 { host, port } => {
+                result =
+                    result.with_ip_addr(net::SocketAddr::V4(net::SocketAddrV4::new(*host, *port)));
+            }
+            Address::Ipv6 { host, port, .. } => {
+                result = result.with_ip_addr(net::SocketAddr::V6(net::SocketAddrV6::new(
+                    *host, *port, 0, 0,
+                )));
+            }
+            Address::Dns { host, port } => {
+                for addr in tokio::net::lookup_host((host.as_str(), *port)).await? {
+                    result = result.with_ip_addr(addr);
+                }
+            }
+            #[cfg(feature = "tor")]
+            address @ Address::Tor { .. } => {
+                // TODO: In the future, create a custom transport address
+                // (via `iroh::TransportAddr::Custom`) that can be used to dial
+                // Tor addresses.
+                log::warn!(target: "node", "Tor transport is not yet supported. Ignoring address '{address}'.");
+            }
+            #[cfg(feature = "i2p")]
+            address @ Address::I2p { .. } => {
+                // TODO: In the future, create a custom transport address
+                // (via `iroh::TransportAddr::Custom`) that can be used to dial
+                // I2P addresses.
+                log::warn!(target: "node", "I2P transport is not yet supported. Ignoring address '{address}'.");
+            }
+            Address::Iroh => {}
+            address => {
+                log::warn!(target: "node", "Ignoring unsupported address '{address}'.");
+            }
+        }
+    }
+    Ok(result)
 }
