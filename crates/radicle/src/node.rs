@@ -32,7 +32,6 @@ use std::os::unix::net::UnixStream;
 #[cfg(windows)]
 use uds_windows::UnixStream;
 
-use amplify::WrapperMut;
 use cyphernet::addr::{AddrParseError, NetAddr};
 use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
@@ -462,9 +461,7 @@ impl TryFrom<&sqlite::Value> for Alias {
 }
 
 /// Peer public protocol address.
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Wrapper, WrapperMut, Serialize, Deserialize)]
-#[wrapper(Deref)]
-#[wrapper_mut(DerefMut)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 #[cfg_attr(
     feature = "schemars",
@@ -482,7 +479,6 @@ impl TryFrom<&sqlite::Value> for Alias {
     ),
 ))]
 pub struct Address {
-    #[wrap]
     inner: NetAddr<HostName>,
 
     /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
@@ -649,6 +645,14 @@ impl FromStr for Address {
             #[allow(deprecated)]
             is_ipv6_without_square_brackets,
         })
+    }
+}
+
+impl Deref for Address {
+    type Target = NetAddr<HostName>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 

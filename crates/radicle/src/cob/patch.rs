@@ -12,7 +12,6 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use amplify::Wrapper;
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
 use storage::{HasRepoId, RepositoryError};
@@ -57,44 +56,88 @@ impl<'a> PatchStream<'a> {
 }
 
 /// Unique identifier for a patch revision.
-#[derive(
-    Wrapper,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    From,
-    Display,
-)]
-#[display(inner)]
-#[wrap(Deref)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RevisionId(EntryId);
 
+impl RevisionId {
+    pub fn into_inner(self) -> EntryId {
+        self.0
+    }
+}
+
+impl std::fmt::Display for RevisionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<EntryId> for RevisionId {
+    fn from(id: EntryId) -> Self {
+        Self(id)
+    }
+}
+
+impl From<RevisionId> for EntryId {
+    fn from(id: RevisionId) -> Self {
+        id.0
+    }
+}
+
+impl Deref for RevisionId {
+    type Target = EntryId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<EntryId> for RevisionId {
+    fn borrow(&self) -> &EntryId {
+        &self.0
+    }
+}
+
 /// Unique identifier for a patch review.
-#[derive(
-    Wrapper,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    From,
-    Display,
-)]
-#[display(inner)]
-#[wrapper(Deref)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ReviewId(EntryId);
+
+impl ReviewId {
+    pub fn into_inner(self) -> EntryId {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ReviewId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<EntryId> for ReviewId {
+    fn from(id: EntryId) -> Self {
+        Self(id)
+    }
+}
+
+impl From<ReviewId> for EntryId {
+    fn from(id: ReviewId) -> Self {
+        id.0
+    }
+}
+
+impl Deref for ReviewId {
+    type Target = EntryId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<EntryId> for ReviewId {
+    fn borrow(&self) -> &EntryId {
+        &self.0
+    }
+}
 
 /// Index of a revision in the revisions list.
 pub type RevisionIx = usize;

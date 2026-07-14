@@ -715,7 +715,6 @@ mod tests {
     use std::num::NonZeroU8;
     use std::str::FromStr;
 
-    use amplify::Wrapper;
     use radicle_cob::ObjectId;
 
     use crate::cob::cache::{Store, Update, Write};
