@@ -549,7 +549,7 @@ impl From<IpAddr> for Host {
     derive(schemars::JsonSchema),
     schemars(description = "\
     An IP address, or a DNS name, or a Tor onion name, or an I2P address,\
-    followed by the symbol ':', followed by a TCP port number, or the string 'iroh'.",
+    followed by the symbol ':', followed by a UDP port number, or the string 'iroh'.",
     extend("examples" = [
             "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
             "f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
@@ -630,8 +630,8 @@ impl Address {
     /// Check whether this address is globally routable.
     pub fn is_routable(&self) -> bool {
         match self {
-            Self::Ipv4 { host, .. } => address::ipv4_is_routable(&host),
-            Self::Ipv6 { host, .. } => address::ipv6_is_routable(&host),
+            Self::Ipv4 { host, .. } => address::ipv4_is_routable(host),
+            Self::Ipv6 { host, .. } => address::ipv6_is_routable(host),
             Self::Dns { .. } => !self.is_local(),
             _ => true,
         }
@@ -644,7 +644,7 @@ impl Address {
             Self::Ipv6 { host, .. } => Host::Ip(IpAddr::V6(*host)),
             Self::Dns { host, .. } => Host::Dns(host.clone()),
             #[cfg(feature = "tor")]
-            Self::Tor { host, .. } => Host::Tor(host.clone()),
+            Self::Tor { host, .. } => Host::Tor(*host),
             #[cfg(feature = "i2p")]
             Self::I2p { host, .. } => Host::I2p(host.clone()),
             Self::Iroh => Host::Iroh,

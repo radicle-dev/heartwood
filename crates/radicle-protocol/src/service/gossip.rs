@@ -9,11 +9,16 @@ pub use store::{AnnouncementId, Error, RelayStatus, Store};
 pub fn node(config: &Config, timestamp: Timestamp) -> NodeAnnouncement {
     let features = config.features();
     let alias = config.alias.clone();
-    let addresses: BoundedVec<_, ADDRESS_LIMIT> = config
+    let mut addresses: BoundedVec<_, ADDRESS_LIMIT> = config
         .external_addresses
         .clone()
         .try_into()
         .expect("external addresses are within the limit");
+
+    if !addresses.contains(&Address::Iroh) {
+        // If there is enough space in `addresses`, we add iroh.
+        let _ = addresses.push(Address::Iroh);
+    }
 
     let agent = config.user_agent();
 
