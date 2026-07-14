@@ -12,7 +12,7 @@ rust-version.workspace = true
 bstr = ["radicle-git-ref-format/bstr"]
 default = []
 gix = ["radicle-oid/gix"]
-i2p = ["cyphernet/i2p"]
+i2p = []
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 qcheck = [
   "radicle-core/qcheck",
@@ -26,12 +26,11 @@ schemars = [
   "radicle-localtime/schemars",
   "dep:schemars"
 ]
-tor = ["cyphernet/tor"]
+tor = ["dep:safelog", "dep:tor-hscrypto"]
 
 [dependencies]
 base64 = "0.21.3"
 bytesize = { version = "2", features = ["serde"] }
-cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
 dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }
@@ -43,11 +42,12 @@ nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle-cob = { workspace = true, features = ["git2"] }
 radicle-core = { workspace = true, features = ["git2", "serde", "sqlite"] }
-radicle-crypto = { workspace = true, features = ["radicle-git-ref-format", "serde", "ssh", "sqlite", "cyphernet"] }
+radicle-crypto = { workspace = true, features = ["radicle-git-ref-format", "serde", "ssh", "sqlite"] }
 radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
 radicle-git-metadata = { workspace = true }
 radicle-localtime = { workspace = true, features = ["serde"] }
 radicle-oid = { workspace = true, features = ["git2", "serde", "std", "sha1"] }
+safelog = { version = "*", default-features = false, optional = true }
 schemars = { workspace = true, optional = true, features = ["derive", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
@@ -55,6 +55,7 @@ serde-untagged = "0.1.7"
 siphasher = "1.0.0"
 sqlite = { workspace = true, features = ["bundled"] }
 tempfile = { workspace = true, optional = true }
+tor-hscrypto = { version = "0.44", default-features = false, optional = true }
 thiserror = { workspace = true, default-features = true }
 unicode-normalization = { version = "0.1" }
 

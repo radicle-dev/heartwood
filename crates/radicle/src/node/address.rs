@@ -5,7 +5,6 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::{hash, net};
 
-use cyphernet::addr::HostName;
 use localtime::LocalTime;
 use nonempty::NonEmpty;
 
@@ -211,21 +210,6 @@ pub enum AddressType {
 impl From<AddressType> for u8 {
     fn from(other: AddressType) -> Self {
         other as u8
-    }
-}
-
-impl From<&Address> for AddressType {
-    fn from(a: &Address) -> Self {
-        match a.host {
-            HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
-            HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
-            HostName::Dns(_) => AddressType::Dns,
-            #[cfg(feature = "tor")]
-            HostName::Tor(_) => AddressType::Onion,
-            #[cfg(feature = "i2p")]
-            HostName::I2p(_) => AddressType::I2p,
-            _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
-        }
     }
 }
 
