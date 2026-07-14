@@ -27,11 +27,11 @@ fastrand = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 gix-packetline = { workspace = true, features = ["blocking-io"] }
 indexmap = { workspace = true }
+iroh = { version = "1", default-features = false, features = ["tls-ring"] }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
-mio = { version = "1", features = ["net", "os-poll"] }
 qcheck = { workspace = true, optional = true }
-radicle = { workspace = true }
+radicle = { workspace = true, features = ["iroh"] }
 radicle-fetch = { workspace = true }
 radicle-localtime = { workspace = true }
 radicle-protocol = { workspace = true }
@@ -43,6 +43,8 @@ snapbox = { workspace = true, optional = true }
 socket2 = { version = "0.5.7", features = ["all"], optional = true }
 structured-logger = { version = "1.0.4", optional = true }
 tempfile = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "signal", "net", "io-util", "time", "macros", "sync"] }
+tokio-util = { version = "0.7", features = ["io", "io-util"] }
 thiserror = { workspace = true, default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -53,7 +55,6 @@ radicle-windows = { workspace = true }
 uds_windows = { workspace = true }
 
 [dev-dependencies]
-mio = { version = "1", features = ["os-ext"] }
 qcheck = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-log = { workspace = true, features = ["test"] }

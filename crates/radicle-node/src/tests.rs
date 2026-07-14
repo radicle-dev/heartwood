@@ -1490,6 +1490,27 @@ fn fetch_missing_inventory_on_schedule() {
 }
 
 #[test]
+fn fetch_without_gossip_session() {
+    let storage = arbitrary::nonempty_storage(1);
+    let rid = *storage.repos.keys().next().unwrap();
+    let mut amy = Peer::with_storage("amy", AMY, storage);
+    let bob = Peer::bob();
+
+    let (cmd, _recv) = Command::fetch(rid, *bob.nid(), DEFAULT_TIMEOUT, None);
+    amy.command(cmd);
+
+    assert_matches!(
+        amy.outbox().find(|io| matches!(io, Io::Fetch { .. })),
+        Some(Io::Fetch { rid: fetched, remote, .. })
+            if fetched == rid && remote == *bob.nid()
+    );
+    assert!(
+        amy.sessions().connected().next().is_none(),
+        "fetch must not create a gossip session"
+    );
+}
+
+#[test]
 fn queued_fetch_max_capacity() {
     let storage = arbitrary::nonempty_storage(3);
     let mut repo_keys = storage.repos.keys();

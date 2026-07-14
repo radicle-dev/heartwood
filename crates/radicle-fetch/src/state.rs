@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::io;
 use std::time::Instant;
 
 use gix_protocol::Handshake;
@@ -20,7 +21,7 @@ use crate::git::repository;
 use crate::sigrefs::SignedRefs;
 use crate::stage;
 use crate::stage::ProtocolStage;
-use crate::{Handle, refs, sigrefs, transport};
+use crate::{Handle, refs, sigrefs};
 
 /// The data size limit, 5Mb, while fetching the special refs,
 /// i.e. `rad/id` and `rad/sigrefs`.
@@ -204,10 +205,10 @@ impl FetchState {
         ap
     }
 
-    pub(crate) fn as_cached<'a, R, S>(
+    pub(crate) fn as_cached<'a, Repo: AsRef<Repository>, Read: io::Read, Write: io::Write>(
         &'a mut self,
-        handle: &'a mut Handle<R, S>,
-    ) -> Cached<'a, R, S> {
+        handle: &'a mut Handle<Repo, Read, Write>,
+    ) -> Cached<'a, Repo, Read, Write> {
         Cached {
             handle,
             state: self,
@@ -218,17 +219,12 @@ impl FetchState {
 impl FetchState {
     /// Perform the ls-refs and fetch for the given `step`. The result
     /// of these processes is kept track of in the internal state.
-    pub(super) fn run_stage<R, S, F>(
+    pub(super) fn run_stage(
         &mut self,
-        handle: &mut Handle<R, S>,
+        handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
         handshake: &Handshake,
-        step: &F,
-    ) -> Result<BTreeSet<PublicKey>, error::Step>
-    where
-        R: AsRef<Repository>,
-        S: transport::ConnectionStream,
-        F: ProtocolStage,
-    {
+        step: &impl ProtocolStage,
+    ) -> Result<BTreeSet<PublicKey>, error::Step> {
         let refs = match step.ls_refs() {
             Some(refs) => handle
                 .transport
@@ -292,20 +288,16 @@ impl FetchState {
     /// The resulting [`sigrefs::RemoteRefs`] will be the set of
     /// `rad/sigrefs` of the fetched remotes.
     #[allow(clippy::too_many_arguments)]
-    fn run_special_refs<R, S>(
+    fn run_special_refs(
         &mut self,
-        handle: &mut Handle<R, S>,
+        handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
         handshake: &Handshake,
         delegates: BTreeSet<PublicKey>,
         threshold: usize,
         limit: &FetchLimit,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
-    ) -> Result<sigrefs::RemoteRefs, error::Protocol>
-    where
-        R: AsRef<Repository>,
-        S: transport::ConnectionStream,
-    {
+    ) -> Result<sigrefs::RemoteRefs, error::Protocol> {
         let remotes: Vec<_> = match refs_at {
             Some(refs_at) => {
                 let sigrefs_at = stage::SigrefsAt {
@@ -360,18 +352,14 @@ impl FetchState {
     ///      of updating tips.
     ///   7. Apply the valid tips, iff no delegates failed validation.
     ///   8. Signal to the other side that the process has completed.
-    pub(super) fn run<R, S>(
+    pub(super) fn run(
         mut self,
-        handle: &mut Handle<R, S>,
+        handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
         handshake: &Handshake,
         config: Config,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
-    ) -> Result<FetchResult, error::Protocol>
-    where
-        R: AsRef<Repository>,
-        S: transport::ConnectionStream,
-    {
+    ) -> Result<FetchResult, error::Protocol> {
         let start = Instant::now();
         // N.b. we always fetch the `rad/id` since our delegate set
         // might be further ahead than theirs, e.g. we are the
@@ -684,15 +672,12 @@ impl FetchState {
 
 /// A cached version of [`Handle`] by using the underlying
 /// [`FetchState`]'s data for performing lookups.
-pub(crate) struct Cached<'a, R, S> {
-    handle: &'a mut Handle<R, S>,
+pub(crate) struct Cached<'a, Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> {
+    handle: &'a mut Handle<Repo, Read, Write>,
     state: &'a mut FetchState,
 }
 
-impl<R, S> Cached<'_, R, S>
-where
-    R: AsRef<Repository>,
-{
+impl<Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> Cached<'_, Repo, Read, Write> {
     /// Resolves `refname` to its [`ObjectId`] by first looking at the
     /// [`FetchState`] and falling back to the [`Handle::refdb`].
     pub fn refname_to_id<'b, N>(
@@ -778,9 +763,8 @@ where
     }
 }
 
-impl<R, S> RemoteRepository for Cached<'_, R, S>
-where
-    R: AsRef<Repository>,
+impl<Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> RemoteRepository
+    for Cached<'_, Repo, Read, Write>
 {
     fn remote(&self, remote: &RemoteId) -> Result<Remote, storage::refs::Error> {
         // N.b. this is unused so we just delegate to the underlying
@@ -801,9 +785,8 @@ where
     }
 }
 
-impl<R, S> ValidateRepository for Cached<'_, R, S>
-where
-    R: AsRef<Repository>,
+impl<Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> ValidateRepository
+    for Cached<'_, Repo, Read, Write>
 {
     // N.b. we don't verify the `rad/id` of each remote since they may
     // not have a reference to the COB if they have not interacted

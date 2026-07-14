@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::io;
 use std::str::FromStr;
 
 use fetch::git::refs::Applied;
@@ -19,39 +20,39 @@ use radicle::storage::{
 };
 use radicle::{Storage, cob, git, node};
 
-use super::channels::ChannelsFlush;
-
-pub enum Handle {
+pub enum Handle<Read: io::Read, Write: io::Write> {
     Clone {
-        handle: fetch::Handle<TempRepository, ChannelsFlush>,
+        handle: fetch::Handle<TempRepository, Read, Write>,
     },
     Pull {
-        handle: fetch::Handle<Repository, ChannelsFlush>,
+        handle: fetch::Handle<Repository, Read, Write>,
         notifications: node::notifications::StoreWriter,
     },
 }
 
-impl Handle {
+impl<Read: io::Read, Write: io::Write> Handle<Read, Write> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rid: RepoId,
         local: PublicKey,
         storage: &Storage,
         follow: Allowed,
         blocked: BlockList,
-        channels: ChannelsFlush,
+        read: Read,
+        write: Write,
         notifications: node::notifications::StoreWriter,
     ) -> Result<Self, error::Handle> {
         let exists = storage.contains(&rid)?;
         if exists {
             let repo = storage.repository(rid)?;
-            let handle = fetch::Handle::new(local, repo, follow, blocked, channels)?;
+            let handle = fetch::Handle::new(local, repo, follow, blocked, read, write)?;
             Ok(Handle::Pull {
                 handle,
                 notifications,
             })
         } else {
             let repo = storage.temporary_repository(rid)?;
-            let handle = fetch::Handle::new(local, repo, follow, blocked, channels)?;
+            let handle = fetch::Handle::new(local, repo, follow, blocked, read, write)?;
             Ok(Handle::Clone { handle })
         }
     }

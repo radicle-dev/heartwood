@@ -27,10 +27,12 @@ pub mod seeds {
 
     /// A helper to generate many connect addresses for a node.
     fn to_connect_addresses(id: NodeId, addresses: Vec<Address>) -> Vec<ConnectAddress> {
-        addresses
+        let mut addresses = addresses
             .into_iter()
             .map(|address| ConnectAddress::new(id, address))
-            .collect()
+            .collect::<Vec<_>>();
+        addresses.push(ConnectAddress::iroh(id));
+        addresses
     }
 
     /// A public Radicle seed node for the community.
@@ -244,6 +246,11 @@ impl FetchPackSizeLimit {
     pub fn exceeded_by(&self, bytes: usize) -> bool {
         bytes >= self.limit.as_u64() as usize
     }
+
+    /// Byte count.
+    pub fn as_u64(&self) -> u64 {
+        self.limit.as_u64()
+    }
 }
 
 impl Default for FetchPackSizeLimit {
@@ -343,7 +350,7 @@ pub struct RateLimits {
     schemars(description = "\
         A node address to connect to. Format: An Ed25519 public key in multibase encoding, \
         followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion \
-        name, or an I2P address, followed by the symbol ':', followed by a TCP port number,
+        name, or an I2P address, followed by the symbol ':', followed by a UDP port number,
         or the string 'iroh'.\
     ",
     extend("examples" = [
@@ -639,7 +646,7 @@ pub struct Config {
         skip_serializing_if = "crate::serde_ext::is_some_default"
     )]
     pub user_agent: Option<UserAgent>,
-    /// Socket address (a combination of IPv4 or IPv6 address and TCP port) to listen on.
+    /// Socket address (a combination of IPv4 or IPv6 address and UDP port) to listen on.
     #[serde(default)]
     #[cfg_attr(feature = "schemars", schemars(example = &"127.0.0.1:8776"))]
     pub listen: Vec<net::SocketAddr>,
@@ -1092,10 +1099,7 @@ mod test {
         });
         let got: super::Config = serde_json::from_value(config).unwrap();
         assert_eq!(got.alias.to_string(), "radicle");
-        assert!(matches!(
-            got.connect[0].addr(),
-            crate::node::Address::Iroh
-        ));
+        assert!(matches!(got.connect[0].addr(), crate::node::Address::Iroh));
     }
 
     #[cfg(feature = "schemars")]

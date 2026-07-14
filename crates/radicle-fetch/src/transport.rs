@@ -27,34 +27,19 @@ use crate::stage::RefPrefix;
 /// processes for communicating during their respective protocols.
 pub trait ConnectionStream {
     type Read: io::Read;
-    type Write: io::Write + SignalEof;
+    type Write: io::Write;
 
     fn open(&mut self) -> (&mut Self::Read, &mut Self::Write);
 }
 
-/// The ability to signal EOF to the server side so that it can stop
-/// serving for this fetch request.
-pub trait SignalEof {
-    /// Since the git protocol is tunneled over an existing
-    /// connection, we can't signal the end of the protocol via the
-    /// usual means, which is to close the connection. Git also
-    /// doesn't have any special message we can send to signal the end
-    /// of the protocol.
-    ///
-    /// Hence, there's no other way for the server to know that we're
-    /// done sending requests than to send a special message outside
-    /// the git protocol. This message can then be processed by the
-    /// remote worker to end the protocol. We use the special "eof"
-    /// control message for this.
-    fn eof(&mut self) -> io::Result<()>;
-}
-
 /// Configuration for running a Git `handshake`, `ls-refs`, or
 /// `fetch`.
-pub struct Transport<S> {
+pub struct Transport<R: io::Read, W: io::Write> {
     git_dir: PathBuf,
     repo: BString,
-    stream: S,
+
+    read: R,
+    write: W,
 }
 
 #[derive(Error, Debug)]
@@ -71,11 +56,8 @@ pub enum Error {
     PackIndex(#[from] gix_pack::index::init::Error),
 }
 
-impl<S> Transport<S>
-where
-    S: ConnectionStream,
-{
-    pub fn new(git_dir: PathBuf, mut repo: BString, stream: S) -> Self {
+impl<R: io::Read, W: io::Write> Transport<R, W> {
+    pub fn new(git_dir: PathBuf, mut repo: BString, read: R, write: W) -> Self {
         let repo = if repo.starts_with(b"/") {
             repo
         } else {
@@ -86,7 +68,8 @@ where
         Self {
             git_dir,
             repo,
-            stream,
+            read,
+            write,
         }
     }
 
@@ -94,9 +77,8 @@ where
     #[allow(clippy::result_large_err)]
     pub(crate) fn handshake(&mut self) -> Result<Handshake, handshake::Error> {
         log::trace!("Performing handshake for {}", self.repo);
-        let (read, write) = self.stream.open();
         gix_protocol::handshake(
-            &mut Connection::new(read, write, self.repo.clone()),
+            &mut Connection::new(&mut self.read, &mut self.write, self.repo.clone()),
             Service::UploadPack,
             |_| Ok(None),
             vec![],
@@ -111,14 +93,13 @@ where
         handshake: &Handshake,
     ) -> Result<Vec<handshake::Ref>, Error> {
         let prefixes = prefixes.into_iter().collect::<BTreeSet<_>>();
-        let (read, write) = self.stream.open();
         Ok(ls_refs::run(
             ls_refs::Config {
                 prefixes,
                 repo: self.repo.clone(),
             },
             handshake,
-            Connection::new(read, write, self.repo.clone()),
+            Connection::new(&mut self.read, &mut self.write, self.repo.clone()),
             &mut progress::Discard,
         )?)
     }
@@ -136,7 +117,6 @@ where
             wants_haves.haves
         );
         let out = {
-            let (read, write) = self.stream.open();
             fetch::run(
                 wants_haves.clone(),
                 fetch::PackWriter {
@@ -144,7 +124,7 @@ where
                     interrupt,
                 },
                 handshake,
-                Connection::new(read, write, self.repo.clone()),
+                Connection::new(&mut self.read, &mut self.write, self.repo.clone()),
                 &mut progress::Discard,
             )?
         };
@@ -175,8 +155,9 @@ where
     /// Signal to the server side that we are done sending ls-refs and
     /// fetch commands.
     pub(crate) fn done(&mut self) -> io::Result<()> {
-        let (_, w) = self.stream.open();
-        w.eof()
+        self.write.write(&[]).map(|n| {
+            debug_assert_eq!(n, 0);
+        })
     }
 }
 

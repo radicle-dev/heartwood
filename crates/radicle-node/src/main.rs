@@ -363,7 +363,14 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         log::debug!(target: "node", "Removing existing control socket..");
         std::fs::remove_file(&socket).ok();
     }
-    Runtime::init(home, config.node, socket, listen, signals, signer)?.run()?;
+
+    let rt_node = Runtime::init(home, config.node, socket, listen, signals, signer)?;
+
+    let rt_tokio = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+
+    rt_tokio.block_on(rt_node.run())?;
 
     Ok(())
 }

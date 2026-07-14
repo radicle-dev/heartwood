@@ -990,23 +990,6 @@ where
         config: fetcher::FetchConfig,
         channel: Option<command::Responder<FetchResult>>,
     ) {
-        let session = {
-            let reason = format!("peer {from} is not connected; cannot initiate fetch");
-            let Some(session) = self.sessions.get_mut(&from) else {
-                if let Some(c) = channel {
-                    c.ok(FetchResult::Failed { reason }).ok();
-                }
-                return;
-            };
-            if !session.is_connected() {
-                if let Some(c) = channel {
-                    c.ok(FetchResult::Failed { reason }).ok();
-                }
-                return;
-            }
-            session
-        };
-
         let cmd = fetcher::state::command::Fetch {
             from,
             rid,
@@ -1030,8 +1013,18 @@ where
                 config,
             } => {
                 debug!(target: "service", "Starting fetch for {rid} from {from}");
+                let addresses = self
+                    .db
+                    .addresses()
+                    .addresses_of(&from)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|known| !known.banned)
+                    .map(|known| known.addr)
+                    .collect();
                 self.outbox.fetch(
-                    session,
+                    from,
+                    addresses,
                     rid,
                     refs_at.into(),
                     self.config.limits.fetch_pack_receive,
@@ -1139,11 +1132,7 @@ where
                     Err(err) => {
                         warn!(target: "service", "Fetch failed for {rid} from {from}: {err}");
 
-                        // For now, we only disconnect the from in case of timeout. In the future,
-                        // there may be other reasons to disconnect.
-                        if err.is_timeout() {
-                            self.outbox.disconnect(from, DisconnectReason::Fetch(err));
-                        }
+                        // Git and gossip have independent connection lifecycles.
                     }
                 }
             }
@@ -1159,18 +1148,14 @@ where
     /// 2. The session was already at fetch capacity.
     pub fn dequeue_fetches(&mut self) {
         let sessions = self
-            .sessions
-            .shuffled()
-            .map(|(k, _)| *k)
+            .fetcher
+            .state()
+            .queued_fetches()
+            .keys()
+            .copied()
             .collect::<Vec<_>>();
 
         for nid in sessions {
-            #[allow(clippy::unwrap_used)]
-            let sess = self.sessions.get_mut(&nid).unwrap();
-            if !sess.is_connected() {
-                continue;
-            }
-
             let Some(fetcher::QueuedFetch {
                 rid,
                 refs: refs_at,
@@ -1340,31 +1325,6 @@ where
 
         let link = session.link;
         let addr = session.addr.clone();
-
-        let cmd = fetcher::state::command::Cancel { from: remote };
-        let fetcher::service::FetchesCancelled { event, orphaned } = self.fetcher.cancel(cmd);
-
-        match event {
-            fetcher::state::event::Cancel::Unexpected { from } => {
-                debug!(target: "service", "No fetches to cancel for {from}");
-            }
-            fetcher::state::event::Cancel::Canceled {
-                from,
-                active,
-                queued,
-            } => {
-                debug!(target: "service", "Cancelled {} ongoing, {} queued for {from}", active.len(), queued.len());
-            }
-        }
-
-        // Notify orphaned responders
-        for (rid, responder) in orphaned {
-            responder
-                .ok(FetchResult::Failed {
-                    reason: format!("failed fetch to {rid}, peer disconnected: {reason}"),
-                })
-                .ok();
-        }
 
         // Attempt to re-connect to persistent peers.
         if self.config.is_persistent(&remote) {
@@ -2664,10 +2624,9 @@ where
     /// connections then this will return `true`.
     fn is_supported_address(&self, address: &Address) -> bool {
         match address {
-            Address::Ipv4 { .. }
-            | Address::Ipv6 { .. }
-            | Address::Dns { .. }
-            | Address::Iroh { .. } => true,
+            Address::Ipv4 { .. } | Address::Ipv6 { .. } | Address::Dns { .. } | Address::Iroh => {
+                true
+            }
             #[cfg(feature = "tor")]
             Address::Tor { .. } => self.config.onion != radicle::node::config::AddressConfig::Drop,
             #[cfg(feature = "i2p")]

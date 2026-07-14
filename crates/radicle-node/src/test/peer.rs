@@ -59,10 +59,6 @@ impl<S> Peer<S> {
     pub fn address(&self) -> Address {
         Address::from(self.addr)
     }
-
-    pub fn into_service(self) -> Service<S> {
-        self.service
-    }
 }
 
 impl<S> Deref for Peer<S> {

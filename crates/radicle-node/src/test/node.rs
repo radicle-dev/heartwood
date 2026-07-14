@@ -507,10 +507,21 @@ impl Node {
         )
         .unwrap();
 
-        let addr = *rt.local_addrs.first().unwrap();
         let id = NodeId::from(*self.secret_key.public_key());
         let handle = ManuallyDrop::new(rt.handle.clone());
-        let thread = ManuallyDrop::new(runtime::thread::spawn(&id, "runtime", move || rt.run()));
+        let thread = ManuallyDrop::new(runtime::thread::spawn(&id, "runtime", move || {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(rt.run())
+        }));
+        let addr = loop {
+            if let Some(addr) = handle.listen_addrs().unwrap().into_iter().next() {
+                break addr;
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
 
         NodeHandle {
             id,
