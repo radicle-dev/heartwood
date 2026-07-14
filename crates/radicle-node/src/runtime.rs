@@ -33,13 +33,14 @@ use radicle_signals::Signal;
 use thiserror::Error;
 
 use crate::control;
-use crate::reactor;
-use crate::reactor::Reactor;
 use crate::wire::Wire;
 use crate::worker;
 
 /// Maximum pending worker tasks allowed.
 pub const MAX_PENDING_TASKS: usize = 1024;
+
+// TODO: This is a stub, left over from our custom reactor implementation.
+type Reactor = ();
 
 /// A client error.
 #[derive(Error, Debug)]
@@ -216,6 +217,8 @@ impl Runtime {
         let mut wire = Wire::new(service, worker_send, secret_key.clone());
         let mut local_addrs = Vec::new();
 
+        // TODO: Replace binding to listeners with setting up iroh routing.
+        /*
         for addr in listen {
             let listener = reactor::Listener::bind(addr)?;
             let local_addr = listener.local_addr();
@@ -223,6 +226,7 @@ impl Runtime {
             local_addrs.push(local_addr);
             wire.listen(listener);
         }
+        */
         let reactor = Reactor::new(wire, thread::name(&id, "service"))?;
         let handle = Handle::new(home.clone(), socket.clone(), reactor.controller(), emitter);
 
