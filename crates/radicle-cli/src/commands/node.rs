@@ -29,7 +29,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Connect { addr, timeout } => {
             let timeout = timeout.unwrap_or(time::Duration::MAX);
             match addr {
-                Addr::Peer(addr) => control::connect(&mut node, addr.id, addr.addr, timeout)?,
+                Addr::Peer(addr) => {
+                    control::connect(&mut node, *addr.id(), addr.addr().clone(), timeout)?
+                }
                 Addr::Node(nid) => {
                     let db = profile.database()?;
                     let addresses = db
@@ -45,7 +47,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             if addresses {
                 let cfg = node.config()?;
                 for addr in cfg.external_addresses {
-                    term::println(ConnectAddress::from((*profile.id(), addr)).to_string());
+                    term::println(ConnectAddress::new(*profile.id(), addr).to_string());
                 }
             } else {
                 control::config(&node)?;

@@ -343,54 +343,6 @@ impl From<&PublicKey> for sqlite::Value {
     }
 }
 
-#[cfg(feature = "cyphernet")]
-impl AsRef<[u8]> for PublicKey {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-#[cfg(all(feature = "cyphernet", feature = "alloc", feature = "multibase"))]
-impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for PublicKey {
-    type Display = String;
-
-    fn display_fmt(&self, encoding: &cyphernet::display::Encoding) -> Self::Display {
-        match encoding {
-            cyphernet::display::Encoding::Base58
-            | cyphernet::display::Encoding::Multibase(multibase::Base::Base58Btc) => {
-                self.to_string()
-            }
-            _ => unimplemented!(),
-        }
-    }
-}
-
-#[cfg(all(feature = "cyphernet", feature = "alloc"))]
-impl cyphernet::EcPk for PublicKey {
-    const COMPRESSED_LEN: usize = dalek::ed::PUBLIC_KEY_LENGTH;
-    const CURVE_NAME: &'static str = "Edwards25519";
-
-    type Compressed = PublicKey;
-
-    fn base_point() -> Self {
-        unimplemented!()
-    }
-
-    fn to_pk_compressed(&self) -> Self::Compressed {
-        *self
-    }
-
-    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
-        Ok(pk)
-    }
-
-    fn from_pk_compressed_slice(pk: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
-        Ok(PublicKey(
-            PublicKeyBytes::try_from(pk).map_err(|_| cyphernet::EcPkInvalid::default())?,
-        ))
-    }
-}
-
 /// A (decompressed) point on the Edwards25519 curve (but not on its twist) that
 /// may be used to verify signatures.
 ///
@@ -444,62 +396,6 @@ impl signature::Verifier<Signature> for VerifyingKey {
 impl alloc::fmt::Display for VerifyingKey {
     fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         self.public_key().fmt(f)
-    }
-}
-
-#[cfg(all(feature = "cyphernet", feature = "alloc", feature = "multibase"))]
-impl cyphernet::display::MultiDisplay<cyphernet::display::Encoding> for VerifyingKey {
-    type Display = String;
-
-    fn display_fmt(&self, encoding: &cyphernet::display::Encoding) -> Self::Display {
-        self.public_key().display_fmt(encoding)
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl From<&cyphernet::ed25519::PublicKey> for PublicKey {
-    fn from(value: &cyphernet::ed25519::PublicKey) -> Self {
-        use core::ops::Deref as _;
-        Self(*value.deref().deref())
-    }
-}
-
-#[cfg(feature = "cyphernet")]
-impl From<PublicKey> for cyphernet::ed25519::PublicKey {
-    fn from(value: PublicKey) -> Self {
-        use cyphernet::EcPk as _;
-        cyphernet::ed25519::PublicKey::from_pk_compressed(value.into_inner().into())
-            .expect("implementation is infallible")
-    }
-}
-
-#[cfg(all(feature = "cyphernet", feature = "alloc"))]
-impl cyphernet::EcPk for VerifyingKey {
-    const COMPRESSED_LEN: usize = dalek::ed::PUBLIC_KEY_LENGTH;
-    const CURVE_NAME: &'static str = "Edwards25519";
-
-    type Compressed = PublicKey;
-
-    fn base_point() -> Self {
-        unimplemented!()
-    }
-
-    fn to_pk_compressed(&self) -> Self::Compressed {
-        *self.public_key()
-    }
-
-    fn from_pk_compressed(pk: Self::Compressed) -> Result<Self, cyphernet::EcPkInvalid> {
-        dalek::ed::VerifyingKey::from_bytes(&pk.0)
-            .map_err(|_| cyphernet::EcPkInvalid::default())
-            .map(Self)
-    }
-
-    fn from_pk_compressed_slice(slice: &[u8]) -> Result<Self, cyphernet::EcPkInvalid> {
-        Self::from_pk_compressed(PublicKey(
-            slice
-                .try_into()
-                .map_err(|_| cyphernet::EcPkInvalid::default())?,
-        ))
     }
 }
 
@@ -657,40 +553,6 @@ impl signature::Keypair for SigningKey {
     }
 }
 
-#[cfg(all(feature = "cyphernet", feature = "alloc"))]
-impl cyphernet::EcSk for SigningKey {
-    type Pk = VerifyingKey;
-
-    fn generate_keypair() -> (Self, Self::Pk)
-    where
-        Self: Sized,
-    {
-        let mut random = [0; 32];
-        getrandom::fill(&mut random).expect("failed get random bytes from the operating system");
-        let signing_key = dalek::ed::SigningKey::from_bytes(&random);
-        let verifying_key = signature::Keypair::verifying_key(&signing_key);
-        (SigningKey(signing_key), VerifyingKey(verifying_key))
-    }
-
-    fn to_pk(&self) -> Result<Self::Pk, cyphernet::EcSkInvalid> {
-        use signature::Keypair as _;
-
-        Ok(self.verifying_key())
-    }
-}
-
-#[cfg(all(feature = "cyphernet", feature = "diffie-hellman"))]
-impl cyphernet::Ecdh for SigningKey {
-    type SharedSecret = SharedSecret;
-
-    fn ecdh(&self, pk: &Self::Pk) -> Result<Self::SharedSecret, cyphernet::EcdhError> {
-        self.diffie_hellman(pk)
-            .ok_or(cyphernet::EcdhError::InvalidPk(
-                cyphernet::EcPkInvalid::default(),
-            ))
-    }
-}
-
 #[cfg(feature = "qcheck")]
 impl qcheck::Arbitrary for SigningKey {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
@@ -698,31 +560,8 @@ impl qcheck::Arbitrary for SigningKey {
     }
 }
 
-#[cfg(all(feature = "alloc", feature = "multibase", feature = "cyphernet"))]
-impl alloc::str::FromStr for VerifyingKey {
-    type Err = PublicKeyError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let pk = PublicKey::from_str(s)?;
-        dalek::ed::VerifyingKey::from_bytes(&pk.0)
-            .map(Self)
-            .map_err(PublicKeyError::Invalid)
-    }
-}
-
 #[cfg(all(feature = "alloc", feature = "multibase"))]
 impl TryFrom<String> for PublicKey {
-    type Error = PublicKeyError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        use alloc::str::FromStr as _;
-
-        Self::from_str(&value)
-    }
-}
-
-#[cfg(all(feature = "alloc", feature = "multibase", feature = "cyphernet"))]
-impl TryFrom<String> for VerifyingKey {
     type Error = PublicKeyError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -790,8 +629,6 @@ mod tests {
     use super::*;
 
     use qcheck_macros::quickcheck;
-
-    use crate::SigningKey;
 
     /// See <https://w3c-ccg.github.io/did-key-spec/#example-a-simple-ed25519-did-key-value>.
     const DID_KEY_SAMPLE: &str = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";

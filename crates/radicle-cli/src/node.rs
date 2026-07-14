@@ -63,7 +63,7 @@ impl SyncSettings {
                 .config
                 .preferred_seeds
                 .iter()
-                .map(|p| p.id)
+                .map(|p| *p.id())
                 .collect();
         }
         // Remove our local node from the seed set just in case it was added by mistake.
