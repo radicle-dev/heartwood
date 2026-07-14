@@ -326,6 +326,10 @@ impl wire::Encode for Address {
                 u8::from(AddressType::I2p).encode(buf);
                 addr.encode(buf);
             }
+            Host::Iroh => {
+                u8::from(AddressType::Iroh).encode(buf);
+                return;
+            }
             _ => {
                 unimplemented!(
                     "Encoding not defined for addresses of the same type as the following: {:?}",
@@ -333,7 +337,7 @@ impl wire::Encode for Address {
                 );
             }
         }
-        self.port().encode(buf);
+        self.port().unwrap().get().encode(buf);
     }
 }
 
@@ -366,9 +370,10 @@ impl wire::Decode for Address {
             }
             #[cfg(feature = "i2p")]
             Ok(AddressType::I2p) => Host::I2p(wire::Decode::decode(buf)?),
-            Ok(unknown) => {
+            Ok(AddressType::Iroh) => Host::Iroh,
+            Ok(other) => {
                 return Err(wire::Invalid::AddressType {
-                    actual: unknown.into(),
+                    actual: other.into(),
                 }
                 .into());
             }
