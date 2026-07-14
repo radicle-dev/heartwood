@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use localtime::LocalTime;
-use radicle::node::{HostName, NodeId, address, config};
+use radicle::node::{Host, NodeId, address, config};
 
 /// Peer rate limiter.
 ///
@@ -11,7 +11,7 @@ use radicle::node::{HostName, NodeId, address, config};
 /// bucket's capacity.
 #[derive(Debug, Default)]
 pub struct RateLimiter {
-    pub buckets: HashMap<HostName, TokenBucket>,
+    pub buckets: HashMap<Host, TokenBucket>,
     pub bypass: HashSet<NodeId>,
 }
 
@@ -31,7 +31,7 @@ impl RateLimiter {
     /// is outbound vs. inbound.
     pub fn limit<T: AsTokens>(
         &mut self,
-        addr: HostName,
+        addr: Host,
         nid: Option<&NodeId>,
         tokens: &T,
         now: LocalTime,
@@ -41,7 +41,7 @@ impl RateLimiter {
         {
             return false;
         }
-        if let HostName::Ip(ip) = addr {
+        if let Host::Ip(ip) = addr {
             // Don't limit LAN addresses.
             if !address::is_routable(&ip) {
                 return false;
@@ -158,7 +158,7 @@ mod test {
     fn test_limiter_refill() {
         let mut r = RateLimiter::default();
         let t = (3, 0.2); // Three tokens burst. One token every 5 seconds.
-        let a = HostName::Dns(String::from("seed.radicle.example.com"));
+        let a = Host::Dns(String::from("seed.radicle.example.com"));
         let n = arbitrary::r#gen::<NodeId>(1);
         let n = Some(&n);
 
@@ -192,8 +192,8 @@ mod test {
         let n = arbitrary::r#gen::<NodeId>(1);
         let n = Some(&n);
         let mut r = RateLimiter::default();
-        let addr1 = HostName::Dns(String::from("seed.radicle.example.com"));
-        let addr2 = HostName::Dns(String::from("seed.radicle.example.net"));
+        let addr1 = Host::Dns(String::from("seed.radicle.example.com"));
+        let addr2 = Host::Dns(String::from("seed.radicle.example.net"));
 
         assert_eq!(r.limit(addr1.clone(), n, &t, LocalTime::from_secs(0)), false);
         assert_eq!(r.limit(addr1.clone(), n, &t, LocalTime::from_secs(0)), true);
@@ -213,8 +213,8 @@ mod test {
         let n = arbitrary::r#gen::<NodeId>(1);
         let n = Some(&n);
         let mut r = RateLimiter::default();
-        let addr1 = HostName::Dns(String::from("seed.radicle.example.com"));
-        let addr2 = HostName::Dns(String::from("seed.radicle.example.net"));
+        let addr1 = Host::Dns(String::from("seed.radicle.example.com"));
+        let addr2 = Host::Dns(String::from("seed.radicle.example.net"));
 
         assert_eq!(r.limit(addr1.clone(), n, &t1, LocalTime::from_secs(0)), false);
         assert_eq!(r.limit(addr1.clone(), n, &t1, LocalTime::from_secs(0)), true);

@@ -7,8 +7,9 @@ use thiserror::Error;
 
 use clap::{Parser, Subcommand};
 
-use radicle::crypto::{PublicKey, PublicKeyError};
-use radicle::node::{Address, NodeId, PeerAddr, PeerAddrParseError};
+use radicle::crypto::PublicKeyError;
+use radicle::node::NodeId;
+use radicle::node::config::{ConnectAddress, ParseConnectAddressError};
 use radicle::prelude::RepoId;
 
 const ABOUT: &str = "Control and query the Radicle Node";
@@ -24,7 +25,7 @@ pub struct Args {
 #[derive(Clone, Debug)]
 pub(super) enum Addr {
     /// Fully-specified address of the form `<NID>@<ADDR>`
-    Peer(PeerAddr<NodeId, Address>),
+    Peer(ConnectAddress),
     /// Just the `NID`, to be used for address lookups.
     Node(NodeId),
 }
@@ -32,7 +33,7 @@ pub(super) enum Addr {
 #[derive(Error, Debug)]
 pub(super) enum AddrParseError {
     #[error("{0}, expected <NID> or <NID>@<ADDR>")]
-    PeerAddr(#[from] PeerAddrParseError<PublicKey>),
+    PeerAddr(#[from] ParseConnectAddressError),
     #[error(transparent)]
     NodeId(#[from] PublicKeyError),
 }
@@ -42,7 +43,7 @@ impl FromStr for Addr {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.contains("@") {
-            PeerAddr::from_str(s)
+            ConnectAddress::from_str(s)
                 .map(Self::Peer)
                 .map_err(AddrParseError::PeerAddr)
         } else {

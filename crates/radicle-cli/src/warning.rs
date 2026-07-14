@@ -2,29 +2,29 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use radicle::node::config::ConnectAddress;
-use radicle::node::{Address, HostName};
+use radicle::node::{Address, Host};
 use radicle::profile::Config;
 
 const IRIS: &str = "iris.radicle.network";
 const ROSA: &str = "rosa.radicle.network";
 
-static NODES_RENAMED: LazyLock<HashMap<HostName, HostName>> = LazyLock::new(|| {
+static NODES_RENAMED: LazyLock<HashMap<Host, Host>> = LazyLock::new(|| {
     HashMap::from([
         (
-            HostName::Dns("seed.radicle.garden".to_string()),
-            HostName::Dns(IRIS.to_string()),
+            Host::Dns("seed.radicle.garden".to_string()),
+            Host::Dns(IRIS.to_string()),
         ),
         (
-            HostName::Dns("iris.radicle.xyz".to_string()),
-            HostName::Dns(IRIS.to_string()),
+            Host::Dns("iris.radicle.xyz".to_string()),
+            Host::Dns(IRIS.to_string()),
         ),
         (
-            HostName::Dns("ash.radicle.garden".to_string()),
-            HostName::Dns(ROSA.to_string()),
+            Host::Dns("ash.radicle.garden".to_string()),
+            Host::Dns(ROSA.to_string()),
         ),
         (
-            HostName::Dns("rosa.radicle.xyz".to_string()),
-            HostName::Dns(ROSA.to_string()),
+            Host::Dns("rosa.radicle.xyz".to_string()),
+            Host::Dns(ROSA.to_string()),
         ),
     ])
 });
@@ -34,7 +34,7 @@ fn nodes_renamed_for_option(
     iter: impl IntoIterator<Item = ConnectAddress>,
 ) -> Vec<String> {
     iter.into_iter().enumerate().fold(Vec::new(), |mut warnings, (i, value)| {
-        let old: Address = value.into();
+        let old = value.addr();
         let old = old.host();
         if let Some(new) = NODES_RENAMED.get(old) {
             warnings.push(format!(
@@ -95,7 +95,7 @@ fn ipv6_without_square_brackets(config: &Config) -> Vec<String> {
     fn pick_addr<'a>(
         iter: impl Iterator<Item = &'a ConnectAddress>,
     ) -> impl Iterator<Item = Address> {
-        iter.map(|connect_address| connect_address.addr.clone())
+        iter.map(|connect_address| connect_address.addr().clone())
     }
 
     let chained = zip("preferredSeeds", pick_addr(config.preferred_seeds.iter()))
@@ -110,7 +110,7 @@ fn ipv6_without_square_brackets(config: &Config) -> Vec<String> {
             "Value of configuration option `{option}` at zero-based index {i} mentions IPv6 address '{}' without square brackets. The address format will change, and this address will be rejected in the future. Please edit your configuration file to enclose the IPv6 address in square brackets. Combined with port information it should read '[{}]:{}'. Refer to RFC 5926, Sec. 6 as well as RFC 3986, Sec. D.1. and RFC 2732, Sec. 2.",
             address.host(),
             address.host(),
-            address.port()
+            address.port(),
         )
     ).collect()
 }

@@ -150,7 +150,7 @@ impl Store for Database {
              WHERE value = ?1 AND type = ?2",
         )?;
         stmt.bind((1, addr))?;
-        stmt.bind((2, AddressType::from(addr)))?;
+        stmt.bind((2, addr.address_type()))?;
 
         if let Some(row) = stmt.into_iter().next() {
             let row = row?;
@@ -205,19 +205,15 @@ impl Store for Database {
                     continue;
                 }
             };
-            match addr.address_type() {
-                None => {
-                    log::debug!("Address {addr} has unknown address type for {node}");
-                    continue;
-                }
-                Some(actual_type) if actual_type != address_type => {
-                    log::debug!(
-                        "The address '{addr}' was expected to be of type '{address_type:?}' but was found to be of type '{actual_type:?}'"
-                    );
-                    continue;
-                }
-                _ => {}
+
+            let actual_type = addr.address_type();
+            if actual_type != address_type {
+                log::debug!(
+                    "The address '{addr}' was expected to be of type '{address_type:?}' but was found to be of type '{actual_type:?}'"
+                );
+                continue;
             }
+
             let source = row.try_read::<Source, _>("source")?;
             let last_attempt = row
                 .read::<Option<i64>, _>("last_attempt")
@@ -300,7 +296,7 @@ impl Store for Database {
                      WHERE timestamp < ?5",
                 )?;
                 stmt.bind((1, node))?;
-                stmt.bind((2, AddressType::from(&addr.addr)))?;
+                stmt.bind((2, addr.addr.address_type()))?;
                 stmt.bind((3, &addr.addr))?;
                 stmt.bind((4, addr.source))?;
                 stmt.bind((5, &timestamp))?;
@@ -358,7 +354,7 @@ impl Store for Database {
 
         stmt.bind((1, &time))?;
         stmt.bind((2, nid))?;
-        stmt.bind((3, AddressType::from(addr)))?;
+        stmt.bind((3, addr.address_type()))?;
         stmt.bind((4, addr))?;
         stmt.next()?;
 
@@ -377,7 +373,7 @@ impl Store for Database {
 
             stmt.bind((1, &time))?;
             stmt.bind((2, nid))?;
-            stmt.bind((3, AddressType::from(addr)))?;
+            stmt.bind((3, addr.address_type()))?;
             stmt.bind((4, addr))?;
             stmt.next()?;
 
@@ -618,7 +614,6 @@ mod test {
 
     use super::*;
     use crate::test::arbitrary;
-    use cyphernet::addr::NetAddr;
     use localtime::LocalTime;
 
     #[test]
@@ -972,12 +967,16 @@ mod test {
         let ip2: net::Ipv4Addr = [198, 18, 0, 9].into();
         let ka1 = arbitrary::r#gen::<KnownAddress>(1);
         let ka1 = KnownAddress {
-            addr: Address::from(NetAddr::new(ip1.into(), 8776)),
+            addr: Address::from(std::net::SocketAddr::V4(std::net::SocketAddrV4::new(
+                ip1, 8776,
+            ))),
             ..ka1
         };
         let ka2 = arbitrary::r#gen::<KnownAddress>(1);
         let ka2 = KnownAddress {
-            addr: Address::from(NetAddr::new(ip2.into(), 8776)),
+            addr: Address::from(std::net::SocketAddr::V4(std::net::SocketAddrV4::new(
+                ip2, 8776,
+            ))),
             ..ka2
         };
         let mut db = Database::memory().unwrap();

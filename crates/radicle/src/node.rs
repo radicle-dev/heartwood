@@ -31,7 +31,6 @@ use std::os::unix::net::UnixStream;
 #[cfg(windows)]
 use uds_windows::UnixStream;
 
-use cyphernet::addr::{AddrParseError, NetAddr};
 use localtime::{LocalDuration, LocalTime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -40,6 +39,7 @@ use serde_json as json;
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::RepoId;
+use crate::node::config::ConnectAddress;
 use crate::profile;
 use crate::storage::RefUpdate;
 use crate::storage::refs::{FeatureLevel, RefsAt};
@@ -47,7 +47,6 @@ use crate::storage::refs::{FeatureLevel, RefsAt};
 pub use address::KnownAddress;
 pub use command::{Command, CommandResult, ConnectOptions, DEFAULT_TIMEOUT, Success};
 pub use config::Config;
-pub use cyphernet::addr::{HostName, PeerAddr, PeerAddrParseError};
 pub use db::Database;
 pub use events::{Event, Events};
 pub use features::Features;
@@ -459,6 +458,84 @@ impl TryFrom<&sqlite::Value> for Alias {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[non_exhaustive]
+pub enum Host {
+    Ip(IpAddr),
+
+    Dns(String),
+
+    #[cfg(feature = "tor")]
+    Tor(tor_hscrypto::pk::HsId),
+
+    #[cfg(feature = "i2p")]
+    I2p(String),
+}
+
+impl std::fmt::Display for Host {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Host::Ip(ip) => ip.fmt(f),
+            Host::Dns(dns) => dns.fmt(f),
+            #[cfg(feature = "tor")]
+            Host::Tor(onion) => safelog::DisplayRedacted::display_unredacted(onion).fmt(f),
+            #[cfg(feature = "i2p")]
+            Host::I2p(i2p) => i2p.fmt(f),
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+#[cfg(feature = "tor")]
+pub enum HostParseError {
+    #[error(transparent)]
+    Tor(#[from] tor_hscrypto::pk::HsIdParseError),
+}
+
+#[cfg(not(feature = "tor"))]
+type HostParseError = std::convert::Infallible;
+
+impl std::str::FromStr for Host {
+    type Err = HostParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // NOTE: For I2P addresses we do not do any further validation.
+        #[cfg(any(feature = "tor", feature = "i2p"))]
+        match s.rsplit_once(".") {
+            #[cfg(feature = "tor")]
+            Some((_, tld)) if tld.eq_ignore_ascii_case("onion") => {
+                return Ok(Host::Tor(tor_hscrypto::pk::HsId::from_str(s)?));
+            }
+            #[cfg(feature = "i2p")]
+            Some((_, tld)) if tld.eq_ignore_ascii_case("i2p") => {
+                return Ok(Host::I2p(s.to_owned()));
+            }
+            #[cfg(feature = "i2p")]
+            Some((prefix, tld))
+                if tld.eq_ignore_ascii_case("alt")
+                    && prefix
+                        .rsplit_once(".")
+                        .is_some_and(|(_, tld)| tld.eq_ignore_ascii_case("i2p")) =>
+            {
+                return Ok(Host::I2p(s.to_owned()));
+            }
+            _ => {}
+        }
+
+        if let Ok(ip) = IpAddr::from_str(s) {
+            return Ok(Host::Ip(ip));
+        }
+
+        Ok(Host::Dns(s.to_owned()))
+    }
+}
+
+impl From<IpAddr> for Host {
+    fn from(ip: IpAddr) -> Self {
+        Host::Ip(ip)
+    }
+}
+
 /// Peer public protocol address.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -478,7 +555,9 @@ impl TryFrom<&sqlite::Value> for Alias {
     ),
 ))]
 pub struct Address {
-    inner: NetAddr<HostName>,
+    host: Host,
+
+    port: u16,
 
     /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
     #[deprecated]
@@ -486,11 +565,20 @@ pub struct Address {
 }
 
 impl Address {
+    pub fn new(host: Host, port: u16) -> Self {
+        Self {
+            host,
+            port,
+            #[allow(deprecated)]
+            is_ipv6_without_square_brackets: false,
+        }
+    }
+
     /// Check whether this address is from the local network.
     pub fn is_local(&self) -> bool {
-        match &self.inner.host {
-            HostName::Ip(ip) => address::is_local(ip),
-            HostName::Dns(name) => {
+        match &self.host {
+            Host::Ip(ip) => address::is_local(ip),
+            Host::Dns(name) => {
                 let name = name.strip_suffix(".").unwrap_or(name);
 
                 // RFC 2606, Section 2
@@ -503,59 +591,56 @@ impl Address {
 
     /// Check whether this address is globally routable.
     pub fn is_routable(&self) -> bool {
-        match self.inner.host {
-            HostName::Ip(ip) => address::is_routable(&ip),
-            HostName::Dns(_) => !self.is_local(),
+        match self.host {
+            Host::Ip(ip) => address::is_routable(&ip),
+            Host::Dns(_) => !self.is_local(),
             _ => true,
         }
     }
 
-    /// Return the [`HostName`] of the [`Address`].
-    pub fn host(&self) -> &HostName {
-        &self.inner.host
+    /// Return the [`Host`] of the [`Address`].
+    pub fn host(&self) -> &Host {
+        &self.host
     }
 
     /// Return the [`AddressType`] of the [`Address`].
-    ///
-    /// Returns `None` if the [`AddressType`] is not known.
-    pub fn address_type(&self) -> Option<AddressType> {
+    pub fn address_type(&self) -> AddressType {
         match self.host() {
-            HostName::Ip(IpAddr::V4(_)) => Some(AddressType::Ipv4),
-            HostName::Ip(IpAddr::V6(_)) => Some(AddressType::Ipv6),
-            HostName::Dns(_) => Some(AddressType::Dns),
+            Host::Ip(IpAddr::V4(_)) => AddressType::Ipv4,
+            Host::Ip(IpAddr::V6(_)) => AddressType::Ipv6,
+            Host::Dns(_) => AddressType::Dns,
             #[cfg(feature = "tor")]
-            HostName::Tor(_) => Some(AddressType::Onion),
+            Host::Tor(_) => AddressType::Onion,
             #[cfg(feature = "i2p")]
-            HostName::I2p(_) => Some(AddressType::I2p),
-            _ => None,
+            Host::I2p(_) => AddressType::I2p,
         }
     }
 
-    /// Returns `true` if the [`HostName`] is a Tor onion address.
+    /// Returns `true` if the [`Host`] is a Tor onion address.
     #[cfg(feature = "tor")]
     pub fn is_onion(&self) -> bool {
-        matches!(self.inner.host, HostName::Tor(_))
+        matches!(self.host, Host::Tor(_))
     }
 
-    /// Returns `true` if the [`HostName`] is an I2P address.
+    /// Returns `true` if the [`Host`] is an I2P address.
     #[cfg(feature = "i2p")]
     pub fn is_i2p(&self) -> bool {
-        matches!(self.inner.host, HostName::I2p(_))
+        matches!(self.host, Host::I2p(_))
     }
 
     /// Return the port number of the [`Address`].
     pub fn port(&self) -> u16 {
-        self.inner.port
+        self.port
     }
 
     pub fn display_compact(&self) -> impl Display + use<> {
         let host = match self.host() {
-            HostName::Ip(IpAddr::V4(ip)) => ip.to_string(),
-            HostName::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
-            HostName::Dns(dns) => dns.clone(),
+            Host::Ip(IpAddr::V4(ip)) => ip.to_string(),
+            Host::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
+            Host::Dns(dns) => dns.clone(),
             #[cfg(feature = "tor")]
-            HostName::Tor(onion) => {
-                let onion = onion.to_string();
+            Host::Tor(onion) => {
+                let onion = safelog::DisplayRedacted::display_unredacted(onion).to_string();
                 let start = onion.chars().take(8).collect::<String>();
                 let end = onion
                     .chars()
@@ -564,13 +649,10 @@ impl Address {
                 format!("{start}…{end}")
             }
             #[cfg(feature = "i2p")]
-            HostName::I2p(i2p) => i2p.to_string(),
-            _ => unreachable!(),
+            Host::I2p(i2p) => i2p.to_string(),
         };
 
-        let port = self.port().to_string();
-
-        format!("{host}:{port}")
+        format!("{host}:{}", self.port)
     }
 
     /// Returns `true` if the address was parsed from a string that
@@ -585,23 +667,30 @@ impl Address {
     }
 }
 
-impl Display for Address {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.host() {
-            HostName::Ip(IpAddr::V6(ip)) => {
-                write!(f, "[{ip}]:{}", self.port())
-            }
-            _ => self.inner.fmt(f),
+impl std::net::ToSocketAddrs for Address {
+    type Iter = std::vec::IntoIter<net::SocketAddr>;
+
+    fn to_socket_addrs(&self) -> io::Result<Self::Iter> {
+        match &self.host {
+            Host::Ip(ip) => (*ip, self.port)
+                .to_socket_addrs()
+                .map(|result| result.collect::<Vec<_>>().into_iter()),
+            Host::Dns(dns) => (dns.as_str(), self.port).to_socket_addrs(),
+            #[cfg(feature = "tor")]
+            Host::Tor(_) => Err(io::Error::other(
+                "refusing to resolve Tor onion address via DNS",
+            )),
+            #[cfg(feature = "i2p")]
+            Host::I2p(_) => Err(io::Error::other("refusing to resolve I2P address via DNS")),
         }
     }
 }
 
-impl From<NetAddr<HostName>> for Address {
-    fn from(addr: NetAddr<HostName>) -> Self {
-        Address {
-            inner: addr,
-            #[allow(deprecated)]
-            is_ipv6_without_square_brackets: false,
+impl Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.host() {
+            Host::Ip(IpAddr::V6(ip)) => write!(f, "[{ip}]:{}", self.port),
+            host => write!(f, "{host}:{}", self.port),
         }
     }
 }
@@ -620,69 +709,56 @@ impl From<Address> for String {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum ParseAddressError {
+    #[error("missing port number")]
+    NoPort,
+    #[error("invalid port number: {0}")]
+    Port(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    Addr(#[from] std::net::AddrParseError),
+}
+
 impl FromStr for Address {
-    type Err = AddrParseError;
+    type Err = ParseAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (host, port) = s.rsplit_once(':').ok_or(AddrParseError::PortAbsent)?;
+        let (host, port) = match s.rsplit_once(':') {
+            Some((host, port)) => (host, port.parse().map_err(ParseAddressError::Port)?),
+            None => return Err(ParseAddressError::NoPort),
+        };
 
         let (host, is_ipv6_without_square_brackets) = if let Some(host) = host
             .strip_prefix('[')
             .and_then(|host| host.strip_suffix(']'))
         {
-            (HostName::Ip(host.parse::<Ipv6Addr>()?.into()), false)
+            (Host::Ip(host.parse::<Ipv6Addr>()?.into()), false)
         } else {
-            let host = host.parse()?;
-            let is_ipv6_without_square_brackets = matches!(&host, HostName::Ip(IpAddr::V6(_)));
+            let host = match host.parse() {
+                Ok(host) => host,
+                Err(_infallible) => unreachable!(),
+            };
+            let is_ipv6_without_square_brackets = matches!(&host, Host::Ip(IpAddr::V6(_)));
             (host, is_ipv6_without_square_brackets)
         };
 
-        let port = port.parse().map_err(|_| AddrParseError::InvalidPort)?;
-
         Ok(Self {
-            inner: NetAddr::new(host, port),
+            host,
+            port,
             #[allow(deprecated)]
             is_ipv6_without_square_brackets,
         })
     }
 }
 
-impl Deref for Address {
-    type Target = NetAddr<HostName>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl cyphernet::addr::Host for Address {
-    fn requires_proxy(&self) -> bool {
-        self.inner.requires_proxy()
-    }
-}
-
-impl cyphernet::addr::Addr for Address {
-    fn port(&self) -> u16 {
-        self.inner.port()
-    }
-}
-
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
         Address {
-            inner: NetAddr {
-                host: HostName::Ip(addr.ip()),
-                port: addr.port(),
-            },
+            host: Host::Ip(addr.ip()),
+            port: addr.port(),
             #[allow(deprecated)]
             is_ipv6_without_square_brackets: false,
         }
-    }
-}
-
-impl From<Address> for HostName {
-    fn from(addr: Address) -> Self {
-        addr.inner.host
     }
 }
 
@@ -1284,7 +1360,7 @@ impl Handle for Node {
         let result = self
             .call::<ConnectResult>(
                 Command::Connect {
-                    addr: (nid, addr).into(),
+                    addr: ConnectAddress::new(nid, addr),
                     opts,
                 },
                 timeout,
