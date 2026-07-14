@@ -586,6 +586,7 @@ impl TryFrom<&sql::Value> for AddressType {
                 "onion" => Ok(AddressType::Onion),
                 #[cfg(feature = "i2p")]
                 "i2p" => Ok(AddressType::I2p),
+                "iroh" => Ok(AddressType::Iroh),
                 _ => Err(err),
             },
             _ => Err(err),
@@ -603,6 +604,7 @@ impl sql::BindableWithIndex for AddressType {
             Self::Onion => "onion".bind(stmt, i),
             #[cfg(feature = "i2p")]
             Self::I2p => "i2p".bind(stmt, i),
+            Self::Iroh => "iroh".bind(stmt, i),
         }
     }
 }

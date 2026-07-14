@@ -21,6 +21,7 @@ use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::net::IpAddr;
 use std::net::Ipv6Addr;
+use std::num::NonZeroU16;
 use std::ops::{ControlFlow, Deref};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -470,6 +471,8 @@ pub enum Host {
 
     #[cfg(feature = "i2p")]
     I2p(String),
+
+    Iroh,
 }
 
 impl std::fmt::Display for Host {
@@ -481,6 +484,7 @@ impl std::fmt::Display for Host {
             Host::Tor(onion) => safelog::DisplayRedacted::display_unredacted(onion).fmt(f),
             #[cfg(feature = "i2p")]
             Host::I2p(i2p) => i2p.fmt(f),
+            Host::Iroh => "iroh".fmt(f),
         }
     }
 }
@@ -499,6 +503,10 @@ impl std::str::FromStr for Host {
     type Err = HostParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("iroh") {
+            return Ok(Host::Iroh);
+        }
+
         // NOTE: For I2P addresses we do not do any further validation.
         #[cfg(any(feature = "tor", feature = "i2p"))]
         match s.rsplit_once(".") {
@@ -544,12 +552,13 @@ impl From<IpAddr> for Host {
     derive(schemars::JsonSchema),
     schemars(description = "\
     An IP address, or a DNS name, or a Tor onion name, or an I2P address,\
-    followed by the symbol ':', followed by a TCP port number.",
+    followed by the symbol ':', followed by a TCP port number, or the string 'iroh'.",
     extend("examples" = [
             "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
             "f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
             "seed.example.com:8776",
             "192.0.2.0:31337",
+            "iroh",
         ],
         "pattern" = "^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
     ),
@@ -557,7 +566,7 @@ impl From<IpAddr> for Host {
 pub struct Address {
     host: Host,
 
-    port: u16,
+    port: Option<NonZeroU16>,
 
     /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
     #[deprecated]
@@ -566,9 +575,22 @@ pub struct Address {
 
 impl Address {
     pub fn new(host: Host, port: u16) -> Self {
+        assert!(!matches!(host, Host::Iroh));
+
+        let port = Some(NonZeroU16::new(port).expect("port is non-zero"));
+
         Self {
             host,
             port,
+            #[allow(deprecated)]
+            is_ipv6_without_square_brackets: false,
+        }
+    }
+
+    pub fn iroh() -> Self {
+        Self {
+            host: Host::Iroh,
+            port: None,
             #[allow(deprecated)]
             is_ipv6_without_square_brackets: false,
         }
@@ -613,6 +635,7 @@ impl Address {
             Host::Tor(_) => AddressType::Onion,
             #[cfg(feature = "i2p")]
             Host::I2p(_) => AddressType::I2p,
+            Host::Iroh => AddressType::Iroh,
         }
     }
 
@@ -629,7 +652,7 @@ impl Address {
     }
 
     /// Return the port number of the [`Address`].
-    pub fn port(&self) -> u16 {
+    pub fn port(&self) -> Option<NonZeroU16> {
         self.port
     }
 
@@ -650,9 +673,13 @@ impl Address {
             }
             #[cfg(feature = "i2p")]
             Host::I2p(i2p) => i2p.to_string(),
+            Host::Iroh => Host::Iroh.to_string(),
         };
 
-        format!("{host}:{}", self.port)
+        match self.port() {
+            Some(port) => format!("{host}:{port}"),
+            None => host,
+        }
     }
 
     /// Returns `true` if the address was parsed from a string that
@@ -672,25 +699,33 @@ impl std::net::ToSocketAddrs for Address {
 
     fn to_socket_addrs(&self) -> io::Result<Self::Iter> {
         match &self.host {
-            Host::Ip(ip) => (*ip, self.port)
+            Host::Ip(ip) => (*ip, self.port.expect("IP address has port").get())
                 .to_socket_addrs()
                 .map(|result| result.collect::<Vec<_>>().into_iter()),
-            Host::Dns(dns) => (dns.as_str(), self.port).to_socket_addrs(),
+            Host::Dns(dns) => {
+                (dns.as_str(), self.port.expect("DNS address has port").get()).to_socket_addrs()
+            }
             #[cfg(feature = "tor")]
             Host::Tor(_) => Err(io::Error::other(
                 "refusing to resolve Tor onion address via DNS",
             )),
             #[cfg(feature = "i2p")]
             Host::I2p(_) => Err(io::Error::other("refusing to resolve I2P address via DNS")),
+            Host::Iroh => Err(io::Error::other("refusing to resolve iroh address via DNS")),
         }
     }
 }
 
 impl Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.host() {
-            Host::Ip(IpAddr::V6(ip)) => write!(f, "[{ip}]:{}", self.port),
-            host => write!(f, "{host}:{}", self.port),
+        let host = match self.host() {
+            Host::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
+            host => host.to_string(),
+        };
+
+        match self.port() {
+            Some(port) => write!(f, "{host}:{port}"),
+            None => write!(f, "{host}"),
         }
     }
 }
@@ -713,8 +748,12 @@ impl From<Address> for String {
 pub enum ParseAddressError {
     #[error("missing port number")]
     NoPort,
+    #[error("zero port number is not allowed")]
+    ZeroPort,
     #[error("invalid port number: {0}")]
     Port(#[from] std::num::ParseIntError),
+    #[error("unexpected port number")]
+    UnexpectedPort,
     #[error(transparent)]
     Addr(#[from] std::net::AddrParseError),
 }
@@ -723,8 +762,21 @@ impl FromStr for Address {
     type Err = ParseAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("iroh") {
+            return Ok(Self::iroh());
+        }
+
         let (host, port) = match s.rsplit_once(':') {
-            Some((host, port)) => (host, port.parse().map_err(ParseAddressError::Port)?),
+            Some((host, _)) if host.eq_ignore_ascii_case("iroh") => {
+                return Err(ParseAddressError::UnexpectedPort);
+            }
+            Some((host, port)) => (
+                host,
+                Some(
+                    NonZeroU16::new(port.parse().map_err(ParseAddressError::Port)?)
+                        .ok_or(ParseAddressError::ZeroPort)?,
+                ),
+            ),
             None => return Err(ParseAddressError::NoPort),
         };
 
@@ -753,12 +805,7 @@ impl FromStr for Address {
 
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
-        Address {
-            host: Host::Ip(addr.ip()),
-            port: addr.port(),
-            #[allow(deprecated)]
-            is_ipv6_without_square_brackets: false,
-        }
+        Self::new(Host::Ip(addr.ip()), addr.port())
     }
 }
 

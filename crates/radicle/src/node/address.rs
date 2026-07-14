@@ -205,6 +205,7 @@ pub enum AddressType {
     Onion = 4,
     #[cfg(feature = "i2p")]
     I2p = 5,
+    Iroh = 6,
 }
 
 impl From<AddressType> for u8 {
@@ -225,6 +226,7 @@ impl TryFrom<u8> for AddressType {
             4 => Ok(AddressType::Onion),
             #[cfg(feature = "i2p")]
             5 => Ok(AddressType::I2p),
+            6 => Ok(AddressType::Iroh),
             _ => Err(other),
         }
     }

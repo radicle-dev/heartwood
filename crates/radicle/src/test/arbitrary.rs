@@ -274,6 +274,7 @@ impl Arbitrary for Address {
 
                 Host::I2p(address)
             }
+            AddressType::Iroh => return Address::iroh(),
         };
 
         Address::new(host, u16::arbitrary(g))

@@ -102,16 +102,17 @@ $ rad config schema
       "type": "string"
     },
     "ConnectAddress": {
-      "description": "A node address to connect to. Format: An Ed25519 public key in multibase encoding, followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion name, or an I2P address, followed by the symbol ':', followed by a TCP port number.",
+      "description": "A node address to connect to. Format: An Ed25519 public key in multibase encoding, followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion name, or an I2P address, followed by the symbol ':', followed by a TCP port number,\n        or the string 'iroh'.",
       "type": "string",
-      "pattern": "^.+@.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
       "examples": [
         "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.network:8776",
         "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
         "z6Mkvky2mnSYCTUMKRdAUoZXBXLLKtnWEkWeYQcGjjnmobAU@f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
         "z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi@seed.example.com:8776",
-        "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337"
-      ]
+        "z6MkkfM3tPXNPrPevKr3uSiQtHPuwnNhu2yUVjgd2jXVsVz5@192.0.2.0:31337",
+        "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iroh"
+      ],
+      "pattern": "^.+@((.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4})))|iroh)$"
     },
     "WebConfig": {
       "description": "Web configuration.",
@@ -373,13 +374,14 @@ $ rad config schema
       ]
     },
     "Address": {
-      "description": "An IP address, or a DNS name, or a Tor onion name, or an I2P address,followed by the symbol ':', followed by a TCP port number.",
+      "description": "An IP address, or a DNS name, or a Tor onion name, or an I2P address,followed by the symbol ':', followed by a TCP port number, or the string 'iroh'.",
       "type": "string",
       "examples": [
         "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
         "f2atcc7udeub5kh4nkljtjwyk7ikjviorufzgwnfwhkphljl3vhq.b32.i2p:8776",
         "seed.example.com:8776",
-        "192.0.2.0:31337"
+        "192.0.2.0:31337",
+        "iroh"
       ],
       "pattern": "^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$"
     },
