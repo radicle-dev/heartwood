@@ -255,8 +255,7 @@ pub struct ConnectionLimits {
 /// Rate limiting uses a token bucket for each peer. The capacity of the bucket
 /// is defined by [`RateLimit::capacity`], and refill rate of the bucket is
 /// defined by [`RateLimit::fill_rate`].
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Display)]
-#[display("RateLimit(fill_rate={fill_rate}, capacity={capacity})")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct RateLimit {
@@ -276,6 +275,16 @@ pub struct RateLimit {
     /// peer attempted connections in quick succession, then the third attempt
     /// will be rejected.
     pub capacity: usize,
+}
+
+impl std::fmt::Display for RateLimit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "RateLimit(fill_rate={}, capacity={})",
+            self.fill_rate, self.capacity
+        )
+    }
 }
 
 /// Rate limits for inbound and outbound connections.
@@ -699,9 +708,8 @@ impl Config {
     }
 }
 
-#[derive(Clone, Copy, Debug, Display, Deserialize, Serialize, From)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(transparent)]
-#[display("{0}")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct LogLevel(
     #[serde(with = "crate::serde_ext::string")]
@@ -718,9 +726,21 @@ impl Default for LogLevel {
     }
 }
 
+impl From<log::Level> for LogLevel {
+    fn from(value: log::Level) -> Self {
+        Self(value)
+    }
+}
+
 impl From<LogLevel> for log::Level {
     fn from(value: LogLevel) -> Self {
         value.0
+    }
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -778,8 +798,7 @@ impl From<LimitGossipMaxAge> for LocalDuration {
 ///   - `From<$name> for $type`, i.e. can convert back into the original type
 macro_rules! wrapper {
     ($name:ident, $type:ty, $default:expr_2021 $(, $derive:ty)*) => {
-        #[derive(Clone, Debug, Deserialize, Display, Serialize, From $(, $derive)*)]
-        #[display("{0}")]
+        #[derive(Clone, Debug, Deserialize, Serialize $(, $derive)*)]
         #[serde(transparent)]
         #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
         pub struct $name($type);
@@ -790,9 +809,21 @@ macro_rules! wrapper {
             }
         }
 
+        impl From<$type> for $name {
+            fn from(value: $type) -> Self {
+                Self(value)
+            }
+        }
+
         impl From<$name> for $type {
             fn from(value: $name) -> Self {
                 value.0
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt(f)
             }
         }
     };

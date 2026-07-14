@@ -77,8 +77,7 @@ pub enum TitleError {
 ///   - Must not be empty
 ///   - Must not contain `\n` or `\r` characters
 ///   - Will be trimmed of any preceding or following whitespace
-#[derive(Display, Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
-#[display(inner)]
+#[derive(Deserialize, Serialize, PartialEq, Eq, Clone, Debug)]
 pub struct Title(String);
 
 impl Title {
@@ -120,6 +119,12 @@ impl TryFrom<String> for Title {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::new(&value)
+    }
+}
+
+impl std::fmt::Display for Title {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 

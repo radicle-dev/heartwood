@@ -30,7 +30,6 @@ schemars = [
 tor = ["cyphernet/tor"]
 
 [dependencies]
-amplify = { workspace = true, features = ["std"] }
 base64 = "0.21.3"
 bytesize = { version = "2", features = ["serde"] }
 crossbeam-channel = { workspace = true }
