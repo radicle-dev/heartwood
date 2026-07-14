@@ -27,10 +27,12 @@ use radicle::storage::refs::RefsAt;
 use serde_json::json;
 use thiserror::Error;
 
-use crate::reactor;
 use crate::runtime::Emitter;
 use crate::wire;
 use crate::worker::TaskResult;
+
+// TODO: This is a stub, left over from our custom reactor implementation.
+type Controller = ();
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
@@ -76,7 +78,7 @@ pub struct Handle {
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
 
-    pub(crate) controller: reactor::Controller,
+    pub(crate) controller: Controller,
 
     /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
@@ -102,7 +104,7 @@ impl Clone for Handle {
         Self {
             home: self.home.clone(),
             socket: self.socket.clone(),
-            controller: self.controller.clone(),
+            controller: self.controller,
             shutdown: self.shutdown.clone(),
             emitter: self.emitter.clone(),
         }
@@ -113,7 +115,7 @@ impl Handle {
     pub fn new(
         home: Home,
         socket: PathBuf,
-        controller: reactor::Controller,
+        controller: Controller,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {

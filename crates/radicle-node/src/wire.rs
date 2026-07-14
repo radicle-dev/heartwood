@@ -27,10 +27,6 @@ use radicle::node::config::AddressConfig;
 use radicle::node::{Address, Host, Link};
 use radicle::storage::WriteStorage;
 
-use crate::reactor;
-use crate::reactor::SessionEvent;
-use crate::reactor::{Listener, Transport};
-use crate::reactor::{Token, Tokens};
 use crate::worker;
 use crate::worker::channels::{ChannelEvent, ChannelsConfig};
 use crate::worker::{Task, TaskResult};
@@ -56,8 +52,11 @@ pub enum Control {
 /// Peer session type.
 type WireSession = TcpStream;
 
-/// Reactor action.
-type Action = reactor::Action<Listener, Transport<WireSession>>;
+/// TODO: This is a stub, left over from our custom reactor implementation.
+type Action = ();
+
+/// TODO: This is a stub, left over from our custom reactor implementation.
+type Token = usize;
 
 /// A worker stream.
 struct Stream {
@@ -304,8 +303,6 @@ pub(crate) struct Wire<D, S> {
     listening: RandomMap<Token, net::SocketAddr>,
     /// Peer (established) sessions.
     peers: Peers,
-    /// A (practically) infinite source of tokens to identify transports and listeners.
-    tokens: Tokens,
 }
 
 impl<D, S> Wire<D, S>
@@ -330,15 +327,7 @@ where
             outbound: RandomMap::default(),
             listening: RandomMap::default(),
             peers: Peers(RandomMap::default()),
-            tokens: Tokens::default(),
         }
-    }
-
-    pub fn listen(&mut self, socket: Listener) {
-        let token = self.tokens.advance();
-        self.listening.insert(token, socket.local_addr());
-        self.actions
-            .push_back(Action::RegisterListener(token, socket));
     }
 
     fn disconnect(&mut self, token: Token, reason: DisconnectReason) -> Option<(NodeId, Link)> {
@@ -430,51 +419,6 @@ where
             }
         }
     }
-
-    fn flush(&mut self, remote: NodeId, stream: StreamId) {
-        let Some((fd, peer)) = self.peers.lookup_mut(&remote) else {
-            log::debug!(target: "wire", "Peer {remote} is not known; ignoring flush");
-            return;
-        };
-        let Peer::Connected { streams, link, .. } = peer else {
-            log::debug!(target: "wire", "Peer {remote} is not connected; ignoring flush");
-            return;
-        };
-        let Some(s) = streams.get_mut(&stream) else {
-            log::debug!(target: "wire", "Stream {stream} cannot be found; ignoring flush");
-            return;
-        };
-        let metrics = self.metrics.peer(remote);
-
-        for data in s.channels.try_iter() {
-            let frame = match data {
-                ChannelEvent::Data(data) => {
-                    metrics.sent_git_bytes += data.len();
-                    metrics.sent_bytes += data.len();
-                    Frame::<service::Message>::git(stream, data)
-                }
-                ChannelEvent::Close => Frame::control(*link, frame::Control::Close { stream }),
-                ChannelEvent::Eof => Frame::control(*link, frame::Control::Eof { stream }),
-            };
-            self.actions
-                .push_back(reactor::Action::Send(fd, frame.encode_to_vec()));
-        }
-    }
-
-    fn cleanup(&mut self, token: Token) {
-        if self.inbound.remove(&token) {
-            log::debug!(target: "wire", token=token.0; "Cleaning up inbound peer state");
-        } else if let Some(outbound) = self.outbound.remove(&token) {
-            log::debug!(target: "wire", token=token.0; "Cleaning up outbound peer state");
-            self.service.disconnected(
-                outbound.nid,
-                Link::Outbound,
-                &DisconnectReason::connection(),
-            );
-        } else {
-            log::debug!(target: "wire", token=token.0; "Tried to cleanup unknown peer");
-        }
-    }
 }
 
 impl<D, S> reactor::ReactionHandler for Wire<D, S>
@@ -541,7 +485,7 @@ where
                     }
                 };
 
-                let token = self.tokens.advance();
+                let token = next_token();
                 log::debug!(target: "wire", token=token.0; "Accepted inbound connection from {remote}..");
 
                 self.inbound.insert(token);
@@ -551,22 +495,6 @@ where
             Err(err) => {
                 log::error!(target: "wire", "Error listening for inbound connections: {err}");
             }
-        }
-    }
-
-    fn listener_registered(&mut self, token: Token, _listener: &Self::Listener) {
-        if let Some(local_addr) = self.listening.remove(&token) {
-            self.service.listening(local_addr);
-        }
-    }
-
-    fn transport_registered(&mut self, token: Token, _transport: &Self::Transport) {
-        if let Some(outbound) = self.outbound.get(&token) {
-            log::debug!(target: "wire", token=token.0; "Outbound peer resource registered for {}", outbound.nid);
-        } else if self.inbound.contains(&token) {
-            log::debug!(target: "wire", token=token.0; "Inbound peer resource registered");
-        } else {
-            log::debug!(target: "wire", token=token.0; "Unknown peer registered");
         }
     }
 
@@ -862,10 +790,6 @@ where
         }
     }
 
-    fn handover_listener(&mut self, token: Token, _listener: Self::Listener) {
-        log::warn!(target: "wire", token=token.0; "Listener handover is not supported");
-    }
-
     fn handover_transport(&mut self, token: Token, transport: Self::Transport) {
         match self.peers.entry(token) {
             Entry::Occupied(e) => {
@@ -963,7 +887,7 @@ where
                     .and_then(Transport::<WireSession>::with_session)
                     {
                         Ok(transport) => {
-                            let token = self.tokens.advance();
+                            let token = next_token();
                             self.outbound.insert(
                                 token,
                                 Outbound {
@@ -1076,185 +1000,8 @@ where
     }
 }
 
-/// Establish a new outgoing connection.
-pub fn dial(
-    remote_addr: Address,
-    remote_id: crypto::PublicKey,
-    signer: crypto::SigningKey,
-    config: &radicle::node::Config,
-) -> io::Result<WireSession> {
-    // TODO: Nicer error.
-    let remote_id = crypto::VerifyingKey::try_from(&remote_id)
-        .map_err(|source| io::Error::new(io::ErrorKind::InvalidInput, source.to_string()))?;
-
-    #[cfg(any(feature = "i2p", feature = "tor"))]
-    fn proxy_or_forward(
-        config: &AddressConfig,
-        global_proxy: Option<net::SocketAddr>,
-        address: &Address,
-    ) -> io::Result<Address> {
-        match config {
-            // In proxy mode, simply use the configured proxy address.
-            // This takes precedence over any global proxy.
-            AddressConfig::Proxy { address } => Ok((*address).into()),
-            // In "forward" mode, if a global proxy is set, we use that; otherwise,
-            // we treat the address as a regular DNS name.
-            AddressConfig::Forward => Ok(global_proxy.map(Into::into).unwrap_or(address.clone())),
-            // If address type support isn't configured, refuse to connect.
-            AddressConfig::Drop => Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "no configuration found for address type",
-            )),
-        }
-    }
-
-    // Determine what address to establish a TCP connection with, given the remote peer
-    // address and our node configuration.
-    let inet_addr: Address = match (&remote_addr, config.proxy) {
-        // For IP and DNS addresses, use the global proxy if set; otherwise, use the address as-is.
-        (Address::Ipv4 { .. } | Address::Ipv6 { .. } | Address::Dns { .. }, Some(proxy)) => {
-            proxy.into()
-        }
-        (address @ (Address::Ipv4 { .. } | Address::Ipv6 { .. } | Address::Dns { .. }), None) => {
-            address.clone()
-        }
-        // For onion addresses, handle with care.
-        #[cfg(feature = "tor")]
-        (address @ Address::Tor { .. }, proxy) => proxy_or_forward(&config.onion, proxy, address)?,
-        #[cfg(feature = "i2p")]
-        (address @ Address::I2p { .. }, proxy) => proxy_or_forward(&config.i2p, proxy, address)?,
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "unsupported remote address type",
-            ));
-        }
-    };
-
-    let addr = {
-        use std::net::ToSocketAddrs as _;
-
-        inet_addr
-            .to_socket_addrs()?
-            .next()
-            .ok_or(io::ErrorKind::AddrNotAvailable)?
-    };
-
-    // NOTE: Previously, here was a note about setting the timeout for connecting
-    // to DEFAULT_DIAL_TIMEOUT, for which we have not figured out a way yet.
-    // Generally, we should understand what happens if the following call to
-    // `connect` fails. How do we learn about it? Where's the leak?
-
-    let connection = TcpStream::connect(addr)?;
-
-    // Whether to tunnel regular connections through the proxy.
-    let force_proxy = config.proxy.is_some();
-
-    Ok(session(
-        remote_addr,
-        Some(remote_id),
-        connection,
-        force_proxy,
-        signer,
-    ))
-}
-
-/// Accept a new connection.
-pub fn accept(
-    remote_addr: Address,
-    connection: TcpStream,
-    secret_key: crypto::SigningKey,
-) -> WireSession {
-    session(remote_addr, None, connection, false, secret_key)
-}
-
-/// Create a new [`WireSession`].
-fn session(
-    _remote_addr: Address,
-    _remote_id: Option<crypto::VerifyingKey>,
-    connection: TcpStream,
-    _force_proxy: bool,
-    _secret_key: crypto::SigningKey,
-) -> WireSession {
-    if let Err(e) = connection.set_nodelay(true) {
-        log::warn!(target: "wire", "Unable to set TCP_NODELAY on socket {connection:?}: {e}");
-    }
-
-    let connection = std::net::TcpStream::from(connection);
-
-    if let Err(e) = connection.set_read_timeout(Some(DEFAULT_CONNECTION_TIMEOUT)) {
-        log::warn!(target: "wire", "Unable to set TCP read timeout on socket {connection:?}: {e}");
-    }
-
-    if let Err(e) = connection.set_write_timeout(Some(DEFAULT_CONNECTION_TIMEOUT)) {
-        log::warn!(target: "wire", "Unable to set TCP write timeout on socket {connection:?}: {e}");
-    }
-
-    #[cfg(feature = "socket2")]
-    {
-        let connection = socket2::SockRef::from(&connection);
-
-        let ka = socket2::TcpKeepalive::new().with_time(time::Duration::from_secs(30));
-
-        #[cfg(any(
-            target_os = "android",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "fuchsia",
-            target_os = "illumos",
-            target_os = "ios",
-            target_os = "visionos",
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "netbsd",
-            target_os = "tvos",
-            target_os = "watchos",
-            target_os = "windows",
-            target_os = "cygwin",
-        ))]
-        let ka = ka.with_interval(time::Duration::from_secs(10));
-
-        #[cfg(any(
-            target_os = "android",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "fuchsia",
-            target_os = "illumos",
-            target_os = "ios",
-            target_os = "visionos",
-            target_os = "linux",
-            target_os = "macos",
-            target_os = "netbsd",
-            target_os = "tvos",
-            target_os = "watchos",
-            target_os = "cygwin",
-        ))]
-        let ka = ka.with_retries(3);
-
-        if let Err(e) = connection.set_tcp_keepalive(&ka) {
-            log::warn!(target: "wire", "Failed to set TCP_KEEPALIVE on socket {connection:?}: {e}");
-        }
-    }
-
-    #[cfg(not(feature = "socket2"))]
-    log::debug!(target: "wire", "Not attempting to set TCP_KEEPALIVE on socket {connection:?}");
-
-    TcpStream::from_std(connection)
-}
-
-mod logger {
-    use radicle::node::Address;
-
-    pub fn establish_connection(addr: &Address, err: &std::io::Error) {
-        use std::io::ErrorKind::*;
-        match err.kind() {
-            ConnectionRefused | ConnectionReset | HostUnreachable | ConnectionAborted
-            | NotConnected => {
-                log::info!(target: "wire", "Could not establish connection to {addr}: {err}")
-            }
-            _ => log::warn!(target: "wire", "Failed to establish connection to {addr}: {err}"),
-        }
-    }
+fn next_token() -> Token {
+    todo!("handling token explicitly should not be required anymore")
 }
 
 #[cfg(test)]
