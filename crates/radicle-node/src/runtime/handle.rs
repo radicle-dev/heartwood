@@ -1,10 +1,11 @@
 use std::collections::HashSet;
+use std::fmt;
 use std::net;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::{fmt, io, time};
+use std::time;
 
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
@@ -13,7 +14,6 @@ use uds_windows::UnixStream;
 
 use protocol::service;
 use protocol::service::QueryState;
-use protocol::wire::StreamId;
 use radicle::crypto::PublicKey;
 use radicle::identity::RepoId;
 use radicle::node::events::{Event, Events};
@@ -27,46 +27,36 @@ use radicle::storage::refs::RefsAt;
 use serde_json::json;
 use thiserror::Error;
 
-use crate::reactor;
+use super::{Controller, ServiceInput};
+
 use crate::runtime::Emitter;
-use crate::wire;
-use crate::worker::TaskResult;
 
 /// An error resulting from a handle method.
 #[derive(Error, Debug)]
 pub enum Error {
-    /// The command channel is no longer connected.
-    #[error("command channel is not connected")]
-    ChannelDisconnected,
     /// The command returned an error.
     #[error("command failed: {0}")]
     Command(#[from] service::command::Error),
-    /// The operation timed out.
-    #[error("the operation timed out")]
-    Timeout,
-    /// An I/O error occurred.
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
+    #[error("receiving message from service failed because channel is disconnected")]
+    ReceiveServiceDisconnected,
+    #[error("receiving message from service failed because of timeout")]
+    ReceiveServiceTimeount,
+    #[error("sending message to service failed because channel is disconnected")]
+    SendServiceDisconnected,
 }
 
 impl From<mpsc::RecvError> for Error {
     fn from(_: mpsc::RecvError) -> Self {
-        Self::ChannelDisconnected
+        Self::ReceiveServiceDisconnected
     }
 }
 
 impl From<mpsc::RecvTimeoutError> for Error {
     fn from(err: mpsc::RecvTimeoutError) -> Self {
         match err {
-            mpsc::RecvTimeoutError::Timeout => Self::Timeout,
-            mpsc::RecvTimeoutError::Disconnected => Self::ChannelDisconnected,
+            mpsc::RecvTimeoutError::Timeout => Self::ReceiveServiceTimeount,
+            mpsc::RecvTimeoutError::Disconnected => Self::ReceiveServiceDisconnected,
         }
-    }
-}
-
-impl<T> From<mpsc::SendError<T>> for Error {
-    fn from(_: mpsc::SendError<T>) -> Self {
-        Self::ChannelDisconnected
     }
 }
 
@@ -76,7 +66,7 @@ pub struct Handle {
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
 
-    pub(crate) controller: reactor::Controller,
+    pub(crate) controller: Controller,
 
     /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
@@ -110,10 +100,10 @@ impl Clone for Handle {
 }
 
 impl Handle {
-    pub fn new(
+    pub(crate) fn new(
         home: Home,
         socket: PathBuf,
-        controller: reactor::Controller,
+        controller: Controller,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {
@@ -125,16 +115,10 @@ impl Handle {
         }
     }
 
-    pub fn worker_result(&mut self, result: TaskResult) -> Result<(), io::Error> {
-        self.controller.cmd(wire::Control::Worker(result))
-    }
-
-    pub fn flush(&mut self, remote: NodeId, stream: StreamId) -> Result<(), io::Error> {
-        self.controller.cmd(wire::Control::Flush { remote, stream })
-    }
-
-    pub(crate) fn command(&self, cmd: service::Command) -> Result<(), io::Error> {
-        self.controller.cmd(wire::Control::User(cmd))
+    pub(crate) fn command(&self, cmd: service::Command) -> Result<(), Error> {
+        self.controller
+            .send(ServiceInput::User(cmd))
+            .map_err(|_| Error::SendServiceDisconnected)
     }
 }
 
@@ -301,7 +285,6 @@ impl radicle::node::Handle for Handle {
 
     fn announce_inventory(&mut self) -> Result<(), Error> {
         self.command(service::Command::AnnounceInventory)
-            .map_err(Error::from)
     }
 
     fn add_inventory(&mut self, rid: RepoId) -> Result<bool, Error> {
@@ -369,8 +352,8 @@ impl radicle::node::Handle for Handle {
             .ok();
 
         self.controller
-            .shutdown()
-            .map_err(|_| Error::ChannelDisconnected)
+            .send(ServiceInput::Shutdown)
+            .map_err(|_| Error::SendServiceDisconnected)
     }
 
     fn debug(&self) -> Result<serde_json::Value, Self::Error> {

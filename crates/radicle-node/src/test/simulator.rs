@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{fmt, io, net};
+use std::{fmt, io};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -513,7 +513,7 @@ where
                         remote: node,
                         input: Input::Connected {
                             id: node,
-                            addr: Address::from(net::SocketAddr::from(([0, 0, 0, 0], 0))),
+                            addr: Address::from(std::net::SocketAddr::from(([0, 0, 0, 0], 0))),
                             link: Link::Inbound,
                         },
                     },

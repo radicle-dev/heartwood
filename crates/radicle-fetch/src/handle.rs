@@ -1,3 +1,4 @@
+use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool};
 
@@ -9,14 +10,14 @@ use radicle::storage::ReadRepository;
 use radicle::storage::git::Repository;
 
 use crate::policy::{Allowed, BlockList};
-use crate::transport::{ConnectionStream, Transport};
+use crate::transport::Transport;
 
 /// The handle used for pulling or cloning changes from a remote peer.
-pub struct Handle<R, S> {
+pub struct Handle<Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> {
     pub(crate) local: PublicKey,
-    repo: R,
+    repo: Repo,
     pub(crate) allowed: Allowed,
-    pub(crate) transport: Transport<S>,
+    pub(crate) transport: Transport<Read, Write>,
     /// The set of keys we will ignore when fetching from a
     /// remote. This set can be constructed using the tracking
     /// `config`'s blocked node entries.
@@ -29,7 +30,7 @@ pub struct Handle<R, S> {
     pub(crate) interrupt: Arc<AtomicBool>,
 }
 
-impl<R, S> Handle<R, S> {
+impl<Repo: AsRef<Repository>, Read: io::Read, Write: io::Write> Handle<Repo, Read, Write> {
     pub fn is_blocked(&self, key: &PublicKey) -> bool {
         self.blocked.is_blocked(key)
     }
@@ -47,30 +48,24 @@ impl<R, S> Handle<R, S> {
         self.allowed.clone()
     }
 
-    pub fn into_inner(self) -> R {
+    pub fn into_inner(self) -> Repo {
         self.repo
     }
-}
 
-impl<R, S> Handle<R, S>
-where
-    R: AsRef<Repository>,
-{
     pub fn new(
         local: PublicKey,
-        repo: R,
+        repo: Repo,
         follow: Allowed,
         blocked: BlockList,
-        connection: S,
-    ) -> Result<Self, error::Init>
-    where
-        S: ConnectionStream,
-    {
+        read: Read,
+        write: Write,
+    ) -> Result<Self, error::Init> {
         let git_dir = repo.as_ref().backend.path().to_path_buf();
         let transport = Transport::new(
             git_dir,
             BString::from(repo.as_ref().id.canonical()),
-            connection,
+            read,
+            write,
         );
 
         Ok(Self {

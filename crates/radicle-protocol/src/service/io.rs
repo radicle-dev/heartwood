@@ -32,6 +32,8 @@ pub enum Io {
         rid: RepoId,
         /// Remote node being fetched from.
         remote: NodeId,
+        /// Known direct candidates; endpoint-ID discovery remains the fallback.
+        addresses: Vec<Address>,
         /// If the node is fetching specific `rad/sigrefs`.
         refs_at: Option<Vec<RefsAt>>,
         /// Limit the number of bytes fetched.
@@ -133,7 +135,8 @@ impl Outbox {
 
     pub fn fetch(
         &mut self,
-        peer: &mut Session,
+        remote: NodeId,
+        addresses: Vec<Address>,
         rid: RepoId,
         refs_at: Vec<RefsAt>,
         reader_limit: FetchPackSizeLimit,
@@ -144,16 +147,17 @@ impl Outbox {
         if let Some(refs_at) = &refs_at {
             debug!(
                 target: "service",
-                "Fetch initiated for {rid} with {peer} ({} remote(s))..", refs_at.len()
+                "Fetch initiated for {rid} with {remote} ({} remote(s))..", refs_at.len()
             );
         } else {
-            debug!(target: "service", "Fetch initiated for {rid} with {peer} (all remotes)..");
+            debug!(target: "service", "Fetch initiated for {rid} with {remote} (all remotes)..");
         }
 
         self.io.push_back(Io::Fetch {
             rid,
             refs_at,
-            remote: peer.id,
+            remote,
+            addresses,
             reader_limit,
             config,
         });

@@ -13,6 +13,7 @@ bstr = ["radicle-git-ref-format/bstr"]
 default = []
 gix = ["radicle-oid/gix"]
 i2p = []
+iroh = []
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 qcheck = [
   "radicle-core/qcheck",

@@ -63,16 +63,12 @@ pub enum HandshakeError {
 /// It is expected that the local peer has a copy of the repository
 /// and is pulling new changes. If the repository does not exist, then
 /// [`clone`] should be used.
-pub fn pull<R, S>(
-    handle: &mut Handle<R, S>,
+pub fn pull(
+    handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
     config: Config,
     remote: PublicKey,
     refs_at: Option<Vec<RefsAt>>,
-) -> Result<FetchResult, Error>
-where
-    R: AsRef<Repository>,
-    S: transport::ConnectionStream,
-{
+) -> Result<FetchResult, Error> {
     let start = Instant::now();
     let local = *handle.local();
     if local == remote {
@@ -99,15 +95,11 @@ where
 ///
 /// It is expected that the local peer has an empty repository which
 /// they want to populate with the `remote`'s view of the project.
-pub fn clone<R, S>(
-    handle: &mut Handle<R, S>,
+pub fn clone(
+    handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
     config: Config,
     remote: PublicKey,
-) -> Result<FetchResult, Error>
-where
-    R: AsRef<Repository>,
-    S: transport::ConnectionStream,
-{
+) -> Result<FetchResult, Error> {
     let start = Instant::now();
     if *handle.local() == remote {
         return Err(Error::ReplicateSelf);
@@ -131,10 +123,9 @@ where
     result
 }
 
-fn perform_handshake<R, S>(handle: &mut Handle<R, S>) -> Result<Handshake, Error>
-where
-    S: transport::ConnectionStream,
-{
+fn perform_handshake(
+    handle: &mut Handle<impl AsRef<Repository>, impl io::Read, impl io::Write>,
+) -> Result<Handshake, Error> {
     handle
         .transport
         .handshake()
