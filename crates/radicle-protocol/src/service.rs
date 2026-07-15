@@ -2659,6 +2659,7 @@ where
             #[cfg(feature = "i2p")]
             AddressType::I2p => self.config.i2p != radicle::node::config::AddressConfig::Drop,
             AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 => true,
+            _ => false,
         }
     }
 

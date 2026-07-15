@@ -374,6 +374,12 @@ impl wire::Decode for Address {
 
                 HostName::I2p(i2p)
             }
+            Ok(unknown) => {
+                return Err(wire::Invalid::AddressType {
+                    actual: unknown.into(),
+                }
+                .into());
+            }
             Err(other) => return Err(wire::Invalid::AddressType { actual: other }.into()),
         };
         let port = u16::decode(buf)?;

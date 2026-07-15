@@ -197,6 +197,7 @@ impl std::fmt::Display for Source {
 /// Address type.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AddressType {
     Ipv4 = 1,
     Ipv6 = 2,
