@@ -3,7 +3,7 @@ pub mod message;
 pub mod varint;
 
 pub use frame::StreamId;
-pub use message::{AddressType, MessageType};
+pub use message::MessageType;
 
 use std::convert::TryFrom;
 use std::fmt::Debug;

@@ -13,6 +13,7 @@ use radicle::identity::RepoId;
 use radicle::node::Address;
 use radicle::node::NodeId;
 use radicle::node::Timestamp;
+use radicle::node::address::AddressType;
 
 use crate::bounded::BoundedVec;
 use crate::service::filter::Filter;
@@ -73,57 +74,6 @@ impl Message {
             Self::Pong { .. } => MessageType::Pong,
         }
         .into()
-    }
-}
-
-/// Address type.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AddressType {
-    Ipv4 = 1,
-    Ipv6 = 2,
-    Dns = 3,
-    #[cfg(feature = "tor")]
-    Onion = 4,
-    #[cfg(feature = "i2p")]
-    I2p = 5,
-}
-
-impl From<AddressType> for u8 {
-    fn from(other: AddressType) -> Self {
-        other as u8
-    }
-}
-
-impl From<&Address> for AddressType {
-    fn from(a: &Address) -> Self {
-        match a.host {
-            HostName::Ip(net::IpAddr::V4(_)) => AddressType::Ipv4,
-            HostName::Ip(net::IpAddr::V6(_)) => AddressType::Ipv6,
-            HostName::Dns(_) => AddressType::Dns,
-            #[cfg(feature = "tor")]
-            HostName::Tor(_) => AddressType::Onion,
-            #[cfg(feature = "i2p")]
-            HostName::I2p(_) => AddressType::I2p,
-            _ => todo!(), // FIXME(cloudhead): Maxim will remove `non-exhaustive`
-        }
-    }
-}
-
-impl TryFrom<u8> for AddressType {
-    type Error = u8;
-
-    fn try_from(other: u8) -> Result<Self, Self::Error> {
-        match other {
-            1 => Ok(AddressType::Ipv4),
-            2 => Ok(AddressType::Ipv6),
-            3 => Ok(AddressType::Dns),
-            #[cfg(feature = "tor")]
-            4 => Ok(AddressType::Onion),
-            #[cfg(feature = "i2p")]
-            5 => Ok(AddressType::I2p),
-            _ => Err(other),
-        }
     }
 }
 
