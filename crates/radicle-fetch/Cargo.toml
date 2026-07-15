@@ -16,7 +16,6 @@ gix-hash = { workspace = true }
 gix-odb = "0.80.0"
 gix-pack = "0.70.0"
 gix-protocol = { version = "0.61.0", features = ["blocking-client"] }
-gix-refspec = "0.41"
 gix-transport = { version = "0.57.0", features = ["blocking-client"] }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
