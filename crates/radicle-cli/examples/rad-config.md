@@ -30,11 +30,11 @@ $ rad config
       "maxOpenFiles": 4096,
       "rate": {
         "inbound": {
-          "fillRate": 5.0,
+          "fillRate": 5,
           "capacity": 1024
         },
         "outbound": {
-          "fillRate": 10.0,
+          "fillRate": 10,
           "capacity": 2048
         }
       },
@@ -275,11 +275,11 @@ $ rad config schema
             "maxOpenFiles": 4096,
             "rate": {
               "inbound": {
-                "fillRate": 5.0,
+                "fillRate": 5,
                 "capacity": 1024
               },
               "outbound": {
-                "fillRate": 10.0,
+                "fillRate": 10,
                 "capacity": 2048
               }
             },
@@ -533,11 +533,11 @@ $ rad config schema
           "$ref": "#/$defs/RateLimits",
           "default": {
             "inbound": {
-              "fillRate": 5.0,
+              "fillRate": 5,
               "capacity": 1024
             },
             "outbound": {
-              "fillRate": 10.0,
+              "fillRate": 10,
               "capacity": 2048
             }
           }
@@ -589,14 +589,15 @@ $ rad config schema
       "type": "object",
       "properties": {
         "fillRate": {
-          "description": "The fill rate of the token bucket, refills tokens based on the elapsed\ntime, in seconds.\n\nFor example, if the fill rate is `0.2`, this is equivalent to 1 token\nper 5 seconds (0.2 × 5 = 1).",
-          "type": "number",
-          "format": "double"
+          "description": "The fill rate of the token bucket, refills tokens based on the elapsed\ntime, in seconds.\n\nFor example, if the fill rate is `2`, this is equivalent to 10 tokens\nper 5 seconds (2 × 5 = 10).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
         },
         "capacity": {
           "description": "The capacity of the token bucket, is the maximum number of tokens the bucket can hold.\nThe bucket starts with the given capacity as the number of tokens.\nFor each connection attempt, a token is removed from the bucket, while\nthe fill rate adds tokens back to the bucket.\n\nFor example, a capacity of 3 will allow 3 connection attempts from a\ngiven peer. If 3 attempts are made before the bucket refills, i.e. the\npeer attempted connections in quick succession, then the third attempt\nwill be rejected.",
           "type": "integer",
-          "format": "uint",
+          "format": "uint64",
           "minimum": 0
         }
       },

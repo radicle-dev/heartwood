@@ -24,7 +24,7 @@ pub(crate) mod config {
 
     /// Configuration for a test seed node.
     ///
-    /// It sets the `RateLimit::capacity` to `usize::MAX` ensuring
+    /// It sets the `RateLimit::capacity` to `u64::MAX` ensuring
     /// that there are no rate limits for test nodes, since they all
     /// operate on the same IP address. This prevents any announcement
     /// messages from being dropped.
@@ -35,13 +35,13 @@ pub(crate) mod config {
             limits: Limits {
                 rate: RateLimits {
                     inbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
+                        fill_rate: 1,
+                        capacity: u64::MAX,
                     }
                     .into(),
                     outbound: RateLimit {
-                        fill_rate: 1.0,
-                        capacity: usize::MAX,
+                        fill_rate: 1,
+                        capacity: u64::MAX,
                     }
                     .into(),
                 },
