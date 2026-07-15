@@ -3000,7 +3000,6 @@ dependencies = [
  "escargot",
  "log",
  "pretty_assertions",
- "radicle",
  "radicle-log",
  "radicle-term",
  "shlex",
@@ -3093,7 +3092,6 @@ dependencies = [
  "gix-odb",
  "gix-pack",
  "gix-protocol",
- "gix-refspec",
  "gix-transport",
  "log",
  "nonempty 0.9.0",
@@ -3146,8 +3144,6 @@ dependencies = [
  "colored",
  "log",
  "radicle-localtime",
- "radicle-term",
- "regex",
 ]
 
 [[package]]
@@ -3166,7 +3162,6 @@ dependencies = [
  "log",
  "mio",
  "qcheck",
- "qcheck-macros",
  "radicle",
  "radicle-crypto",
  "radicle-fetch",
@@ -3243,7 +3238,6 @@ version = "0.8.0"
 dependencies = [
  "radicle",
  "schemars",
- "serde",
  "serde_json",
 ]
 
@@ -3304,7 +3298,6 @@ dependencies = [
  "pretty_assertions",
  "radicle-signals",
  "shlex",
- "tempfile",
  "thiserror 2.0.18",
  "unicode-display-width",
  "unicode-segmentation",
