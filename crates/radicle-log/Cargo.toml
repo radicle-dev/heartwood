@@ -16,5 +16,3 @@ chrono = { workspace = true, features = ["clock"] }
 colored = { workspace = true }
 radicle-localtime = { workspace = true, features = ["serde"] }
 log = { version = "0.4", features = ["std"] }
-radicle-term = { workspace = true }
-regex = "1"
