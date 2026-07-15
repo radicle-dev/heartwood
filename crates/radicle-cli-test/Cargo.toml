@@ -15,7 +15,6 @@ rust-version.workspace = true
 escargot = "0.5.7"
 log = { workspace = true, features = ["std"] }
 pretty_assertions = { workspace = true }
-radicle = { workspace = true, features = ["test"] }
 radicle-log = { workspace = true, features = ["test"] }
 radicle-term = { workspace = true }
 snapbox = { workspace = true }
