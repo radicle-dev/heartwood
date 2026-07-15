@@ -292,9 +292,9 @@ pub struct RateLimit {
     /// The fill rate of the token bucket, refills tokens based on the elapsed
     /// time, in seconds.
     ///
-    /// For example, if the fill rate is `0.2`, this is equivalent to 1 token
-    /// per 5 seconds (0.2 × 5 = 1).
-    pub fill_rate: f64,
+    /// For example, if the fill rate is `2`, this is equivalent to 10 tokens
+    /// per 5 seconds (2 × 5 = 10).
+    pub fill_rate: u64,
     /// The capacity of the token bucket, is the maximum number of tokens the bucket can hold.
     /// The bucket starts with the given capacity as the number of tokens.
     /// For each connection attempt, a token is removed from the bucket, while
@@ -304,7 +304,7 @@ pub struct RateLimit {
     /// given peer. If 3 attempts are made before the bucket refills, i.e. the
     /// peer attempted connections in quick succession, then the third attempt
     /// will be rejected.
-    pub capacity: usize,
+    pub capacity: u64,
 }
 
 impl std::fmt::Display for RateLimit {
@@ -895,7 +895,7 @@ wrapper!(
     LimitRateInbound,
     RateLimit,
     RateLimit {
-        fill_rate: 5.0,
+        fill_rate: 5,
         capacity: 1024,
     },
     Copy
@@ -905,7 +905,7 @@ wrapper!(
     LimitRateOutbound,
     RateLimit,
     RateLimit {
-        fill_rate: 10.0,
+        fill_rate: 10,
         capacity: 2048,
     },
     Copy
