@@ -54,7 +54,6 @@ uds_windows = { workspace = true }
 [dev-dependencies]
 mio = { version = "1", features = ["os-ext"] }
 qcheck = { workspace = true }
-qcheck-macros = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-log = { workspace = true, features = ["test"] }
 radicle-protocol = { workspace = true, features = ["test"] }
