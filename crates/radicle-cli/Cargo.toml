@@ -42,7 +42,6 @@ serde_json = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true, default-features = true }
 timeago = { version = "0.4.2", default-features = false }
-tree-sitter = "0.24.4"
 tree-sitter-bash = "0.23.3"
 tree-sitter-c = "0.23.2"
 tree-sitter-css = "0.23.1"
@@ -65,7 +64,6 @@ shlex = { workspace = true }
 winsplit = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = { workspace = true }
 radicle = { workspace = true, features = ["test"] }
 radicle-cli-test = { workspace = true }
 radicle-localtime = { workspace = true }
