@@ -384,6 +384,7 @@
           cargo-watch
           cargo-nextest
           cargo-semver-checks
+          cargo-shear
           codespell
           just
           ripgrep
