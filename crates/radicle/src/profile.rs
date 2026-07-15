@@ -933,8 +933,8 @@ mod test {
               "fetchTimeout": 30,
               "maxOpenFiles": 4096,
               "rate": {
-                "inbound": { "fillRate": 10.0, "capacity": 2048 },
-                "outbound": { "fillRate": 10.0, "capacity": 2048 }
+                "inbound": { "fillRate": 10, "capacity": 2048 },
+                "outbound": { "fillRate": 10, "capacity": 2048 }
               },
               "connection": { "inbound": 128, "outbound": 16 }
             },
