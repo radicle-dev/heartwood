@@ -818,10 +818,12 @@ impl Doc {
             (Some(ref default_branch), Ok(project)) => {
                 let project_branch = project.default_branch_qualified();
                 if project_branch != *default_branch {
-                    return Err(DefaultBranchRuleError::HeadMismatch {
-                        cref: default_branch.to_ref_string(),
-                        project: project_branch.to_ref_string(),
-                    })?;
+                    return Err(CanonicalRefsError::DefaultBranchRuleError(
+                        DefaultBranchRuleError::HeadMismatch {
+                            cref: default_branch.to_ref_string(),
+                            project: project_branch.to_ref_string(),
+                        },
+                    ));
                 }
                 self.validate_head_rule(&raw_crefs, default_branch)?;
             }
@@ -855,19 +857,23 @@ impl Doc {
 
         let allowed = rule.allowed();
         if *allowed != rules::Allowed::Delegates {
-            return Err(DefaultBranchRuleError::Allowed {
-                pattern: pattern.to_string(),
-                actual: allowed.to_string(),
-            })?;
+            return Err(CanonicalRefsError::DefaultBranchRuleError(
+                DefaultBranchRuleError::Allowed {
+                    pattern: pattern.to_string(),
+                    actual: allowed.to_string(),
+                },
+            ));
         }
         let actual = *rule.threshold();
         let expected = self.threshold();
         if actual != expected {
-            return Err(DefaultBranchRuleError::Threshold {
-                pattern: pattern.to_string(),
-                actual,
-                expected,
-            })?;
+            return Err(CanonicalRefsError::DefaultBranchRuleError(
+                DefaultBranchRuleError::Threshold {
+                    pattern: pattern.to_string(),
+                    actual,
+                    expected,
+                },
+            ));
         }
         Ok(())
     }

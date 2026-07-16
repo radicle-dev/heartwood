@@ -70,7 +70,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 Identity => anyhow::bail!(
                     "Creation of collaborative objects of type {} is not supported.",
-                    &type_name
+                    type_name
                 ),
                 Other(type_name) => {
                     let mut store: Store<cob::external::External, _, _> =
@@ -195,7 +195,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 }
                 Identity => anyhow::bail!(
                     "Update of collaborative objects of type {} is not supported.",
-                    &type_name
+                    type_name
                 ),
                 Other(type_name) => {
                     use cob::external::{Action, External};

@@ -107,14 +107,11 @@ impl NodeAnnouncement {
     /// is returned.
     pub fn solve(mut self, target: u32) -> Option<Self> {
         loop {
-            if let Some(nonce) = self.nonce.checked_add(1) {
-                self.nonce = nonce;
+            let nonce = self.nonce.checked_add(1)?;
+            self.nonce = nonce;
 
-                if self.work() >= target {
-                    break;
-                }
-            } else {
-                return None;
+            if self.work() >= target {
+                break;
             }
         }
         Some(self)

@@ -168,7 +168,7 @@ impl Runtime {
             Err(e) => return Err(e.into()),
         }
 
-        log::info!(target: "node", "Default seeding policy set to '{}'", &policy);
+        log::info!(target: "node", "Default seeding policy set to '{}'", policy);
         log::info!(target: "node", "Initializing service ({network:?})..");
 
         let announcement = service::gossip::node(&config, timestamp)
@@ -360,7 +360,7 @@ impl Runtime {
             }
         }
 
-        log::info!(target: "node", "Binding control socket {}..", &path.display());
+        log::info!(target: "node", "Binding control socket {}..", path.display());
         match UnixListener::bind(&path) {
             Ok(sock) => Ok(ControlSocket::Bound(sock, path)),
             Err(err) if err.kind() == io::ErrorKind::AddrInUse => Err(Error::AlreadyRunning(path)),

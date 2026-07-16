@@ -216,10 +216,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     //  2. … symbolic reference with the name `HEAD`.
     //     (This reference must be synthesized!)
     use super::GetRawCanonicalRefs as _;
-    match raw
-        .raw_canonical_refs()
-        .map(|rcrefs| rcrefs.and_then(|c| project.map(|p| (c, p))))
-    {
+    match raw.raw_canonical_refs().map(|rcrefs| rcrefs.zip(project)) {
         Ok(Some((crefs, project))) => {
             let default =
                 git::fmt::Qualified::from(git::fmt::lit::refs_heads(project.default_branch()));

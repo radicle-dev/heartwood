@@ -202,10 +202,7 @@ impl SymbolicRefs {
         loop {
             match current {
                 Target::Direct(q) => return Some(q.as_ref()),
-                Target::Symbolic(s) => match self.0.get(s.as_ref()) {
-                    Some(next) => current = next,
-                    None => return None,
-                },
+                Target::Symbolic(s) => current = self.0.get(s.as_ref())?,
             }
         }
     }
