@@ -1296,12 +1296,12 @@ where
                     self.outbox.write_all(peer, msgs);
                 }
                 Entry::Vacant(e) => {
-                    if let Host::Ip(ip) = addr.host()
-                        && !address::is_local(ip)
+                    if let Some(ip) = addr.ip_addr()
+                        && !address::is_local(&ip)
                         && let Err(e) =
                             self.db
                                 .addresses_mut()
-                                .record_ip(&remote, *ip, self.clock.into())
+                                .record_ip(&remote, ip, self.clock.into())
                     {
                         log::debug!(target: "service", "Failed to record IP address for {remote}: {e}");
                     }

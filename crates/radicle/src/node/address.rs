@@ -242,13 +242,17 @@ pub fn is_routable(addr: &net::IpAddr) -> bool {
 /// Check whether an IP address is locally routable.
 pub fn is_local(addr: &net::IpAddr) -> bool {
     match addr {
-        net::IpAddr::V4(addr) => {
-            addr.is_private() || addr.is_loopback() || addr.is_link_local() || addr.is_unspecified()
-        }
-        net::IpAddr::V6(addr) => {
-            addr.is_loopback() || addr.is_unicast_link_local() || addr.is_unspecified()
-        }
+        net::IpAddr::V4(addr) => ipv4_is_local(addr),
+        net::IpAddr::V6(addr) => ipv6_is_local(addr),
     }
+}
+
+pub(super) fn ipv4_is_local(addr: &net::Ipv4Addr) -> bool {
+    addr.is_private() || addr.is_loopback() || addr.is_link_local() || addr.is_unspecified()
+}
+
+pub(super) fn ipv6_is_local(addr: &net::Ipv6Addr) -> bool {
+    addr.is_loopback() || addr.is_unicast_link_local() || addr.is_unspecified()
 }
 
 /// Check whether an IPv4 address is globally routable.
@@ -259,7 +263,7 @@ pub fn is_local(addr: &net::IpAddr) -> bool {
 /// See
 ///  - <https://github.com/rust-lang/rust/issues/27709>
 ///  - <https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml>
-fn ipv4_is_routable(addr: &net::Ipv4Addr) -> bool {
+pub(super) fn ipv4_is_routable(addr: &net::Ipv4Addr) -> bool {
     // https://datatracker.ietf.org/doc/html/rfc7723#section-4.1
     if *addr == net::Ipv4Addr::new(192, 0, 0, 9) {
         return true;
@@ -290,6 +294,6 @@ fn ipv4_is_routable(addr: &net::Ipv4Addr) -> bool {
 /// See
 ///  - <https://github.com/rust-lang/rust/issues/27709>
 ///  - <https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml>
-fn ipv6_is_routable(addr: &net::Ipv6Addr) -> bool {
+pub(super) fn ipv6_is_routable(addr: &net::Ipv6Addr) -> bool {
     !addr.is_loopback() && !addr.is_unicast_link_local() && !addr.is_unspecified()
 }
