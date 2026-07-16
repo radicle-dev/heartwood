@@ -27,7 +27,7 @@ use radicle::identity::Doc;
 use radicle::node;
 use radicle::node::address;
 use radicle::node::address::Store as _;
-use radicle::node::address::{AddressBook, AddressType, KnownAddress};
+use radicle::node::address::{AddressBook, KnownAddress};
 use radicle::node::config::{ConnectAddress, PeerConfig, RateLimit};
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
@@ -2663,13 +2663,15 @@ where
     /// If the [`Address`] is an I2P address and the service supports I2P
     /// connections then this will return `true`.
     fn is_supported_address(&self, address: &Address) -> bool {
-        match address.address_type() {
-            // Only consider onion addresses if configured.
+        match address {
+            Address::Ipv4 { .. }
+            | Address::Ipv6 { .. }
+            | Address::Dns { .. }
+            | Address::Iroh { .. } => true,
             #[cfg(feature = "tor")]
-            AddressType::Onion => self.config.onion != radicle::node::config::AddressConfig::Drop,
+            Address::Tor { .. } => self.config.onion != radicle::node::config::AddressConfig::Drop,
             #[cfg(feature = "i2p")]
-            AddressType::I2p => self.config.i2p != radicle::node::config::AddressConfig::Drop,
-            AddressType::Dns | AddressType::Ipv4 | AddressType::Ipv6 | AddressType::Iroh => true,
+            Address::I2p { .. } => self.config.i2p != radicle::node::config::AddressConfig::Drop,
             _ => false,
         }
     }

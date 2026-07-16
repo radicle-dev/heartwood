@@ -1092,10 +1092,10 @@ mod test {
         });
         let got: super::Config = serde_json::from_value(config).unwrap();
         assert_eq!(got.alias.to_string(), "radicle");
-        assert_eq!(
-            got.connect[0].addr().address_type(),
-            crate::node::address::AddressType::Iroh
-        );
+        assert!(matches!(
+            got.connect[0].addr(),
+            crate::node::Address::Iroh
+        ));
     }
 
     #[cfg(feature = "schemars")]

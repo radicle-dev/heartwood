@@ -14,7 +14,7 @@ use crate::identity::{
     doc::{Doc, DocAt, RawDoc, RepoId},
     project::Project,
 };
-use crate::node::address::{AddressType, Source};
+use crate::node::address::Source;
 use crate::node::{Address, Alias, KnownAddress, Timestamp, UserAgent};
 use crate::storage;
 use crate::test::storage::{MockRepository, MockStorage};
@@ -208,31 +208,25 @@ impl Arbitrary for MockRepository {
     }
 }
 
-impl Arbitrary for AddressType {
-    fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        #[allow(unused_mut)]
-        let mut types = vec![1, 2, 3];
-
-        #[cfg(feature = "tor")]
-        types.push(4);
-
-        #[cfg(feature = "i2p")]
-        types.push(5);
-
-        let t = *g.choose(&types).unwrap() as u8;
-
-        AddressType::try_from(t).unwrap()
-    }
-}
-
 impl Arbitrary for Address {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
-        match AddressType::arbitrary(g) {
-            AddressType::Ipv4 => Address::Ipv4 {
+        let address_types = vec![
+            Address::IPV4,
+            Address::IPV6,
+            Address::DNS,
+            #[cfg(feature = "tor")]
+            Address::TOR,
+            #[cfg(feature = "i2p")]
+            Address::I2P,
+            Address::IROH,
+        ];
+
+        match *g.choose(&address_types).unwrap() {
+            Address::IPV4 => Address::Ipv4 {
                 host: net::Ipv4Addr::from(u32::arbitrary(g)),
                 port: u16::arbitrary(g),
             },
-            AddressType::Ipv6 => {
+            Address::IPV6 => {
                 let octets: [u8; 16] = Arbitrary::arbitrary(g);
                 Address::Ipv6 {
                     host: net::Ipv6Addr::from(octets),
@@ -241,7 +235,7 @@ impl Arbitrary for Address {
                     without_square_brackets: true,
                 }
             }
-            AddressType::Dns => Address::Dns {
+            Address::DNS => Address::Dns {
                 host: g
                     .choose(&["iris.radicle.example.com", "rosa.radicle.example.com"])
                     .unwrap()
@@ -249,12 +243,12 @@ impl Arbitrary for Address {
                 port: u16::arbitrary(g),
             },
             #[cfg(feature = "tor")]
-            AddressType::Onion => Address::Tor {
+            Address::TOR => Address::Tor {
                 host: tor_hscrypto::pk::HsId::from(PublicKey::arbitrary(g).into_inner()),
                 port: u16::arbitrary(g),
             },
             #[cfg(feature = "i2p")]
-            AddressType::I2p => {
+            Address::I2P => {
                 let address = if bool::arbitrary(g) {
                     let name: String = iter::repeat_with(|| {
                         char::from(
@@ -284,7 +278,8 @@ impl Arbitrary for Address {
                     port: u16::arbitrary(g),
                 }
             }
-            AddressType::Iroh => Address::Iroh,
+            Address::IROH => Address::Iroh,
+            _ => unreachable!(),
         }
     }
 }
