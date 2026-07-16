@@ -1,7 +1,6 @@
 mod features;
 
 pub mod address;
-use address::AddressType;
 
 pub mod command;
 pub mod config;
@@ -561,11 +560,13 @@ impl From<IpAddr> for Host {
         "pattern" = "^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
     ),
 ))]
+#[repr(u8)]
+#[non_exhaustive]
 pub enum Address {
     Ipv4 {
         host: Ipv4Addr,
         port: u16,
-    },
+    } = Self::IPV4,
     Ipv6 {
         host: Ipv6Addr,
         port: u16,
@@ -573,25 +574,32 @@ pub enum Address {
         /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
         #[deprecated]
         without_square_brackets: bool,
-    },
+    } = Self::IPV6,
     Dns {
         host: String,
         port: u16,
-    },
+    } = Self::DNS,
     #[cfg(feature = "tor")]
     Tor {
         host: tor_hscrypto::pk::HsId,
         port: u16,
-    },
+    } = Self::TOR,
     #[cfg(feature = "i2p")]
     I2p {
         host: String,
         port: u16,
-    },
-    Iroh,
+    } = Self::I2P,
+    Iroh = Self::IROH,
 }
 
 impl Address {
+    pub const IPV4: u8 = 1;
+    pub const IPV6: u8 = 2;
+    pub const DNS: u8 = 3;
+    pub const TOR: u8 = 4;
+    pub const I2P: u8 = 5;
+    pub const IROH: u8 = 6;
+
     pub fn ip(ip: IpAddr, port: u16) -> Self {
         match ip {
             IpAddr::V4(ip) => Address::Ipv4 { host: ip, port },
@@ -640,20 +648,6 @@ impl Address {
             #[cfg(feature = "i2p")]
             Self::I2p { host, .. } => Host::I2p(host.clone()),
             Self::Iroh => Host::Iroh,
-        }
-    }
-
-    /// Return the [`AddressType`] of the [`Address`].
-    pub fn address_type(&self) -> AddressType {
-        match self.host() {
-            Host::Ip(IpAddr::V4(_)) => AddressType::Ipv4,
-            Host::Ip(IpAddr::V6(_)) => AddressType::Ipv6,
-            Host::Dns(_) => AddressType::Dns,
-            #[cfg(feature = "tor")]
-            Host::Tor(_) => AddressType::Onion,
-            #[cfg(feature = "i2p")]
-            Host::I2p(_) => AddressType::I2p,
-            Host::Iroh => AddressType::Iroh,
         }
     }
 
@@ -740,6 +734,32 @@ impl Address {
             Self::Ipv4 { host, .. } => Some(IpAddr::V4(*host)),
             Self::Ipv6 { host, .. } => Some(IpAddr::V6(*host)),
             _ => None,
+        }
+    }
+
+    pub fn discriminant_u8(&self) -> u8 {
+        match self {
+            Self::Ipv4 { .. } => Self::IPV4,
+            Self::Ipv6 { .. } => Self::IPV6,
+            Self::Dns { .. } => Self::DNS,
+            #[cfg(feature = "tor")]
+            Self::Tor { .. } => Self::TOR,
+            #[cfg(feature = "i2p")]
+            Self::I2p { .. } => Self::I2P,
+            Self::Iroh => Self::IROH,
+        }
+    }
+
+    pub fn discriminant_str(&self) -> &'static str {
+        match self {
+            Self::Ipv4 { .. } => "ipv4",
+            Self::Ipv6 { .. } => "ipv6",
+            Self::Dns { .. } => "dns",
+            #[cfg(feature = "tor")]
+            Self::Tor { .. } => "onion",
+            #[cfg(feature = "i2p")]
+            Self::I2p { .. } => "i2p",
+            Self::Iroh => "iroh",
         }
     }
 
