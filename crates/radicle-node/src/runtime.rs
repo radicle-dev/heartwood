@@ -43,11 +43,18 @@ use radicle_protocol::service::io::Io;
 use radicle_protocol::worker::{FetchRequest, FetchResult};
 use radicle_signals::Signal;
 use thiserror::Error;
-use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::sync::{Semaphore, mpsc, oneshot, watch};
 use tokio::task::JoinSet;
 
 /// Maximum pending worker tasks allowed.
 pub const MAX_PENDING_TASKS: usize = 1024;
+
+/// How long a Git supervisor waits for its blocking worker after closing the
+/// byte-stream bridge.
+const GIT_WORKER_DRAIN_TIMEOUT: time::Duration = time::Duration::from_secs(2);
+
+/// How long shutdown waits for network tasks to finish before aborting them.
+const NETWORK_TASK_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(3);
 
 /// A command delivered to the synchronous service actor.
 pub(crate) enum ServiceInput {
@@ -335,6 +342,7 @@ impl Runtime {
             self.controller.send(ServiceInput::Listening(addr))?;
         }
 
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let shared = Arc::new(Shared {
             local: self.id,
             endpoint: endpoint.clone(),
@@ -345,6 +353,7 @@ impl Runtime {
             jobs: AtomicU64::new(1),
             git_limits: Mutex::new(HashMap::new()),
             git_concurrency: self.config.limits.fetch_concurrency.into(),
+            shutdown: shutdown_rx,
         });
 
         let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel();
@@ -411,6 +420,7 @@ impl Runtime {
         };
 
         stopping.store(true, Ordering::Release);
+        let _ = shutdown_tx.send(true);
         if let Some(path) = &remove {
             // Wake a non-blocking control accept loop before joining it.
             let _ = std::os::unix::net::UnixStream::connect(path);
@@ -419,8 +429,15 @@ impl Runtime {
             .shutdown()
             .await
             .map_err(|e| Error::Iroh(e.to_string()))?;
-        tasks.abort_all();
-        while tasks.join_next().await.is_some() {}
+        if tokio::time::timeout(NETWORK_TASK_SHUTDOWN_TIMEOUT, async {
+            while tasks.join_next().await.is_some() {}
+        })
+        .await
+        .is_err()
+        {
+            tasks.abort_all();
+            while tasks.join_next().await.is_some() {}
+        }
         drop(shared);
         let _ = control_thread.join();
         let _ = self.pool.run();
@@ -553,6 +570,7 @@ struct Shared {
     jobs: AtomicU64,
     git_limits: Mutex<HashMap<NodeId, Arc<Semaphore>>>,
     git_concurrency: usize,
+    shutdown: watch::Receiver<bool>,
 }
 
 async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
@@ -750,7 +768,9 @@ async fn run_incoming_git(shared: Arc<Shared>, connection: Connection) {
         remote,
         emitter: shared.emitter.clone(),
     };
-    let _ = run_git_worker(shared, connection, send, recv, fetch, config).await;
+    if let Err(error) = run_git_worker(shared, connection, send, recv, fetch, config).await {
+        log::debug!(target: "worker", "Incoming Git connection from {remote} failed: {error}");
+    }
     drop(permit);
 }
 
@@ -787,12 +807,18 @@ async fn run_outgoing_git(
 
 async fn run_git_worker(
     shared: Arc<Shared>,
-    _connection: Connection,
+    connection: Connection,
     mut send: SendStream,
     mut recv: RecvStream,
     fetch: FetchRequest,
     config: ChannelsConfig,
 ) -> Result<(), String> {
+    enum PumpResult {
+        Worker(Box<TaskResult>),
+        WorkerDisconnected(String),
+        Failed(String),
+    }
+
     let job = shared.jobs.fetch_add(1, Ordering::Relaxed);
     let timeout = config.timeout();
     let (network, worker_channels) =
@@ -805,48 +831,108 @@ async fn run_git_worker(
     let mut buffer = vec![0u8; 64 * 1024];
     let mut recv_open = true;
     let mut send_open = true;
-    loop {
+    let mut shutdown = shared.shutdown.clone();
+    let pump = loop {
         tokio::select! {
+            biased;
+
+            _ = shutdown.changed() => {
+                break PumpResult::Failed("Git task cancelled".to_owned());
+            }
             result = &mut result_rx => {
-                let result = result.map_err(|_| "worker exited without a result".to_owned())?;
-                let _ = send.finish();
-                let deadline = tokio::time::Instant::now() + timeout;
-                while recv_open {
-                    match tokio::time::timeout_at(deadline, recv.read(&mut buffer)).await {
-                        Ok(Ok(None)) => recv_open = false,
-                        Ok(Ok(Some(_))) => {}
-                        Ok(Err(err)) => return Err(err.to_string()),
-                        Err(_) => return Err("Git stream completion timed out".to_owned()),
-                    }
+                match result {
+                    Ok(result) => break PumpResult::Worker(Box::new(result)),
+                    Err(_) => break PumpResult::Failed("worker exited without a result".to_owned()),
                 }
-                match tokio::time::timeout_at(deadline, send.stopped()).await {
-                    Ok(Ok(None)) => {}
-                    Ok(Ok(Some(code))) => return Err(format!("remote stopped Git stream: {code}")),
-                    Ok(Err(err)) => return Err(err.to_string()),
-                    Err(_) => return Err("Git stream acknowledgement timed out".to_owned()),
-                }
-                shared.controller.send(ServiceInput::Worker(result)).map_err(|e| e.to_string())?;
-                return Ok(());
             }
             read = recv.read(&mut buffer), if recv_open => match read {
                 Ok(None) => {
                     recv_open = false;
                     let _ = network.send(ChannelEvent::Eof).await;
                 }
-                Ok(Some(n)) => network.send(ChannelEvent::Data(buffer[..n].to_vec())).await.map_err(|_| "worker disconnected".to_owned())?,
-                Err(err) => return Err(err.to_string()),
+                Ok(Some(n)) => {
+                    if network.send(ChannelEvent::Data(buffer[..n].to_vec())).await.is_err() {
+                        break PumpResult::WorkerDisconnected("worker disconnected".to_owned());
+                    }
+                }
+                Err(err) => break PumpResult::Failed(err.to_string()),
             },
-            event = network.recv() => match event.map_err(|_| "worker disconnected".to_owned())? {
-                ChannelEvent::Data(data) if send_open => send.write_all(&data).await.map_err(|e| e.to_string())?,
-                ChannelEvent::Data(_) => return Err("worker wrote after closing Git stream".to_owned()),
-                ChannelEvent::Eof if send_open => {
+            event = network.recv() => match event {
+                Ok(ChannelEvent::Data(data)) if send_open => {
+                    if let Err(err) = send.write_all(&data).await {
+                        break PumpResult::Failed(err.to_string());
+                    }
+                }
+                Ok(ChannelEvent::Data(_)) => break PumpResult::Failed("worker wrote after closing Git stream".to_owned()),
+                Ok(ChannelEvent::Eof) if send_open => {
                     send_open = false;
                     let _ = send.finish();
                 }
-                ChannelEvent::Eof => {}
-                ChannelEvent::Close => return Err("worker closed Git stream".to_owned()),
+                Ok(ChannelEvent::Eof) => {}
+                Ok(ChannelEvent::Close) => break PumpResult::WorkerDisconnected("worker closed Git stream".to_owned()),
+                Err(_) => break PumpResult::WorkerDisconnected("worker disconnected".to_owned()),
             }
         }
+    };
+
+    // The worker owns both halves of its byte-stream bridge. They are dropped
+    // as `_process` returns, immediately before the task result is sent. Thus a
+    // disconnected bridge usually means that the result is about to arrive,
+    // rather than that the worker failed to report it.
+    let pump = match pump {
+        PumpResult::WorkerDisconnected(error) => {
+            match tokio::time::timeout(GIT_WORKER_DRAIN_TIMEOUT, &mut result_rx).await {
+                Ok(Ok(result)) => PumpResult::Worker(Box::new(result)),
+                Ok(Err(_)) => PumpResult::Failed(error),
+                Err(_) => PumpResult::Failed(error),
+            }
+        }
+        pump => pump,
+    };
+
+    match pump {
+        PumpResult::Worker(result) => {
+            let _ = send.finish();
+            let deadline = tokio::time::Instant::now() + timeout;
+            while recv_open {
+                match tokio::time::timeout_at(deadline, recv.read(&mut buffer)).await {
+                    Ok(Ok(None)) => recv_open = false,
+                    Ok(Ok(Some(_))) => {}
+                    Ok(Err(err)) => return Err(err.to_string()),
+                    Err(_) => return Err("Git stream completion timed out".to_owned()),
+                }
+            }
+            match tokio::time::timeout_at(deadline, send.stopped()).await {
+                Ok(Ok(None)) => {}
+                Ok(Ok(Some(code))) => return Err(format!("remote stopped Git stream: {code}")),
+                Ok(Err(err)) => return Err(err.to_string()),
+                Err(_) => return Err("Git stream acknowledgement timed out".to_owned()),
+            }
+            shared
+                .controller
+                .send(ServiceInput::Worker(*result))
+                .map_err(|e| e.to_string())
+        }
+        PumpResult::Failed(error) => {
+            connection.close(0u32.into(), b"Git task stopped");
+            drop(send);
+            drop(recv);
+            drop(network);
+
+            // A blocking worker cannot be cancelled. Keep its result receiver
+            // alive while closing the bridge gives it a chance to unwind.
+            match tokio::time::timeout(GIT_WORKER_DRAIN_TIMEOUT, result_rx).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(_)) => {
+                    log::debug!(target: "worker", "Git worker for job {job} exited without a result");
+                }
+                Err(_) => {
+                    log::debug!(target: "worker", "Timed out waiting for Git worker job {job} to stop");
+                }
+            }
+            Err(error)
+        }
+        PumpResult::WorkerDisconnected(_) => unreachable!("handled above"),
     }
 }
 

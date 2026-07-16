@@ -145,7 +145,11 @@ impl Worker {
             })
             .is_err()
         {
-            log::error!(target: "worker", "Unable to report fetch result: worker channel disconnected");
+            // The async Git supervisor may have been forcefully cancelled
+            // after its bounded shutdown grace period. The blocking operation
+            // still has to finish, so a missing task-local receiver is expected
+            // in that case.
+            log::debug!(target: "worker", "Git job {job} completed after its result receiver was dropped");
         }
     }
 
