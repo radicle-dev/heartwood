@@ -4,40 +4,53 @@ use std::{fmt, io};
 use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 
-/// Default expiry time for objects.
-pub const EXPIRY_DEFAULT: Expiry = Expiry::Hours(1);
-
 /// Expiry of objects for garbage collector.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Expiry {
+    #[allow(dead_code)]
     Now,
+    #[allow(dead_code)]
     Seconds(usize),
     Hours(usize),
+    #[allow(dead_code)]
     Days(usize),
+    #[allow(dead_code)]
     Weeks(usize),
+}
+
+impl Expiry {
+    const DEFAULT: Self = Expiry::Hours(1);
 }
 
 impl Default for Expiry {
     fn default() -> Self {
-        EXPIRY_DEFAULT
+        Self::DEFAULT
     }
 }
 
 impl fmt::Display for Expiry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Now => f.write_str("now"),
-            Self::Seconds(s) => write!(f, "{s}.seconds.ago"),
-            Self::Hours(s) => write!(f, "{s}.hours.ago"),
-            Self::Days(s) => write!(f, "{s}.days.ago"),
-            Self::Weeks(s) => write!(f, "{s}.weeks.ago"),
-        }
+        #[rustfmt::skip]
+        let (quantity, unit) = match self {
+            Self::Now => return f.write_str("now"),
+
+            Self::Seconds(quantity) => (quantity, "seconds"),
+            Self::Hours  (quantity) => (quantity, "hours"  ),
+            Self::Days   (quantity) => (quantity, "days"   ),
+            Self::Weeks  (quantity) => (quantity, "weeks"  ),
+        };
+
+        write!(f, "{quantity}.{unit}.ago")
     }
 }
 
 /// Run Git garbage collector.
-pub fn collect(storage: &impl ReadStorage, rid: RepoId, expiry: Expiry) -> io::Result<ExitStatus> {
-    let git_dir = storage.path_of(&rid);
+pub fn collect(
+    storage: &impl ReadStorage,
+    rid: &RepoId,
+    expiry: &Expiry,
+) -> io::Result<ExitStatus> {
+    let git_dir = storage.path_of(rid);
     let mut gc = Command::new("git");
     gc.current_dir(git_dir)
         .env_clear()

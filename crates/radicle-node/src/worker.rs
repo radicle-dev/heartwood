@@ -61,8 +61,7 @@ pub struct TaskResult {
 pub struct FetchConfig {
     /// Public key of the local peer.
     pub local: crypto::PublicKey,
-    /// Configuration for `git gc` garbage collection. Defaults to `1
-    /// hour ago`.
+    /// Configuration for `git gc` garbage collection.
     pub expiry: garbage::Expiry,
 }
 
@@ -267,7 +266,7 @@ impl Worker {
             refs_at,
         )?;
 
-        if let Err(e) = garbage::collect(&self.storage, rid, *expiry) {
+        if let Err(e) = garbage::collect(&self.storage, &rid, expiry) {
             // N.b. ensure that `git gc` works in debug mode.
             debug_assert!(false, "`git gc` failed: {e}");
 
