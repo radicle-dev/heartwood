@@ -19,9 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
-use std::net::IpAddr;
-use std::net::Ipv6Addr;
-use std::num::NonZeroU16;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::ops::{ControlFlow, Deref};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -563,45 +561,55 @@ impl From<IpAddr> for Host {
         "pattern" = "^.+:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{0,5})|([0-9]{1,4}))$",
     ),
 ))]
-pub struct Address {
-    host: Host,
+pub enum Address {
+    Ipv4 {
+        host: Ipv4Addr,
+        port: u16,
+    },
+    Ipv6 {
+        host: Ipv6Addr,
+        port: u16,
 
-    port: Option<NonZeroU16>,
-
-    /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
-    #[deprecated]
-    is_ipv6_without_square_brackets: bool,
+        /// See documentation of [`Address::is_ipv6_without_square_brackets`] for details.
+        #[deprecated]
+        without_square_brackets: bool,
+    },
+    Dns {
+        host: String,
+        port: u16,
+    },
+    #[cfg(feature = "tor")]
+    Tor {
+        host: tor_hscrypto::pk::HsId,
+        port: u16,
+    },
+    #[cfg(feature = "i2p")]
+    I2p {
+        host: String,
+        port: u16,
+    },
+    Iroh,
 }
 
 impl Address {
-    pub fn new(host: Host, port: u16) -> Self {
-        assert!(!matches!(host, Host::Iroh));
-
-        let port = Some(NonZeroU16::new(port).expect("port is non-zero"));
-
-        Self {
-            host,
-            port,
-            #[allow(deprecated)]
-            is_ipv6_without_square_brackets: false,
-        }
-    }
-
-    pub fn iroh() -> Self {
-        Self {
-            host: Host::Iroh,
-            port: None,
-            #[allow(deprecated)]
-            is_ipv6_without_square_brackets: false,
+    pub fn ip(ip: IpAddr, port: u16) -> Self {
+        match ip {
+            IpAddr::V4(ip) => Address::Ipv4 { host: ip, port },
+            IpAddr::V6(ip) => Address::Ipv6 {
+                host: ip,
+                port,
+                without_square_brackets: false,
+            },
         }
     }
 
     /// Check whether this address is from the local network.
     pub fn is_local(&self) -> bool {
-        match &self.host {
-            Host::Ip(ip) => address::is_local(ip),
-            Host::Dns(name) => {
-                let name = name.strip_suffix(".").unwrap_or(name);
+        match self {
+            Self::Ipv4 { host, .. } => address::ipv4_is_local(host),
+            Self::Ipv6 { host, .. } => address::ipv6_is_local(host),
+            Self::Dns { host, .. } => {
+                let name = host.strip_suffix(".").unwrap_or(host);
 
                 // RFC 2606, Section 2
                 // <https://datatracker.ietf.org/doc/html/rfc2606#section-2>
@@ -613,16 +621,26 @@ impl Address {
 
     /// Check whether this address is globally routable.
     pub fn is_routable(&self) -> bool {
-        match self.host {
-            Host::Ip(ip) => address::is_routable(&ip),
-            Host::Dns(_) => !self.is_local(),
+        match self {
+            Self::Ipv4 { host, .. } => address::ipv4_is_routable(&host),
+            Self::Ipv6 { host, .. } => address::ipv6_is_routable(&host),
+            Self::Dns { .. } => !self.is_local(),
             _ => true,
         }
     }
 
     /// Return the [`Host`] of the [`Address`].
-    pub fn host(&self) -> &Host {
-        &self.host
+    pub fn host(&self) -> Host {
+        match self {
+            Self::Ipv4 { host, .. } => Host::Ip(IpAddr::V4(*host)),
+            Self::Ipv6 { host, .. } => Host::Ip(IpAddr::V6(*host)),
+            Self::Dns { host, .. } => Host::Dns(host.clone()),
+            #[cfg(feature = "tor")]
+            Self::Tor { host, .. } => Host::Tor(host.clone()),
+            #[cfg(feature = "i2p")]
+            Self::I2p { host, .. } => Host::I2p(host.clone()),
+            Self::Iroh => Host::Iroh,
+        }
     }
 
     /// Return the [`AddressType`] of the [`Address`].
@@ -642,18 +660,27 @@ impl Address {
     /// Returns `true` if the [`Host`] is a Tor onion address.
     #[cfg(feature = "tor")]
     pub fn is_onion(&self) -> bool {
-        matches!(self.host, Host::Tor(_))
+        matches!(self, Self::Tor { .. })
     }
 
     /// Returns `true` if the [`Host`] is an I2P address.
     #[cfg(feature = "i2p")]
     pub fn is_i2p(&self) -> bool {
-        matches!(self.host, Host::I2p(_))
+        matches!(self, Self::I2p { .. })
     }
 
     /// Return the port number of the [`Address`].
-    pub fn port(&self) -> Option<NonZeroU16> {
-        self.port
+    pub fn port(&self) -> Option<u16> {
+        match self {
+            Self::Ipv4 { port, .. } => Some(*port),
+            Self::Ipv6 { port, .. } => Some(*port),
+            Self::Dns { port, .. } => Some(*port),
+            #[cfg(feature = "tor")]
+            Self::Tor { port, .. } => Some(*port),
+            #[cfg(feature = "i2p")]
+            Self::I2p { port, .. } => Some(*port),
+            Self::Iroh => None,
+        }
     }
 
     pub fn display_compact(&self) -> impl Display + use<> {
@@ -663,7 +690,7 @@ impl Address {
             Host::Dns(dns) => dns.clone(),
             #[cfg(feature = "tor")]
             Host::Tor(onion) => {
-                let onion = safelog::DisplayRedacted::display_unredacted(onion).to_string();
+                let onion = safelog::DisplayRedacted::display_unredacted(&onion).to_string();
                 let start = onion.chars().take(8).collect::<String>();
                 let end = onion
                     .chars()
@@ -682,6 +709,40 @@ impl Address {
         }
     }
 
+    /// If this address corresponds directly to a socket address
+    /// (only the variants [`Self::Ipv4`] and [`Self::Ipv6`] do),
+    /// produce a corresponding [`std::net::SocketAddr`].
+    ///
+    /// Do not confuse this with [`std::net::ToSocketAddrs`],
+    /// which will additionally attempt resolution of [`Self::Dns`].
+    ///
+    /// Note that this will copy the IP address and the port. To prevent copies,
+    /// use `match` and consume the `host` and `port` fields
+    /// (which are present on both variants [`Self::Ipv4`] and [`Self::Ipv6`])
+    /// directly.
+    pub fn ip_to_socket_addr(&self) -> Option<net::SocketAddr> {
+        match self {
+            Self::Ipv4 { host, port } => Some(net::SocketAddr::new(IpAddr::V4(*host), *port)),
+            Self::Ipv6 { host, port, .. } => Some(net::SocketAddr::new(IpAddr::V6(*host), *port)),
+            _ => None,
+        }
+    }
+
+    /// If this address corresponds directly to an IP address
+    /// (only the variants [`Self::Ipv4`] and [`Self::Ipv6`] do),
+    /// produce a corresponding [`std::net::IpAddr`].
+    ///
+    /// Note that this will copy the IP address. To prevent a copy, use `match`
+    /// and consume the `host` field (which is present on both variants
+    /// [`Self::Ipv4`] and [`Self::Ipv6`]) directly.
+    pub fn ip_addr(&self) -> Option<IpAddr> {
+        match self {
+            Self::Ipv4 { host, .. } => Some(IpAddr::V4(*host)),
+            Self::Ipv6 { host, .. } => Some(IpAddr::V6(*host)),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the address was parsed from a string that
     /// mentioned an IPv6 address without square brackets.
     /// May be used to warn the user, since this format is deprecated.
@@ -689,8 +750,14 @@ impl Address {
     /// notice when the format is no longer accepted.
     #[deprecated]
     pub fn is_ipv6_without_square_brackets(&self) -> bool {
-        #[allow(deprecated)]
-        self.is_ipv6_without_square_brackets
+        matches!(
+            self,
+            Self::Ipv6 {
+                #[allow(deprecated)]
+                without_square_brackets: true,
+                ..
+            }
+        )
     }
 }
 
@@ -698,34 +765,40 @@ impl std::net::ToSocketAddrs for Address {
     type Iter = std::vec::IntoIter<net::SocketAddr>;
 
     fn to_socket_addrs(&self) -> io::Result<Self::Iter> {
-        match &self.host {
-            Host::Ip(ip) => (*ip, self.port.expect("IP address has port").get())
+        match self {
+            Self::Ipv4 { host, port } => (*host, *port)
                 .to_socket_addrs()
                 .map(|result| result.collect::<Vec<_>>().into_iter()),
-            Host::Dns(dns) => {
-                (dns.as_str(), self.port.expect("DNS address has port").get()).to_socket_addrs()
-            }
+            Self::Ipv6 { host, port, .. } => (*host, *port)
+                .to_socket_addrs()
+                .map(|result| result.collect::<Vec<_>>().into_iter()),
+            Self::Dns { host, port } => (host.as_str(), *port).to_socket_addrs(),
             #[cfg(feature = "tor")]
-            Host::Tor(_) => Err(io::Error::other(
+            Self::Tor { .. } => Err(io::Error::other(
                 "refusing to resolve Tor onion address via DNS",
             )),
             #[cfg(feature = "i2p")]
-            Host::I2p(_) => Err(io::Error::other("refusing to resolve I2P address via DNS")),
-            Host::Iroh => Err(io::Error::other("refusing to resolve iroh address via DNS")),
+            Self::I2p { .. } => Err(io::Error::other("refusing to resolve I2P address via DNS")),
+            Self::Iroh => Err(io::Error::other("refusing to resolve iroh address via DNS")),
         }
     }
 }
 
 impl Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let host = match self.host() {
-            Host::Ip(IpAddr::V6(ip)) => format!("[{ip}]"),
-            host => host.to_string(),
-        };
-
-        match self.port() {
-            Some(port) => write!(f, "{host}:{port}"),
-            None => write!(f, "{host}"),
+        match self {
+            Self::Ipv4 { host, port } => write!(f, "{host}:{port}"),
+            Self::Ipv6 { host, port, .. } => write!(f, "[{host}]:{port}"),
+            Self::Dns { host, port } => write!(f, "{host}:{port}"),
+            #[cfg(feature = "tor")]
+            Self::Tor { host, port } => write!(
+                f,
+                "{}:{port}",
+                safelog::DisplayRedacted::display_unredacted(host)
+            ),
+            #[cfg(feature = "i2p")]
+            Self::I2p { host, port } => write!(f, "{host}:{port}"),
+            Self::Iroh => write!(f, "iroh"),
         }
     }
 }
@@ -756,6 +829,9 @@ pub enum ParseAddressError {
     UnexpectedPort,
     #[error(transparent)]
     Addr(#[from] std::net::AddrParseError),
+
+    #[error(transparent)]
+    Host(#[from] HostParseError),
 }
 
 impl FromStr for Address {
@@ -763,49 +839,61 @@ impl FromStr for Address {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.eq_ignore_ascii_case("iroh") {
-            return Ok(Self::iroh());
+            return Ok(Self::Iroh);
         }
 
         let (host, port) = match s.rsplit_once(':') {
             Some((host, _)) if host.eq_ignore_ascii_case("iroh") => {
                 return Err(ParseAddressError::UnexpectedPort);
             }
-            Some((host, port)) => (
-                host,
-                Some(
-                    NonZeroU16::new(port.parse().map_err(ParseAddressError::Port)?)
-                        .ok_or(ParseAddressError::ZeroPort)?,
-                ),
-            ),
+            Some((host, port)) => (host, port.parse().map_err(ParseAddressError::Port)?),
             None => return Err(ParseAddressError::NoPort),
         };
 
-        let (host, is_ipv6_without_square_brackets) = if let Some(host) = host
+        if let Some(host) = host
             .strip_prefix('[')
             .and_then(|host| host.strip_suffix(']'))
         {
-            (Host::Ip(host.parse::<Ipv6Addr>()?.into()), false)
-        } else {
-            let host = match host.parse() {
-                Ok(host) => host,
-                Err(_infallible) => unreachable!(),
-            };
-            let is_ipv6_without_square_brackets = matches!(&host, Host::Ip(IpAddr::V6(_)));
-            (host, is_ipv6_without_square_brackets)
-        };
+            return Ok(Self::Ipv6 {
+                host: host.parse::<Ipv6Addr>()?,
+                port,
+                #[allow(deprecated)]
+                without_square_brackets: false,
+            });
+        }
 
-        Ok(Self {
-            host,
-            port,
-            #[allow(deprecated)]
-            is_ipv6_without_square_brackets,
-        })
+        match host.parse()? {
+            Host::Ip(IpAddr::V4(ip)) => Ok(Self::Ipv4 { host: ip, port }),
+            Host::Ip(IpAddr::V6(ip)) => Ok(Self::Ipv6 {
+                host: ip,
+                port,
+                #[allow(deprecated)]
+                without_square_brackets: true,
+            }),
+            Host::Dns(host) => Ok(Self::Dns { host, port }),
+            #[cfg(feature = "tor")]
+            Host::Tor(host) => Ok(Self::Tor { host, port }),
+            #[cfg(feature = "i2p")]
+            Host::I2p(host) => Ok(Self::I2p { host, port }),
+            Host::Iroh => Ok(Self::Iroh),
+        }
     }
 }
 
 impl From<net::SocketAddr> for Address {
     fn from(addr: net::SocketAddr) -> Self {
-        Self::new(Host::Ip(addr.ip()), addr.port())
+        match addr {
+            net::SocketAddr::V4(addr) => Self::Ipv4 {
+                host: *addr.ip(),
+                port: addr.port(),
+            },
+            net::SocketAddr::V6(addr) => Self::Ipv6 {
+                host: *addr.ip(),
+                port: addr.port(),
+                #[allow(deprecated)]
+                without_square_brackets: false,
+            },
+        }
     }
 }
 

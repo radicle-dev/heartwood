@@ -34,9 +34,8 @@ fn nodes_renamed_for_option(
     iter: impl IntoIterator<Item = ConnectAddress>,
 ) -> Vec<String> {
     iter.into_iter().enumerate().fold(Vec::new(), |mut warnings, (i, value)| {
-        let old = value.addr();
-        let old = old.host();
-        if let Some(new) = NODES_RENAMED.get(old) {
+        let old = value.addr().host();
+        if let Some(new) = NODES_RENAMED.get(&old) {
             warnings.push(format!(
                 "Value of configuration option `{option}` at index {i} mentions node with hostname '{old}', which has been renamed to '{new}'. Please edit your configuration file to use the new address."
             ));
@@ -110,7 +109,7 @@ fn ipv6_without_square_brackets(config: &Config) -> Vec<String> {
             "Value of configuration option `{option}` at zero-based index {i} mentions IPv6 address '{}' without square brackets. The address format will change, and this address will be rejected in the future. Please edit your configuration file to enclose the IPv6 address in square brackets. Combined with port information it should read '[{}]:{}'. Refer to RFC 5926, Sec. 6 as well as RFC 3986, Sec. D.1. and RFC 2732, Sec. 2.",
             address.host(),
             address.host(),
-            address.port().map(|port| format!(":{}", port.get())).unwrap_or_default(),
+            address.port().map(|port| port.to_string()).unwrap_or_default(),
         )
     ).collect()
 }
