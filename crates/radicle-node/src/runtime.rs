@@ -276,13 +276,13 @@ impl Runtime {
             notifications,
             cobs_cache,
             db,
-            worker::Config {
-                capacity: config.workers.into(),
-                storage: storage.clone(),
+            worker::Config::new(
+                config.workers.into(),
+                storage.clone(),
                 fetch,
-                policy: seeding_policy,
-                policies_db: home.node().join(node::POLICIES_DB_FILE),
-            },
+                seeding_policy,
+                home.node().join(node::POLICIES_DB_FILE),
+            ),
         )?;
         let control = Self::bind(socket)?;
 
@@ -801,12 +801,7 @@ async fn run_git_worker(
     let (result_tx, mut result_rx) = oneshot::channel();
     shared
         .worker
-        .try_send(Task {
-            fetch,
-            job,
-            channels: worker_channels,
-            result: result_tx,
-        })
+        .try_send(Task::new(fetch, job, worker_channels, result_tx))
         .map_err(|_| "worker queue is full".to_owned())?;
     let mut buffer = vec![0u8; 64 * 1024];
     let mut recv_open = true;

@@ -29,24 +29,58 @@ pub type JobId = u64;
 /// Worker pool configuration.
 pub struct Config {
     /// Number of worker threads.
-    pub capacity: usize,
+    capacity: usize,
     /// Git storage.
-    pub storage: Storage,
+    storage: Storage,
     /// Configuration for performing fetched.
-    pub fetch: FetchConfig,
+    fetch: FetchConfig,
     /// Default policy, if a policy for a specific node or repository was not found.
-    pub policy: SeedingPolicy,
+    policy: SeedingPolicy,
     /// Path to the policies database.
-    pub policies_db: PathBuf,
+    policies_db: PathBuf,
+}
+
+impl Config {
+    pub(crate) fn new(
+        capacity: usize,
+        storage: Storage,
+        fetch: FetchConfig,
+        policy: SeedingPolicy,
+        policies_db: PathBuf,
+    ) -> Self {
+        Self {
+            capacity,
+            storage,
+            fetch,
+            policy,
+            policies_db,
+        }
+    }
 }
 
 /// Task to be accomplished on a worker thread.
 /// This is either going to be an outgoing or incoming fetch.
 pub struct Task {
-    pub fetch: FetchRequest,
-    pub job: JobId,
-    pub channels: Channels,
-    pub result: tokio::sync::oneshot::Sender<TaskResult>,
+    fetch: FetchRequest,
+    job: JobId,
+    channels: Channels,
+    result: tokio::sync::oneshot::Sender<TaskResult>,
+}
+
+impl Task {
+    pub(crate) fn new(
+        fetch: FetchRequest,
+        job: JobId,
+        channels: Channels,
+        result: tokio::sync::oneshot::Sender<TaskResult>,
+    ) -> Self {
+        Self {
+            fetch,
+            job,
+            channels,
+            result,
+        }
+    }
 }
 
 /// Worker response.
