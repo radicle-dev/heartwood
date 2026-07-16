@@ -2530,7 +2530,7 @@ where
 
     /// Run idle task for all connections.
     fn idle_connections(&mut self) {
-        for (_, sess) in self.sessions.iter_mut() {
+        for sess in self.sessions.values_mut() {
             sess.idle(self.clock);
 
             if sess.is_stable() {

@@ -68,7 +68,7 @@ impl Outbox {
             _ => log::Level::Debug,
         };
         msg.log(level, &remote.id, Link::Outbound);
-        trace!(target: "service", "Write {:?} to {}", &msg, remote);
+        trace!(target: "service", "Write {:?} to {}", msg, remote);
 
         self.io.push_back(Io::Write(remote.id, vec![msg]));
     }

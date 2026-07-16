@@ -988,7 +988,7 @@ impl WriteRepository for Repository {
         if old == Some(new) {
             return Ok(SetHead { old, new });
         }
-        log::debug!(target: "storage", "Setting ref: {} -> {}", &branch_ref, new);
+        log::debug!(target: "storage", "Setting ref: {} -> {}", branch_ref, new);
         self.raw()
             .reference(&branch_ref, new.into(), true, "set-local-branch (radicle)")?;
 
