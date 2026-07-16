@@ -339,7 +339,7 @@ impl Runtime {
             local: self.id,
             endpoint: endpoint.clone(),
             controller: self.controller.clone(),
-            worker: self.worker.clone(),
+            worker: self.worker,
             emitter: self.emitter.clone(),
             peers: tokio::sync::Mutex::new(HashMap::new()),
             jobs: AtomicU64::new(1),
@@ -422,7 +422,6 @@ impl Runtime {
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
         drop(shared);
-        drop(self.worker);
         let _ = control_thread.join();
         let _ = self.pool.run();
         let _ = self.service_thread.join();

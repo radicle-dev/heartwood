@@ -100,7 +100,7 @@ pub struct FetchConfig {
     pub expiry: garbage::Expiry,
 }
 
-/// A worker that replicates git objects.
+/// A worker that replicates Git objects.
 struct Worker {
     nid: NodeId,
     storage: Storage,
