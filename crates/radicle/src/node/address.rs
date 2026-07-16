@@ -193,44 +193,6 @@ impl std::fmt::Display for Source {
     }
 }
 
-/// Address type.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum AddressType {
-    Ipv4 = 1,
-    Ipv6 = 2,
-    Dns = 3,
-    #[cfg(feature = "tor")]
-    Onion = 4,
-    #[cfg(feature = "i2p")]
-    I2p = 5,
-    Iroh = 6,
-}
-
-impl From<AddressType> for u8 {
-    fn from(other: AddressType) -> Self {
-        other as u8
-    }
-}
-
-impl TryFrom<u8> for AddressType {
-    type Error = u8;
-
-    fn try_from(other: u8) -> Result<Self, Self::Error> {
-        match other {
-            1 => Ok(AddressType::Ipv4),
-            2 => Ok(AddressType::Ipv6),
-            3 => Ok(AddressType::Dns),
-            #[cfg(feature = "tor")]
-            4 => Ok(AddressType::Onion),
-            #[cfg(feature = "i2p")]
-            5 => Ok(AddressType::I2p),
-            6 => Ok(AddressType::Iroh),
-            _ => Err(other),
-        }
-    }
-}
 /// Check whether an IP address is globally routable.
 pub fn is_routable(addr: &net::IpAddr) -> bool {
     match addr {

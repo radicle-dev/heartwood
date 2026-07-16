@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::node;
 use crate::node::UserAgent;
-use crate::node::address::{AddressType, KnownAddress, Node, Source};
+use crate::node::address::{KnownAddress, Node, Source};
 use crate::node::{Address, Alias, AliasError, AliasStore, Database, NodeId, Penalty, Severity};
 use crate::prelude::Timestamp;
 use crate::sql::transaction;
@@ -150,7 +150,7 @@ impl Store for Database {
              WHERE value = ?1 AND type = ?2",
         )?;
         stmt.bind((1, addr))?;
-        stmt.bind((2, addr.address_type()))?;
+        stmt.bind((2, addr.discriminant_str()))?;
 
         if let Some(row) = stmt.into_iter().next() {
             let row = row?;
@@ -183,21 +183,20 @@ impl Store for Database {
 
         for row in stmt.into_iter() {
             let mut row = row?;
-            let address_type = match row.try_read::<AddressType, _>("type") {
-                Ok(address_type) => address_type,
-                Err(err) => {
-                    let value = match row.take("type") {
-                        sqlite::Value::String(value) => value,
-                        value => format!("{value:?}"),
-                    };
-                    log::debug!("Failed to parse address type '{value}' for {node}: {err}");
+            let address_type = match row.take("type") {
+                sqlite::Value::String(address_type) => address_type,
+                value => {
+                    log::debug!(
+                        "Failed to parse address type of kind '{:?}' for node {node}.",
+                        value.kind()
+                    );
                     continue;
                 }
             };
             let addr = match row.try_read::<Address, _>("value") {
                 Ok(addr) => addr,
                 Err(err) => {
-                    let value = match row.take("type") {
+                    let value = match row.take("value") {
                         sqlite::Value::String(value) => value,
                         value => format!("{value:?}"),
                     };
@@ -206,7 +205,7 @@ impl Store for Database {
                 }
             };
 
-            let actual_type = addr.address_type();
+            let actual_type = addr.discriminant_str();
             if actual_type != address_type {
                 log::debug!(
                     "The address '{addr}' was expected to be of type '{address_type:?}' but was found to be of type '{actual_type:?}'"
@@ -296,7 +295,7 @@ impl Store for Database {
                      WHERE timestamp < ?5",
                 )?;
                 stmt.bind((1, node))?;
-                stmt.bind((2, addr.addr.address_type()))?;
+                stmt.bind((2, addr.addr.discriminant_str()))?;
                 stmt.bind((3, &addr.addr))?;
                 stmt.bind((4, addr.source))?;
                 stmt.bind((5, &timestamp))?;
@@ -354,7 +353,7 @@ impl Store for Database {
 
         stmt.bind((1, &time))?;
         stmt.bind((2, nid))?;
-        stmt.bind((3, addr.address_type()))?;
+        stmt.bind((3, addr.discriminant_str()))?;
         stmt.bind((4, addr))?;
         stmt.next()?;
 
@@ -373,7 +372,7 @@ impl Store for Database {
 
             stmt.bind((1, &time))?;
             stmt.bind((2, nid))?;
-            stmt.bind((3, addr.address_type()))?;
+            stmt.bind((3, addr.discriminant_str()))?;
             stmt.bind((4, addr))?;
             stmt.next()?;
 
@@ -512,7 +511,6 @@ impl TryFrom<&sql::Row> for AddressEntry {
 
     fn try_from(row: &sql::Row) -> Result<Self, Self::Error> {
         let node = row.try_read::<NodeId, _>("node")?;
-        let _type = row.try_read::<AddressType, _>("type")?;
         let addr = row.try_read::<Address, _>("value")?;
         let source = row.try_read::<Source, _>("source")?;
         let last_success = row.try_read::<Option<i64>, _>("last_success")?;
@@ -565,46 +563,6 @@ impl sql::BindableWithIndex for Source {
             Self::Bootstrap => "bootstrap".bind(stmt, i),
             Self::Peer => "peer".bind(stmt, i),
             Self::Imported => "imported".bind(stmt, i),
-        }
-    }
-}
-
-impl TryFrom<&sql::Value> for AddressType {
-    type Error = sql::Error;
-
-    fn try_from(value: &sql::Value) -> Result<Self, Self::Error> {
-        let err = sql::Error {
-            code: None,
-            message: Some("sql: invalid address type".to_owned()),
-        };
-        match value {
-            sql::Value::String(s) => match s.as_str() {
-                "ipv4" => Ok(AddressType::Ipv4),
-                "ipv6" => Ok(AddressType::Ipv6),
-                "dns" => Ok(AddressType::Dns),
-                #[cfg(feature = "tor")]
-                "onion" => Ok(AddressType::Onion),
-                #[cfg(feature = "i2p")]
-                "i2p" => Ok(AddressType::I2p),
-                "iroh" => Ok(AddressType::Iroh),
-                _ => Err(err),
-            },
-            _ => Err(err),
-        }
-    }
-}
-
-impl sql::BindableWithIndex for AddressType {
-    fn bind<I: sql::ParameterIndex>(self, stmt: &mut sql::Statement<'_>, i: I) -> sql::Result<()> {
-        match self {
-            Self::Ipv4 => "ipv4".bind(stmt, i),
-            Self::Ipv6 => "ipv6".bind(stmt, i),
-            Self::Dns => "dns".bind(stmt, i),
-            #[cfg(feature = "tor")]
-            Self::Onion => "onion".bind(stmt, i),
-            #[cfg(feature = "i2p")]
-            Self::I2p => "i2p".bind(stmt, i),
-            Self::Iroh => "iroh".bind(stmt, i),
         }
     }
 }
