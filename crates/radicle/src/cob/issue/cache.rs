@@ -9,7 +9,7 @@ use crate::cob::cache;
 use crate::cob::cache::{Remove, StoreReader, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::store::access::{ReadOnly, WriteAs};
-use crate::cob::{Embed, Label, ObjectId, TypeName, Uri};
+use crate::cob::{Embed, Label, ObjectId, Timestamp, TypeName, Uri};
 use crate::node::NodeId;
 use crate::prelude::{Did, RepoId};
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
@@ -39,6 +39,33 @@ pub trait Issues {
 
     /// Get the [`IssueCounts`] of all the issues in the store.
     fn counts(&self) -> Result<IssueCounts, Self::Error>;
+
+    /// List a page of issues ordered by creation timestamp, newest first.
+    ///
+    /// The creation timestamp is the one reported by [`Issue::timestamp`].
+    /// When `status` is `Some`, only issues in that state are returned. At most
+    /// `limit` issues are returned, starting after `cursor` (from the start
+    /// when `cursor` is `None`); use [`cache::Page::next`] to fetch the
+    /// following page. Backends that can order and paginate in the store
+    /// override this with a keyset query to avoid loading every issue into
+    /// memory.
+    fn list_by_timestamp(
+        &self,
+        status: Option<&State>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Issue>, Self::Error> {
+        let issues: Vec<(IssueId, Issue)> = match status {
+            Some(status) => self.list_by_status(status)?.collect::<Result<_, _>>()?,
+            None => self.list()?.collect::<Result<_, _>>()?,
+        };
+        Ok(cache::paginate_keyset(
+            issues,
+            |issue| issue.timestamp(),
+            cursor,
+            limit,
+        ))
+    }
 
     /// List all open issues in the store.
     fn opened(&self) -> Result<Self::Iter<'_>, Self::Error> {
@@ -327,15 +354,25 @@ impl Update<Issue> for StoreWriter {
         object: &Issue,
     ) -> Result<Self::Out, Self::UpdateError> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO issues (id, repo, issue)
-             VALUES (?1, ?2, ?3)
+            "INSERT INTO issues (id, repo, issue, timestamp)
+             VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT DO UPDATE
-             SET issue = (?3)",
+             SET issue = (?3), timestamp = (?4)",
         )?;
+
+        // Creation timestamp, materialized for keyset listing (migration 4).
+        // Matches `Issue::timestamp` (the root comment's time); a well-formed
+        // issue always has one, but fall back to the epoch rather than panic.
+        let timestamp = object
+            .comments()
+            .next()
+            .map(|(_, c)| c.timestamp().as_millis() as i64)
+            .unwrap_or(0);
 
         stmt.bind((1, sql::Value::String(id.to_string())))?;
         stmt.bind((2, rid))?;
         stmt.bind((3, sql::Value::String(serde_json::to_string(&object)?)))?;
+        stmt.bind((4, timestamp))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -495,6 +532,15 @@ where
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
     }
+
+    fn list_by_timestamp(
+        &self,
+        status: Option<&State>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Issue>, Self::Error> {
+        query::list_by_timestamp(&self.cache.db, &self.rid(), status, cursor, limit)
+    }
 }
 
 impl<'a, Repo, Access> Issues for Cache<'a, Repo, Access, StoreReader>
@@ -521,6 +567,15 @@ where
 
     fn counts(&self) -> Result<IssueCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
+    }
+
+    fn list_by_timestamp(
+        &self,
+        status: Option<&State>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Issue>, Self::Error> {
+        query::list_by_timestamp(&self.cache.db, &self.rid(), status, cursor, limit)
     }
 }
 
@@ -617,6 +672,75 @@ mod query {
                 Ok(counts)
             })
     }
+
+    pub(super) fn list_by_timestamp(
+        db: &sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        status: Option<&State>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Issue>, Error> {
+        // Issues are ordered by the indexed `timestamp` column (the creation
+        // time materialized on write; see migration 4), so this reads only the
+        // requested page rather than scanning and sorting the whole repo. The
+        // keyset predicate `(timestamp, id) < cursor` resumes strictly after
+        // the previous page's last row, and stays stable under concurrent
+        // writes in a way `OFFSET` cannot.
+        let status_filter = if status.is_some() {
+            "AND issue->>'$.state.status' = :status"
+        } else {
+            ""
+        };
+        let keyset = if cursor.is_some() {
+            "AND (timestamp, id) < (:cursor_ts, :cursor_id)"
+        } else {
+            ""
+        };
+        let query = format!(
+            "SELECT id, issue, timestamp
+             FROM issues
+             WHERE repo = :repo {status_filter} {keyset}
+             ORDER BY timestamp DESC, id DESC
+             LIMIT :limit"
+        );
+        let mut stmt = db.prepare(query)?;
+        stmt.bind((":repo", rid))?;
+        stmt.bind((":limit", limit as i64))?;
+        if let Some(status) = status {
+            stmt.bind((":status", sql::Value::String(status.to_string())))?;
+        }
+        if let Some(cursor) = cursor {
+            stmt.bind((":cursor_ts", cursor.timestamp.as_millis() as i64))?;
+            stmt.bind((":cursor_id", sql::Value::String(cursor.id.to_string())))?;
+        }
+
+        let items = stmt
+            .into_iter()
+            .map(|row| {
+                let row = row?;
+                let timestamp = Timestamp::from_millis(row.try_read::<i64, _>("timestamp")? as u64);
+                let (id, issue) = IssuesIter::parse_row(row)?;
+                Ok::<_, Error>((id, issue, timestamp))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // A full page means there may be more; the last row marks where to resume.
+        let next =
+            (items.len() == limit)
+                .then(|| items.last())
+                .flatten()
+                .map(|(id, _, timestamp)| cache::Cursor {
+                    timestamp: *timestamp,
+                    id: *id,
+                });
+        Ok(cache::Page {
+            items: items
+                .into_iter()
+                .map(|(id, issue, _)| (id, issue))
+                .collect(),
+            next,
+        })
+    }
 }
 
 #[allow(clippy::unwrap_used)]
@@ -630,7 +754,8 @@ mod tests {
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::migrate;
     use crate::cob::store::access::ReadOnly;
-    use crate::cob::thread::Thread;
+    use crate::cob::thread::{Comment, Thread};
+    use crate::cob::{ActorId, Timestamp};
     use crate::issue::{CloseReason, Issue, IssueCounts, IssueId, State};
     use crate::storage::HasRepoId as _;
     use crate::test::arbitrary;
@@ -803,6 +928,69 @@ mod tests {
         list.sort_by_key(|(id, _)| *id);
         issues.sort_by_key(|(id, _)| *id);
         assert_eq!(issues, list);
+    }
+
+    fn issue_at(secs: u64) -> Issue {
+        let comment = Comment::new(
+            arbitrary::r#gen::<ActorId>(0),
+            "body".to_owned(),
+            None,
+            None,
+            vec![],
+            Timestamp::from_secs(secs),
+        );
+        Issue::new(Thread::new(arbitrary::oid(), comment))
+    }
+
+    #[test]
+    fn test_list_by_timestamp() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+
+        // Insert open issues out of timestamp order.
+        let mut expected = Vec::new();
+        for secs in [300u64, 100, 200] {
+            let id = IssueId::from(arbitrary::oid());
+            let issue = issue_at(secs);
+            cache.update(&cache.rid(), &id, &issue).unwrap();
+            expected.push((id, issue));
+        }
+        // Plus a newer, closed issue.
+        let closed_id = IssueId::from(arbitrary::oid());
+        let closed = Issue {
+            state: State::Closed {
+                reason: CloseReason::Solved,
+            },
+            ..issue_at(400)
+        };
+        cache.update(&cache.rid(), &closed_id, &closed).unwrap();
+
+        // Open issues are returned newest first, matching `Issue::timestamp`.
+        expected
+            .sort_by(|(a_id, a), (b_id, b)| b.timestamp().cmp(&a.timestamp()).then(b_id.cmp(a_id)));
+        let page = cache
+            .list_by_timestamp(Some(&State::Open), None, 10)
+            .unwrap();
+        assert_eq!(page.items, expected);
+        assert_eq!(page.next, None); // Partial page: no more results.
+
+        // Without a status filter, the newest (closed) issue sorts first.
+        let all = cache.list_by_timestamp(None, None, 10).unwrap();
+        assert_eq!(all.items.len(), 4);
+        assert_eq!(all.items[0], (closed_id, closed));
+
+        // Keyset pagination: fetch the open issues one page at a time.
+        let page1 = cache
+            .list_by_timestamp(Some(&State::Open), None, 1)
+            .unwrap();
+        assert_eq!(page1.items, vec![expected[0].clone()]);
+        assert!(page1.next.is_some());
+
+        // The next page resumes strictly after the first page's last row.
+        let page2 = cache
+            .list_by_timestamp(Some(&State::Open), page1.next, 1)
+            .unwrap();
+        assert_eq!(page2.items, vec![expected[1].clone()]);
     }
 
     #[test]

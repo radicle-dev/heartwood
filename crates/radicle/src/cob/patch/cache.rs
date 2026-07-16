@@ -9,7 +9,7 @@ use crate::cob::cache::{self, StoreReader};
 use crate::cob::cache::{Remove, StoreWriter, Update};
 use crate::cob::store;
 use crate::cob::store::access::{ReadOnly, WriteAs};
-use crate::cob::{Label, ObjectId, TypeName};
+use crate::cob::{Label, ObjectId, Timestamp, TypeName};
 use crate::git;
 use crate::prelude::RepoId;
 use crate::storage::{HasRepoId, ReadRepository, RepositoryError, SignRepository, WriteRepository};
@@ -48,6 +48,37 @@ pub trait Patches {
 
     /// Get the [`PatchCounts`] of all the patches in the store.
     fn counts(&self) -> Result<PatchCounts, Self::Error>;
+
+    /// List a page of patches ordered by creation timestamp, newest first.
+    ///
+    /// The creation timestamp is the one reported by [`Patch::timestamp`] (the
+    /// first revision by the patch author). When `status` is `Some`, only
+    /// patches in that state are returned. At most `limit` patches are
+    /// returned, starting after `cursor` (from the start when `cursor` is
+    /// `None`); use [`cache::Page::next`] to fetch the following page. Backends
+    /// that can order and paginate in the store override this with a keyset
+    /// query to avoid loading every patch into memory.
+    ///
+    /// Note: the store-backed key materialized on write is the earliest
+    /// revision timestamp, which matches `Patch::timestamp` unless revision
+    /// timestamps are out of order.
+    fn list_by_timestamp(
+        &self,
+        status: Option<&Status>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Patch>, Self::Error> {
+        let patches: Vec<(PatchId, Patch)> = match status {
+            Some(status) => self.list_by_status(status)?.collect::<Result<_, _>>()?,
+            None => self.list()?.collect::<Result<_, _>>()?,
+        };
+        Ok(cache::paginate_keyset(
+            patches,
+            |patch| patch.timestamp(),
+            cursor,
+            limit,
+        ))
+    }
 
     /// List all opened patches in the store.
     fn opened(&self) -> Result<Self::Iter<'_>, Self::Error> {
@@ -365,15 +396,25 @@ impl Update<Patch> for StoreWriter {
         object: &Patch,
     ) -> Result<Self::Out, Self::UpdateError> {
         let mut stmt = self.db.prepare(
-            "INSERT INTO patches (id, repo, patch)
-             VALUES (?1, ?2, ?3)
+            "INSERT INTO patches (id, repo, patch, timestamp)
+             VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT DO UPDATE
-             SET patch = (?3)",
+             SET patch = (?3), timestamp = (?4)",
         )?;
+
+        // Creation timestamp, materialized for keyset listing (migration 4).
+        // Matches `Patch::timestamp` (the first revision's time); a well-formed
+        // patch always has one, but fall back to the epoch rather than panic.
+        let timestamp = object
+            .updates()
+            .next()
+            .map(|(_, r)| r.timestamp.as_millis() as i64)
+            .unwrap_or(0);
 
         stmt.bind((1, sql::Value::String(id.to_string())))?;
         stmt.bind((2, rid))?;
         stmt.bind((3, sql::Value::String(serde_json::to_string(&object)?)))?;
+        stmt.bind((4, timestamp))?;
         stmt.next()?;
 
         Ok(self.db.change_count() > 0)
@@ -478,6 +519,15 @@ where
     fn counts(&self) -> Result<PatchCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
     }
+
+    fn list_by_timestamp(
+        &self,
+        status: Option<&Status>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Patch>, Self::Error> {
+        query::list_by_timestamp(&self.cache.db, &self.rid(), status, cursor, limit)
+    }
 }
 
 pub struct NoCacheIter<'a> {
@@ -571,6 +621,15 @@ where
 
     fn counts(&self) -> Result<PatchCounts, Self::Error> {
         query::counts(&self.cache.db, &self.rid())
+    }
+
+    fn list_by_timestamp(
+        &self,
+        status: Option<&Status>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Patch>, Self::Error> {
+        query::list_by_timestamp(&self.cache.db, &self.rid(), status, cursor, limit)
     }
 }
 
@@ -706,6 +765,75 @@ mod query {
                 Ok(counts)
             })
     }
+
+    pub(super) fn list_by_timestamp(
+        db: &sql::ConnectionThreadSafe,
+        rid: &RepoId,
+        status: Option<&Status>,
+        cursor: Option<cache::Cursor>,
+        limit: usize,
+    ) -> Result<cache::Page<Patch>, Error> {
+        // Patches are ordered by the indexed `timestamp` column (the creation
+        // time materialized on write; see migration 4), so this reads only the
+        // requested page rather than scanning and sorting the whole repo. The
+        // keyset predicate `(timestamp, id) < cursor` resumes strictly after
+        // the previous page's last row, and stays stable under concurrent
+        // writes in a way `OFFSET` cannot.
+        let status_filter = if status.is_some() {
+            "AND patch->>'$.state.status' = :status"
+        } else {
+            ""
+        };
+        let keyset = if cursor.is_some() {
+            "AND (timestamp, id) < (:cursor_ts, :cursor_id)"
+        } else {
+            ""
+        };
+        let query = format!(
+            "SELECT id, patch, timestamp
+             FROM patches
+             WHERE repo = :repo {status_filter} {keyset}
+             ORDER BY timestamp DESC, id DESC
+             LIMIT :limit"
+        );
+        let mut stmt = db.prepare(query)?;
+        stmt.bind((":repo", rid))?;
+        stmt.bind((":limit", limit as i64))?;
+        if let Some(status) = status {
+            stmt.bind((":status", sql::Value::String(status.to_string())))?;
+        }
+        if let Some(cursor) = cursor {
+            stmt.bind((":cursor_ts", cursor.timestamp.as_millis() as i64))?;
+            stmt.bind((":cursor_id", sql::Value::String(cursor.id.to_string())))?;
+        }
+
+        let items = stmt
+            .into_iter()
+            .map(|row| {
+                let row = row?;
+                let timestamp = Timestamp::from_millis(row.try_read::<i64, _>("timestamp")? as u64);
+                let (id, patch) = PatchesIter::parse_row(row)?;
+                Ok::<_, Error>((id, patch, timestamp))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // A full page means there may be more; the last row marks where to resume.
+        let next =
+            (items.len() == limit)
+                .then(|| items.last())
+                .flatten()
+                .map(|(id, _, timestamp)| cache::Cursor {
+                    timestamp: *timestamp,
+                    id: *id,
+                });
+        Ok(cache::Page {
+            items: items
+                .into_iter()
+                .map(|(id, patch, _)| (id, patch))
+                .collect(),
+            next,
+        })
+    }
 }
 
 #[allow(clippy::unwrap_used)]
@@ -721,7 +849,7 @@ mod tests {
     use crate::cob::cache::{Store, Update, Write};
     use crate::cob::store::access::ReadOnly;
     use crate::cob::thread::{Comment, Thread};
-    use crate::cob::{Author, Title, migrate};
+    use crate::cob::{Author, Timestamp, Title, migrate};
     use crate::patch::{
         ByRevision, MergeTarget, Patch, PatchCounts, PatchId, Revision, RevisionId, State, Status,
     };
@@ -770,6 +898,74 @@ mod tests {
         let thread = Thread::new(arbitrary::oid(), comment);
         revision.discussion = thread;
         (id, revision)
+    }
+
+    fn patch_at(secs: u64) -> Patch {
+        let author = arbitrary::r#gen::<Did>(1);
+        let id = RevisionId::from(arbitrary::oid());
+        let revision = Revision::new(
+            id,
+            Author { id: author },
+            arbitrary::r#gen::<String>(1),
+            arbitrary::oid(),
+            arbitrary::oid(),
+            Timestamp::from_secs(secs),
+            BTreeSet::new(),
+        );
+        Patch::new(
+            Title::new("Patch").unwrap(),
+            MergeTarget::Delegates,
+            (id, revision),
+        )
+    }
+
+    #[test]
+    fn test_list_by_timestamp() {
+        let repo = arbitrary::r#gen::<MockRepository>(1);
+        let mut cache = memory(&repo);
+
+        // Insert open patches out of timestamp order.
+        let mut expected = Vec::new();
+        for secs in [300u64, 100, 200] {
+            let id = PatchId::from(arbitrary::oid());
+            let patch = patch_at(secs);
+            cache.update(&cache.rid(), &id, &patch).unwrap();
+            expected.push((id, patch));
+        }
+        // Plus a newer, archived patch.
+        let archived_id = PatchId::from(arbitrary::oid());
+        let archived = Patch {
+            state: State::Archived,
+            ..patch_at(400)
+        };
+        cache.update(&cache.rid(), &archived_id, &archived).unwrap();
+
+        // Open patches are returned newest first, matching `Patch::timestamp`.
+        expected
+            .sort_by(|(a_id, a), (b_id, b)| b.timestamp().cmp(&a.timestamp()).then(b_id.cmp(a_id)));
+        let page = cache
+            .list_by_timestamp(Some(&Status::Open), None, 10)
+            .unwrap();
+        assert_eq!(page.items, expected);
+        assert_eq!(page.next, None); // Partial page: no more results.
+
+        // Without a status filter, the newest (archived) patch sorts first.
+        let all = cache.list_by_timestamp(None, None, 10).unwrap();
+        assert_eq!(all.items.len(), 4);
+        assert_eq!(all.items[0], (archived_id, archived));
+
+        // Keyset pagination: fetch the open patches one page at a time.
+        let page1 = cache
+            .list_by_timestamp(Some(&Status::Open), None, 1)
+            .unwrap();
+        assert_eq!(page1.items, vec![expected[0].clone()]);
+        assert!(page1.next.is_some());
+
+        // The next page resumes strictly after the first page's last row.
+        let page2 = cache
+            .list_by_timestamp(Some(&Status::Open), page1.next, 1)
+            .unwrap();
+        assert_eq!(page2.items, vec![expected[1].clone()]);
     }
 
     #[test]

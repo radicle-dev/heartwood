@@ -40,6 +40,14 @@ impl Timestamp {
     pub fn from_secs(secs: u64) -> Self {
         Self(LocalTime::from_secs(secs))
     }
+
+    pub fn from_millis(millis: u64) -> Self {
+        Self(LocalTime::from_millis(millis as u128))
+    }
+
+    pub fn as_millis(&self) -> u64 {
+        self.0.as_millis()
+    }
 }
 
 impl From<LocalTime> for Timestamp {

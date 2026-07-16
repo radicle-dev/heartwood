@@ -12,6 +12,7 @@ use radicle_cob::ObjectId;
 use sqlite as sql;
 use thiserror::Error;
 
+use crate::cob::Timestamp;
 use crate::prelude::RepoId;
 use crate::sql::transaction;
 
@@ -29,6 +30,7 @@ const MIGRATIONS: &[Migration] = &[
     Migration::Sql(include_str!("cache/migrations/1.sql")),
     Migration::Native(migrations::_2::run),
     Migration::Sql(include_str!("cache/migrations/3.sql")),
+    Migration::Sql(include_str!("cache/migrations/4.sql")),
 ];
 
 /// Function signature for native migrations.
@@ -442,11 +444,122 @@ impl Progress {
     }
 }
 
+/// A position in a timestamp-ordered listing. Pass it back to
+/// `list_by_timestamp` to fetch the page that follows it. Obtain the next
+/// page's cursor from [`Page::next`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cursor {
+    /// Creation timestamp of the last item on the previous page.
+    pub timestamp: Timestamp,
+    /// Object ID of the last item on the previous page, breaking ties between
+    /// items with the same timestamp.
+    pub id: ObjectId,
+}
+
+impl Cursor {
+    /// The keyset ordering value: items are listed by `(timestamp, id)`
+    /// descending, so the next page holds items strictly less than this.
+    fn key(&self) -> (Timestamp, ObjectId) {
+        (self.timestamp, self.id)
+    }
+}
+
+/// A single page of a timestamp-ordered listing, newest first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Page<T> {
+    /// The items on this page.
+    pub items: Vec<(ObjectId, T)>,
+    /// Cursor for fetching the next page, or `None` once the final page has
+    /// been returned.
+    pub next: Option<Cursor>,
+}
+
+/// In-memory keyset pagination, the fallback for backends that can't paginate
+/// in the store. Orders `items` by `key` descending (ties broken by `id`
+/// descending), drops everything up to and including `cursor`, and returns at
+/// most `limit` items plus the cursor for the following page.
+///
+/// This must match the ordering and windowing of the backends'
+/// `WHERE (timestamp, id) < (cursor) ORDER BY timestamp DESC, id DESC LIMIT n`
+/// queries.
+pub(crate) fn paginate_keyset<T>(
+    mut items: Vec<(ObjectId, T)>,
+    key: impl Fn(&T) -> Timestamp,
+    cursor: Option<Cursor>,
+    limit: usize,
+) -> Page<T> {
+    items.sort_by(|(a_id, a), (b_id, b)| key(b).cmp(&key(a)).then_with(|| b_id.cmp(a_id)));
+
+    let items: Vec<(ObjectId, T)> = items
+        .into_iter()
+        .filter(|(id, item)| match cursor {
+            Some(cursor) => (key(item), *id) < cursor.key(),
+            None => true,
+        })
+        .take(limit)
+        .collect();
+
+    // A full page means there may be more; the last item marks where to resume.
+    let next = (items.len() == limit)
+        .then(|| items.last())
+        .flatten()
+        .map(|(id, item)| Cursor {
+            timestamp: key(item),
+            id: *id,
+        });
+
+    Page { items, next }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::assert_matches;
+
+    #[test]
+    fn test_paginate_keyset() {
+        use crate::test::arbitrary;
+
+        // `(id, timestamp-secs)` pairs, inserted out of order, with a tie at 200.
+        let oids: Vec<ObjectId> = (0..4).map(|_| ObjectId::from(arbitrary::oid())).collect();
+        let items = vec![
+            (oids[0], 100u64),
+            (oids[1], 200),
+            (oids[2], 300),
+            (oids[3], 200),
+        ];
+        let key = |secs: &u64| Timestamp::from_secs(*secs);
+
+        // Sorted newest first; ties broken by id descending.
+        let mut sorted: Vec<_> = items.clone();
+        sorted.sort_by(|(a_id, a), (b_id, b)| b.cmp(a).then(b_id.cmp(a_id)));
+
+        // First page of two, with a cursor pointing past it.
+        let page = paginate_keyset(items.clone(), key, None, 2);
+        assert_eq!(page.items, sorted[..2].to_vec());
+        assert_eq!(
+            page.next,
+            Some(Cursor {
+                timestamp: key(&sorted[1].1),
+                id: sorted[1].0
+            })
+        );
+
+        // Second page resumes strictly after the cursor. It's a full page, so
+        // by convention `next` is still set (there may be more).
+        let page2 = paginate_keyset(items.clone(), key, page.next, 2);
+        assert_eq!(page2.items, sorted[2..].to_vec());
+        assert!(page2.next.is_some());
+
+        // Fetching past the end yields an empty page and no further cursor.
+        let page3 = paginate_keyset(items.clone(), key, page2.next, 2);
+        assert!(page3.items.is_empty());
+        assert_eq!(page3.next, None);
+
+        // A partial first page (fewer than `limit`) reports no next cursor.
+        assert_eq!(paginate_keyset(items, key, None, 10).next, None);
+    }
 
     #[test]
     fn test_check_version() {
@@ -471,10 +584,13 @@ mod tests {
         assert_eq!(db.migrate_to(3, migrate::ignore).unwrap(), 3); // 2 -> 3
         assert_eq!(db.version().unwrap(), 3);
 
-        assert_eq!(db.migrate_to(1, migrate::ignore).unwrap(), 3); // No-op.
-        assert_eq!(db.version().unwrap(), 3);
+        assert_eq!(db.migrate_to(4, migrate::ignore).unwrap(), 4); // 3 -> 4
+        assert_eq!(db.version().unwrap(), 4);
 
-        assert_eq!(db.migrate_to(99, migrate::ignore).unwrap(), 3); // No-op.
-        assert_eq!(db.version().unwrap(), 3);
+        assert_eq!(db.migrate_to(1, migrate::ignore).unwrap(), 4); // No-op.
+        assert_eq!(db.version().unwrap(), 4);
+
+        assert_eq!(db.migrate_to(99, migrate::ignore).unwrap(), 4); // No-op.
+        assert_eq!(db.version().unwrap(), 4);
     }
 }
