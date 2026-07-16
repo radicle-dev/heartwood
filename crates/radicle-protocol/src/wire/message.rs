@@ -6,7 +6,6 @@ use radicle::crypto::Signature;
 use radicle::git::Oid;
 use radicle::identity::RepoId;
 use radicle::node::Address;
-use radicle::node::Host;
 use radicle::node::NodeId;
 use radicle::node::Timestamp;
 use radicle::node::address::AddressType;
@@ -302,75 +301,82 @@ impl wire::Decode for Message {
 
 impl wire::Encode for Address {
     fn encode(&self, buf: &mut impl BufMut) {
-        match self.host() {
-            Host::Ip(net::IpAddr::V4(ip)) => {
+        match self {
+            Self::Ipv4 { host, port } => {
                 u8::from(AddressType::Ipv4).encode(buf);
-                ip.octets().encode(buf);
+                host.octets().encode(buf);
+                port.encode(buf);
             }
-            Host::Ip(net::IpAddr::V6(ip)) => {
+            Self::Ipv6 { host, port, .. } => {
                 u8::from(AddressType::Ipv6).encode(buf);
-                ip.octets().encode(buf);
+                host.octets().encode(buf);
+                port.encode(buf);
             }
-            Host::Dns(dns) => {
+            Self::Dns { host, port } => {
                 u8::from(AddressType::Dns).encode(buf);
-                dns.encode(buf);
+                host.encode(buf);
+                port.encode(buf);
             }
             #[cfg(feature = "tor")]
-            Host::Tor(addr) => {
+            Self::Tor { host, port } => {
                 u8::from(AddressType::Onion).encode(buf);
-                let bytes: &[u8; 32] = addr.as_ref();
+                let bytes: &[u8; 32] = host.as_ref();
                 bytes.encode(buf);
+                port.encode(buf);
             }
             #[cfg(feature = "i2p")]
-            Host::I2p(addr) => {
+            Self::I2p { host, port } => {
                 u8::from(AddressType::I2p).encode(buf);
-                addr.encode(buf);
+                host.encode(buf);
+                port.encode(buf);
             }
-            Host::Iroh => {
+            Self::Iroh => {
                 u8::from(AddressType::Iroh).encode(buf);
-                return;
-            }
-            _ => {
-                unimplemented!(
-                    "Encoding not defined for addresses of the same type as the following: {:?}",
-                    self.host()
-                );
             }
         }
-        self.port().unwrap().get().encode(buf);
     }
 }
 
 impl wire::Decode for Address {
     fn decode(buf: &mut impl Buf) -> Result<Self, wire::Error> {
-        let addrtype = buf.try_get_u8()?;
-
-        let host = match AddressType::try_from(addrtype) {
+        match AddressType::try_from(buf.try_get_u8()?) {
             Ok(AddressType::Ipv4) => {
                 let octets: [u8; 4] = wire::Decode::decode(buf)?;
-                let ip = net::Ipv4Addr::from(octets);
-
-                Host::Ip(net::IpAddr::V4(ip))
+                let host = net::Ipv4Addr::from(octets);
+                let port = u16::decode(buf)?;
+                Ok(Self::Ipv4 { host, port })
             }
             Ok(AddressType::Ipv6) => {
                 let octets: [u8; 16] = wire::Decode::decode(buf)?;
-                let ip = net::Ipv6Addr::from(octets);
-
-                Host::Ip(net::IpAddr::V6(ip))
+                let host = net::Ipv6Addr::from(octets);
+                let port = u16::decode(buf)?;
+                Ok(Self::Ipv6 {
+                    host,
+                    port,
+                    without_square_brackets: true,
+                })
             }
             Ok(AddressType::Dns) => {
-                let dns: String = wire::Decode::decode(buf)?;
-
-                Host::Dns(dns)
+                let host: String = wire::Decode::decode(buf)?;
+                let port = u16::decode(buf)?;
+                Ok(Self::Dns { host, port })
             }
             #[cfg(feature = "tor")]
             Ok(AddressType::Onion) => {
-                let bytes: [u8; 32] = wire::Decode::decode(buf)?;
-                Host::Tor(bytes.into())
+                let host: [u8; 32] = wire::Decode::decode(buf)?;
+                let port = u16::decode(buf)?;
+                Ok(Self::Tor {
+                    host: host.into(),
+                    port,
+                })
             }
             #[cfg(feature = "i2p")]
-            Ok(AddressType::I2p) => Host::I2p(wire::Decode::decode(buf)?),
-            Ok(AddressType::Iroh) => Host::Iroh,
+            Ok(AddressType::I2p) => {
+                let host = wire::Decode::decode(buf)?;
+                let port = u16::decode(buf)?;
+                Ok(Self::I2p { host, port })
+            }
+            Ok(AddressType::Iroh) => Ok(Self::Iroh),
             Ok(other) => {
                 return Err(wire::Invalid::AddressType {
                     actual: other.into(),
@@ -378,10 +384,7 @@ impl wire::Decode for Address {
                 .into());
             }
             Err(other) => return Err(wire::Invalid::AddressType { actual: other }.into()),
-        };
-        let port = u16::decode(buf)?;
-
-        Ok(Address::new(host, port))
+        }
     }
 }
 

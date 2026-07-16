@@ -21,15 +21,15 @@ pub type ProtocolVersion = u8;
 pub mod seeds {
     use std::{str::FromStr, sync::LazyLock};
 
-    use crate::node::{Address, Host};
+    use crate::node::Address;
 
     use super::{ConnectAddress, NodeId};
 
-    /// A helper to generate many connect addresses for a node, using port 8776.
-    fn to_connect_addresses(id: NodeId, hosts: Vec<Host>) -> Vec<ConnectAddress> {
-        hosts
+    /// A helper to generate many connect addresses for a node.
+    fn to_connect_addresses(id: NodeId, addresses: Vec<Address>) -> Vec<ConnectAddress> {
+        addresses
             .into_iter()
-            .map(|hostname| ConnectAddress::new(id, Address::new(hostname, 8776)))
+            .map(|address| ConnectAddress::new(id, address))
             .collect()
     }
 
@@ -39,14 +39,18 @@ pub mod seeds {
             #[allow(clippy::unwrap_used)] // Value is manually verified.
             NodeId::from_str("z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7").unwrap(),
             vec![
-                Host::Dns("iris.radicle.network".to_owned()),
+                Address::Dns {
+                    host: "iris.radicle.network".to_owned(),
+                    port: super::super::DEFAULT_PORT,
+                },
                 #[cfg(feature = "tor")]
-                Host::Tor(
+                Address::Tor {
                     #[allow(clippy::unwrap_used)] // Value is manually verified.
-                    "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion"
+                    host: "irisradizskwweumpydlj4oammoshkxxjur3ztcmo7cou5emc6s5lfid.onion"
                         .parse()
                         .unwrap(),
-                ),
+                    port: super::super::DEFAULT_PORT,
+                },
             ],
         )
     });
@@ -57,14 +61,18 @@ pub mod seeds {
             #[allow(clippy::unwrap_used)] // Value is manually verified.
             NodeId::from_str("z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo").unwrap(),
             vec![
-                Host::Dns("rosa.radicle.network".to_owned()),
+                Address::Dns {
+                    host: "rosa.radicle.network".to_owned(),
+                    port: super::super::DEFAULT_PORT,
+                },
                 #[cfg(feature = "tor")]
-                Host::Tor(
+                Address::Tor {
                     #[allow(clippy::unwrap_used)] // Value is manually verified.
-                    "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion"
+                    host: "rosarad5bxgdlgjnzzjygnsxrwxmoaj4vn7xinlstwglxvyt64jlnhyd.onion"
                         .parse()
                         .unwrap(),
-                ),
+                    port: super::super::DEFAULT_PORT,
+                },
             ],
         )
     });
@@ -363,7 +371,7 @@ impl ConnectAddress {
     pub fn iroh(id: NodeId) -> Self {
         Self {
             id,
-            addr: Address::iroh(),
+            addr: Address::Iroh,
         }
     }
 

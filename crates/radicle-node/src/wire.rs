@@ -525,7 +525,7 @@ where
 
                 // If the service doesn't want to accept this connection,
                 // we drop the connection here, which disconnects the socket.
-                if !self.service.accepted(*ip) {
+                if !self.service.accepted(ip) {
                     log::debug!(target: "wire", "Rejecting inbound connection from {ip}..");
                     drop(connection);
 
@@ -1091,8 +1091,7 @@ pub fn dial(
     fn proxy_or_forward(
         config: &AddressConfig,
         global_proxy: Option<net::SocketAddr>,
-        host: &Host,
-        port: u16,
+        address: &Address,
     ) -> io::Result<Address> {
         match config {
             // In proxy mode, simply use the configured proxy address.
@@ -1100,10 +1099,7 @@ pub fn dial(
             AddressConfig::Proxy { address } => Ok((*address).into()),
             // In "forward" mode, if a global proxy is set, we use that; otherwise,
             // we treat the address as a regular DNS name.
-            AddressConfig::Forward => match global_proxy {
-                Some(proxy) => Ok(proxy.into()),
-                None => Ok(Address::new(host.clone(), port)),
-            },
+            AddressConfig::Forward => Ok(global_proxy.map(Into::into).unwrap_or(address.clone())),
             // If address type support isn't configured, refuse to connect.
             AddressConfig::Drop => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -1114,26 +1110,19 @@ pub fn dial(
 
     // Determine what address to establish a TCP connection with, given the remote peer
     // address and our node configuration.
-    let inet_addr: Address = match (remote_addr.host(), config.proxy) {
+    let inet_addr: Address = match (&remote_addr, config.proxy) {
         // For IP and DNS addresses, use the global proxy if set; otherwise, use the address as-is.
-        (Host::Ip(_), Some(proxy)) => proxy.into(),
-        (Host::Ip(ip), None) => Address::new(Host::Ip(*ip), remote_addr.port().unwrap().get()),
-        (Host::Dns(_), Some(proxy)) => proxy.into(),
-        (Host::Dns(dns), None) => {
-            Address::new(Host::Dns(dns.clone()), remote_addr.port().unwrap().get())
+        (Address::Ipv4 { .. } | Address::Ipv6 { .. } | Address::Dns { .. }, Some(proxy)) => {
+            proxy.into()
+        }
+        (address @ (Address::Ipv4 { .. } | Address::Ipv6 { .. } | Address::Dns { .. }), None) => {
+            address.clone()
         }
         // For onion addresses, handle with care.
         #[cfg(feature = "tor")]
-        (host @ Host::Tor(_), proxy) => proxy_or_forward(
-            &config.onion,
-            proxy,
-            host,
-            remote_addr.port().unwrap().get(),
-        )?,
+        (address @ Address::Tor { .. }, proxy) => proxy_or_forward(&config.onion, proxy, address)?,
         #[cfg(feature = "i2p")]
-        (host @ Host::I2p(_), proxy) => {
-            proxy_or_forward(&config.i2p, proxy, host, remote_addr.port().unwrap().get())?
-        }
+        (address @ Address::I2p { .. }, proxy) => proxy_or_forward(&config.i2p, proxy, address)?,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -1424,10 +1413,10 @@ mod test {
         let mut alice = TestPeer::with_storage("alice", 7, storage);
         let bob = TestPeer::bob();
         let bob_id = *bob.nid();
-        let bob_addr = Address::new(
-            Host::Ip(net::IpAddr::from([8, 8, 8, 8])),
-            node::DEFAULT_PORT,
-        );
+        let bob_addr = Address::Ipv4 {
+            host: net::Ipv4Addr::from([8, 8, 8, 8]),
+            port: node::DEFAULT_PORT,
+        };
 
         // Start a fetch from Bob so the service holds `active[rid] = { from: bob }`.
         alice.connect_to(&bob);
