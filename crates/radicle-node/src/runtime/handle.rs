@@ -59,6 +59,8 @@ impl From<mpsc::RecvTimeoutError> for Error {
     }
 }
 
+/// A handle to a running node.
+#[derive(Clone, Debug)]
 pub struct Handle {
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
@@ -67,6 +69,7 @@ pub struct Handle {
 
     /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
+
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
 }
@@ -78,29 +81,8 @@ impl Handle {
     }
 }
 
-impl fmt::Debug for Handle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Handle").field("socket", &self.socket).finish()
-    }
-}
-
-impl Clone for Handle {
-    fn clone(&self) -> Self {
-        Self {
-            socket: self.socket.clone(),
-            controller: self.controller.clone(),
-            shutdown: self.shutdown.clone(),
-            emitter: self.emitter.clone(),
-        }
-    }
-}
-
 impl Handle {
-    pub(crate) fn new(
-        socket: PathBuf,
-        controller: Controller,
-        emitter: Emitter<Event>,
-    ) -> Self {
+    pub(crate) fn new(socket: PathBuf, controller: Controller, emitter: Emitter<Event>) -> Self {
         Self {
             socket,
             controller,
@@ -338,6 +320,7 @@ impl radicle::node::Handle for Handle {
         {
             return Ok(());
         }
+
         // Send a shutdown request to our own control socket. This is the only way to kill the
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.

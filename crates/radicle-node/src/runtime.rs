@@ -73,7 +73,7 @@ pub(crate) enum ServiceInput {
 }
 
 /// Cloneable synchronous entry point into the service actor.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Controller(chan::Sender<ServiceInput>);
 
 impl Controller {
