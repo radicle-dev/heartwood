@@ -242,12 +242,7 @@ impl Runtime {
             run_service(service, input_rx, output_tx)
         });
 
-        let handle = Handle::new(
-            home.clone(),
-            socket.clone(),
-            service_tx.clone(),
-            emitter.clone(),
-        );
+        let handle = Handle::new(socket.clone(), service_tx.clone(), emitter.clone());
         let fetch = worker::FetchConfig {
             local: id,
             expiry: worker::garbage::Expiry::default(),
