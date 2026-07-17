@@ -12,33 +12,31 @@ use std::os::unix::net::UnixListener;
 #[cfg(windows)]
 use uds_windows::UnixListener;
 
+use handle::Handle;
+use localtime::LocalTime;
+use protocol::service;
+use protocol::service::gossip;
 use radicle::cob::migrate;
-use radicle_signals::Signal;
-use thiserror::Error;
-
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::node;
 use radicle::node::Event;
 use radicle::node::UserAgent;
 use radicle::node::address;
 use radicle::node::address::Store as _;
+use radicle::node::events::Emitter;
 use radicle::node::notifications;
 use radicle::node::policy::config as policy;
+use radicle::node::{NodeId, routing};
 use radicle::profile::Home;
 use radicle::{Storage, cob, git, storage};
+use radicle_signals::Signal;
+use thiserror::Error;
 
 use crate::control;
-use crate::node::{NodeId, routing};
 use crate::reactor;
 use crate::reactor::Reactor;
-use crate::service::gossip;
 use crate::wire::Wire;
 use crate::worker;
-use crate::{LocalTime, service};
-
-pub use handle::Error as HandleError;
-pub use handle::Handle;
-pub use node::events::Emitter;
 
 /// Maximum pending worker tasks allowed.
 pub const MAX_PENDING_TASKS: usize = 1024;

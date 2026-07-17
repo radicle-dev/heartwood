@@ -11,25 +11,25 @@ use std::os::unix::net::UnixStream;
 #[cfg(windows)]
 use uds_windows::UnixStream;
 
+use protocol::service;
+use protocol::service::QueryState;
+use protocol::wire::StreamId;
 use radicle::crypto::PublicKey;
+use radicle::identity::RepoId;
 use radicle::node::events::{Event, Events};
 use radicle::node::policy;
+use radicle::node::{Alias, Command, FetchResult};
 use radicle::node::{Config, NodeId};
 use radicle::node::{ConnectOptions, ConnectResult, Seeds};
+use radicle::profile::Home;
 use radicle::storage::refs;
+use radicle::storage::refs::RefsAt;
 use serde_json::json;
 use thiserror::Error;
 
-use crate::identity::RepoId;
-use crate::node::{Alias, Command, FetchResult};
-use crate::profile::Home;
 use crate::reactor;
 use crate::runtime::Emitter;
-use crate::service;
-use crate::service::QueryState;
-use crate::storage::refs::RefsAt;
 use crate::wire;
-use crate::wire::StreamId;
 use crate::worker::TaskResult;
 
 /// An error resulting from a handle method.
@@ -409,8 +409,8 @@ impl radicle::node::Handle for Handle {
 mod debug {
     //! Serialization formats for the output of [`Handle::debug`] output.
 
-    use radicle_protocol::fetcher;
-    use radicle_protocol::fetcher::FetcherState;
+    use protocol::fetcher;
+    use protocol::fetcher::FetcherState;
     use serde::Serialize;
 
     use super::{NodeId, RefsAt, RepoId};

@@ -1,34 +1,32 @@
-use radicle::cob::store::access::ReadOnly;
-use radicle::storage::git::TempRepository;
-pub(crate) use radicle_protocol::worker::fetch::error;
-
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
+use fetch::git::refs::Applied;
+use fetch::{Allowed, BlockList};
 use localtime::LocalTime;
-
+pub(crate) use protocol::worker::fetch::error;
+use protocol::worker::fetch::{FetchResult, UpdatedCanonicalRefs};
 use radicle::cob::TypedId;
+use radicle::cob::store::access::ReadOnly;
 use radicle::crypto::PublicKey;
 use radicle::prelude::NodeId;
 use radicle::prelude::RepoId;
 use radicle::storage::git::Repository;
+use radicle::storage::git::TempRepository;
 use radicle::storage::refs::RefsAt;
 use radicle::storage::{
     ReadRepository, ReadStorage as _, RefUpdate, RemoteRepository, WriteRepository as _,
 };
 use radicle::{Storage, cob, git, node};
-use radicle_fetch::git::refs::Applied;
-use radicle_fetch::{Allowed, BlockList};
-pub use radicle_protocol::worker::fetch::{FetchResult, UpdatedCanonicalRefs};
 
 use super::channels::ChannelsFlush;
 
 pub enum Handle {
     Clone {
-        handle: radicle_fetch::Handle<TempRepository, ChannelsFlush>,
+        handle: fetch::Handle<TempRepository, ChannelsFlush>,
     },
     Pull {
-        handle: radicle_fetch::Handle<Repository, ChannelsFlush>,
+        handle: fetch::Handle<Repository, ChannelsFlush>,
         notifications: node::notifications::StoreWriter,
     },
 }
@@ -46,14 +44,14 @@ impl Handle {
         let exists = storage.contains(&rid)?;
         if exists {
             let repo = storage.repository(rid)?;
-            let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
+            let handle = fetch::Handle::new(local, repo, follow, blocked, channels)?;
             Ok(Handle::Pull {
                 handle,
                 notifications,
             })
         } else {
             let repo = storage.temporary_repository(rid)?;
-            let handle = radicle_fetch::Handle::new(local, repo, follow, blocked, channels)?;
+            let handle = fetch::Handle::new(local, repo, follow, blocked, channels)?;
             Ok(Handle::Clone { handle })
         }
     }
@@ -64,14 +62,14 @@ impl Handle {
         storage: &Storage,
         cache: &mut cob::cache::StoreWriter,
         refsdb: &mut D,
-        config: radicle_fetch::Config,
+        config: fetch::Config,
         remote: PublicKey,
         refs_at: Option<Vec<RefsAt>>,
     ) -> Result<FetchResult, error::Fetch> {
         let (result, clone, notifs) = match self {
             Self::Clone { mut handle } => {
                 log::debug!(target: "worker", "{} cloning from {remote}", handle.local());
-                match radicle_fetch::clone(&mut handle, config, remote) {
+                match fetch::clone(&mut handle, config, remote) {
                     Err(err) => {
                         handle.into_inner().cleanup();
                         return Err(err.into());
@@ -91,7 +89,7 @@ impl Handle {
                 notifications,
             } => {
                 log::debug!(target: "worker", "{} pulling from {remote}", handle.local());
-                let result = radicle_fetch::pull(&mut handle, config, remote, refs_at)?;
+                let result = fetch::pull(&mut handle, config, remote, refs_at)?;
                 (result, false, Some(notifications))
             }
         };
@@ -101,7 +99,7 @@ impl Handle {
         }
 
         match result {
-            radicle_fetch::FetchResult::Failed {
+            fetch::FetchResult::Failed {
                 threshold,
                 delegates,
                 validations,
@@ -114,7 +112,7 @@ impl Handle {
                     delegates: delegates.into_iter().map(|key| key.to_string()).collect(),
                 })
             }
-            radicle_fetch::FetchResult::Success {
+            fetch::FetchResult::Success {
                 applied,
                 remotes,
                 validations,
@@ -164,7 +162,7 @@ impl Handle {
 // Post notifications for the given refs.
 fn notify(
     rid: &RepoId,
-    refs: &radicle_fetch::git::refs::Applied<'static>,
+    refs: &fetch::git::refs::Applied<'static>,
     store: &mut node::notifications::StoreWriter,
 ) -> Result<(), error::Fetch> {
     let now = LocalTime::now();

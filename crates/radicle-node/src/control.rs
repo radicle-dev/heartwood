@@ -5,18 +5,18 @@ use std::io::prelude::*;
 use std::path::PathBuf;
 use std::{io, net, time};
 
-use radicle::storage::refs;
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
 #[cfg(windows)]
 use uds_windows::{UnixListener, UnixStream};
 
+use radicle::identity::RepoId;
 use radicle::node::Handle;
+use radicle::node::NodeId;
+use radicle::node::{Command, CommandResult};
+use radicle::storage::refs;
 use serde_json as json;
 
-use crate::identity::RepoId;
-use crate::node::NodeId;
-use crate::node::{Command, CommandResult};
 use crate::runtime;
 use crate::runtime::thread;
 
@@ -30,13 +30,13 @@ pub enum Error {
     #[error("invalid socket path specified: {0}")]
     InvalidPath(PathBuf),
     #[error("node: {0}")]
-    Node(#[from] runtime::HandleError),
+    Node(#[from] runtime::handle::Error),
 }
 
 /// Listen for commands on the control socket, and process them.
 pub fn listen<E, H>(listener: UnixListener, handle: H) -> Result<(), Error>
 where
-    H: Handle<Error = runtime::HandleError> + 'static,
+    H: Handle<Error = runtime::handle::Error> + 'static,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -73,14 +73,14 @@ enum CommandError {
     #[error("(de)serialization failed: {0}")]
     Serialization(#[from] json::Error),
     #[error("runtime error: {0}")]
-    Runtime(#[from] runtime::HandleError),
+    Runtime(#[from] runtime::handle::Error),
     #[error("i/o error: {0}")]
     Io(#[from] io::Error),
 }
 
 fn command<E, H>(stream: &UnixStream, mut handle: H) -> Result<(), CommandError>
 where
-    H: Handle<Error = runtime::HandleError> + 'static,
+    H: Handle<Error = runtime::handle::Error> + 'static,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -257,7 +257,7 @@ where
     Ok(())
 }
 
-fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
+fn fetch<W: Write, H: Handle<Error = runtime::handle::Error>>(
     id: RepoId,
     node: NodeId,
     timeout: time::Duration,
@@ -278,14 +278,16 @@ fn fetch<W: Write, H: Handle<Error = runtime::HandleError>>(
 
 #[cfg(test)]
 mod tests {
-    use std::io::prelude::*;
+    use super::*;
+
     use std::thread;
 
-    use super::*;
-    use crate::identity::RepoId;
-    use crate::node::Handle;
-    use crate::node::policy::Scope;
-    use crate::node::{Alias, Node, NodeId};
+    use radicle::identity::RepoId;
+    use radicle::node::Handle;
+    use radicle::node::policy::Scope;
+    use radicle::node::{Alias, Node, NodeId};
+    use radicle::test::arbitrary;
+
     use crate::test;
 
     #[test]
@@ -293,7 +295,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
-        let rids = test::arbitrary::set::<RepoId>(1..3);
+        let rids = arbitrary::set::<RepoId>(1..3);
         let listener = UnixListener::bind(&socket).unwrap();
         let nid = handle.nid().unwrap();
 
@@ -342,8 +344,8 @@ mod tests {
     fn test_seed_unseed() {
         let tmp = tempfile::tempdir().unwrap();
         let socket = tmp.path().join("node.sock");
-        let proj = test::arbitrary::r#gen::<RepoId>(1);
-        let peer = test::arbitrary::r#gen::<NodeId>(1);
+        let proj = arbitrary::r#gen::<RepoId>(1);
+        let peer = arbitrary::r#gen::<NodeId>(1);
         let listener = UnixListener::bind(&socket).unwrap();
         let mut handle = Node::new(&socket);
 

@@ -10,19 +10,20 @@ use std::{fmt, io, net};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
+use protocol::service::ServiceState as _;
+use protocol::service::io::Io;
+use protocol::service::{DisconnectReason, Message, Metrics};
+use protocol::worker::FetchError;
+use protocol::worker::fetch::FetchResult;
+use radicle::identity::RepoId;
+use radicle::node::Address;
+use radicle::node::Link;
 use radicle::node::NodeId;
 use radicle::node::events::Event;
-use radicle_protocol::service::ServiceState as _;
-use radicle_protocol::worker::FetchError;
+use radicle::storage::Namespaces;
+use radicle::storage::{ReadRepository, WriteStorage};
 
-use crate::Link;
-use crate::prelude::{Address, RepoId};
-use crate::service::io::Io;
-use crate::service::{DisconnectReason, Message, Metrics};
-use crate::storage::Namespaces;
-use crate::storage::{ReadRepository, WriteStorage};
 use crate::test::arbitrary;
-use crate::worker::fetch;
 
 use super::peer::Peer;
 
@@ -55,7 +56,7 @@ pub enum Input {
     /// Received messages from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
-    Fetched(RepoId, NodeId, Rc<Result<fetch::FetchResult, FetchError>>),
+    Fetched(RepoId, NodeId, Rc<Result<FetchResult, FetchError>>),
     /// Used to advance the state machine after some wall time has passed.
     Wake,
 }
@@ -396,7 +397,7 @@ where
                         };
 
                         match &mut result {
-                            Ok(fetch::FetchResult {
+                            Ok(FetchResult {
                                 namespaces,
                                 updated,
                                 doc,
@@ -632,9 +633,10 @@ where
                             input: Input::Fetched(
                                 rid,
                                 remote,
-                                Rc::new(Ok(fetch::FetchResult {
+                                Rc::new(Ok(FetchResult {
                                     updated: vec![],
-                                    canonical: fetch::UpdatedCanonicalRefs::default(),
+                                    canonical:
+                                        protocol::worker::fetch::UpdatedCanonicalRefs::default(),
                                     namespaces: HashSet::new(),
                                     clone: true,
                                     doc: arbitrary::r#gen(1),

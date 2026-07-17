@@ -24,7 +24,7 @@ use crate::wire;
 
 pub(crate) use self::controller::{ControlMessage, Controller};
 pub(crate) use listener::Listener;
-pub use session::{NoiseSession, ProtocolArtifact, Socks5Session};
+pub(crate) use session::{NoiseSession, ProtocolArtifact, Socks5Session};
 pub(crate) use token::{Token, Tokens};
 pub(crate) use transport::{SessionEvent, Transport};
 

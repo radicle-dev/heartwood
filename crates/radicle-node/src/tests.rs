@@ -11,52 +11,54 @@ use std::time;
 use radicle::storage::ReadRepository;
 use test_log::test;
 
+use localtime::LocalDuration;
+use localtime::LocalTime;
+use protocol::bounded::BoundedVec;
+use protocol::service;
+use protocol::service::ServiceState as _;
+use protocol::service::filter::Filter;
+use protocol::service::io::Io;
+use protocol::service::message::*;
+use protocol::service::*;
+use protocol::wire::Decode;
+use protocol::wire::Encode;
+use protocol::worker::fetch::FetchResult;
+use radicle::assert_matches;
 use radicle::cob;
+use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto::SigningKey;
+use radicle::identity::RepoId;
 use radicle::identity::Visibility;
+use radicle::node;
+use radicle::node::Event;
 use radicle::node::Link;
+use radicle::node::Timestamp;
 use radicle::node::address::Store as _;
+use radicle::node::config::*;
 use radicle::node::policy;
 use radicle::node::refs::Store as _;
 use radicle::node::routing::Store as _;
 use radicle::node::{ConnectOptions, DEFAULT_TIMEOUT};
+use radicle::storage::ReadStorage;
 use radicle::storage::RefUpdate;
+use radicle::storage::git::Storage;
+use radicle::storage::git::transport::{local, remote};
 use radicle::storage::refs::RefsAt;
+use radicle::storage::refs::SIGREFS_BRANCH;
+use radicle::test::arbitrary;
 use radicle::test::arbitrary::r#gen;
+use radicle::test::fixtures;
 use radicle::test::storage::MockRepository;
-use radicle_protocol::bounded::BoundedVec;
-
-use crate::collections::{RandomMap, RandomSet};
-use crate::identity::RepoId;
-use crate::node;
-use crate::node::config::*;
-use crate::prelude::*;
-use crate::prelude::{LocalDuration, Timestamp};
-use crate::service::ServiceState as _;
-use crate::service::filter::Filter;
-use crate::service::io::Io;
-use crate::service::message::*;
-use crate::service::*;
-use crate::storage::ReadStorage;
-use crate::storage::git::Storage;
-use crate::storage::git::transport::{local, remote};
-use crate::storage::refs::SIGREFS_BRANCH;
-use crate::test::arbitrary;
-use crate::test::assert_matches;
-use crate::test::fixtures;
+use radicle::test::storage::MockStorage;
+use radicle::{git, identity, rad};
 #[allow(unused)]
-use crate::test::logger;
+use radicle_log::test as logger;
+
 use crate::test::peer::Peer;
 use crate::test::peer::{AMY, BOB, CID};
 use crate::test::simulator;
 use crate::test::simulator::Simulation;
-
-use crate::LocalTime;
-use crate::test::storage::MockStorage;
-use crate::wire::Decode;
-use crate::wire::Encode;
-use crate::worker::fetch;
-use crate::{git, identity, rad, runtime, service, test};
+use crate::{runtime, test};
 
 /// Default number of tests to run when testing things with high variance.
 pub const DEFAULT_TEST_CASES: usize = 10;
@@ -354,7 +356,7 @@ fn inventory_pruning() {
         assert_eq!(bob.local_time(), amy.local_time());
 
         let projects: [RepoId; PROJECTS_TOTAL] =
-            test::arbitrary::set::<RepoId>(PROJECTS_TOTAL..=PROJECTS_TOTAL)
+            arbitrary::set::<RepoId>(PROJECTS_TOTAL..=PROJECTS_TOTAL)
                 .into_iter()
                 .collect::<Vec<_>>()
                 .try_into()
@@ -395,13 +397,13 @@ fn inventory_pruning() {
 #[test]
 fn seeding() {
     let mut amy = Peer::amy();
-    let proj_id: identity::RepoId = test::arbitrary::r#gen(1);
+    let proj_id: identity::RepoId = arbitrary::r#gen(1);
 
     let (cmd, receiver) = Command::seed(proj_id, policy::Scope::default());
     amy.command(cmd);
     let policy_change = receiver
         .recv()
-        .map_err(runtime::HandleError::from)
+        .map_err(runtime::handle::Error::from)
         .unwrap()
         .unwrap();
     assert!(policy_change);
@@ -411,7 +413,7 @@ fn seeding() {
     amy.command(cmd);
     let policy_change = receiver
         .recv()
-        .map_err(runtime::HandleError::from)
+        .map_err(runtime::handle::Error::from)
         .unwrap()
         .unwrap();
     assert!(policy_change);
@@ -879,7 +881,7 @@ fn refs_announcement_followed() {
     amy.command(cmd);
     let policy_change = receiver
         .recv()
-        .map_err(runtime::HandleError::from)
+        .map_err(runtime::handle::Error::from)
         .unwrap()
         .unwrap();
     assert!(policy_change);
@@ -1404,7 +1406,7 @@ fn fetch_missing_inventory_on_schedule() {
     amy.fetched(
         rid,
         *bob.nid(),
-        Err(radicle_protocol::worker::FetchError::Io(
+        Err(protocol::worker::FetchError::Io(
             io::ErrorKind::ConnectionReset.into(),
         )),
     );
@@ -1449,7 +1451,7 @@ fn queued_fetch_max_capacity() {
     amy.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    amy.fetched(rid1, *bob.nid(), Ok(fetch::FetchResult::new(doc.clone())));
+    amy.fetched(rid1, *bob.nid(), Ok(FetchResult::new(doc.clone())));
 
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     assert_eq!(amy.fetches().next(), Some((rid2, *bob.nid())));
@@ -1457,7 +1459,7 @@ fn queued_fetch_max_capacity() {
     assert_matches!(amy.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    amy.fetched(rid2, *bob.nid(), Ok(fetch::FetchResult::new(doc)));
+    amy.fetched(rid2, *bob.nid(), Ok(FetchResult::new(doc)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_eq!(amy.fetches().next(), Some((rid3, *bob.nid())));
 }
@@ -1513,7 +1515,7 @@ fn orphaned_fetch_blocks_repo_from_all_nodes() {
 
     // Delivering the missing result (what the fix guarantees) clears the entry
     // and the queued fetch from the other node proceeds.
-    amy.fetched(rid, *bob.nid(), Ok(fetch::FetchResult::new(doc)));
+    amy.fetched(rid, *bob.nid(), Ok(FetchResult::new(doc)));
     assert_eq!(amy.fetches().next(), Some((rid, *cid.nid())));
 }
 
@@ -1577,12 +1579,12 @@ fn queued_fetch_from_ann_same_rid() {
     amy.fetched(
         rid,
         *bob.nid(),
-        Ok(fetch::FetchResult {
+        Ok(FetchResult {
             updated: vec![RefUpdate::Created {
                 name: refname.clone(),
                 oid,
             }],
-            canonical: fetch::UpdatedCanonicalRefs::default(),
+            canonical: protocol::worker::fetch::UpdatedCanonicalRefs::default(),
             namespaces: [*cid.nid()].into_iter().collect(),
             clone: false,
             doc: arbitrary::r#gen(1),
@@ -1636,7 +1638,7 @@ fn queued_fetch_from_command_same_rid() {
     amy.elapse(KEEP_ALIVE_DELTA);
 
     // Finish the 1st fetch.
-    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<fetch::FetchResult>(1)));
+    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<FetchResult>(1)));
     // Now the 1st fetch is done, the 2nd fetch is dequeued.
     let (rid, nid) = amy.fetches().next().unwrap();
     assert_eq!(rid, rid1);
@@ -1646,7 +1648,7 @@ fn queued_fetch_from_command_same_rid() {
     assert_matches!(amy.fetches().next(), None);
 
     // Finish the 2nd fetch.
-    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<fetch::FetchResult>(1)));
+    amy.fetched(rid1, nid, Ok(arbitrary::r#gen::<FetchResult>(1)));
     // Now the 2nd fetch is done, the 3rd fetch is dequeued.
     assert_matches!(amy.fetches().next(), Some((rid, nid)) if rid == rid1 && peers.remove(&nid));
     // All fetches were initiated.

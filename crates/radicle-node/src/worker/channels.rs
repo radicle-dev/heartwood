@@ -6,8 +6,8 @@ use crossbeam_channel as chan;
 use radicle::node::NodeId;
 use radicle::node::config::FetchPackSizeLimit;
 
-use crate::runtime::Handle;
-use crate::wire::StreamId;
+use crate::runtime::handle::Handle;
+use protocol::wire::StreamId;
 
 /// Maximum size of channel used to communicate with a worker.
 /// Note that as long as we're using [`std::io::copy`] to copy data from the
@@ -71,7 +71,7 @@ impl ChannelsFlush {
     }
 }
 
-impl radicle_fetch::transport::ConnectionStream for ChannelsFlush {
+impl fetch::transport::ConnectionStream for ChannelsFlush {
     type Read = ChannelReader;
     type Write = ChannelFlushWriter;
 
@@ -257,7 +257,7 @@ pub struct ChannelFlushWriter<T = Vec<u8>> {
     remote: NodeId,
 }
 
-impl radicle_fetch::transport::SignalEof for ChannelFlushWriter<Vec<u8>> {
+impl fetch::transport::SignalEof for ChannelFlushWriter<Vec<u8>> {
     fn eof(&mut self) -> io::Result<()> {
         self.writer.send(ChannelEvent::Eof)?;
         self.flush()

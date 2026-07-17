@@ -15,7 +15,14 @@ use cyphernet::proxy::socks5;
 use cyphernet::{Digest, Sha256};
 use localtime::{LocalDuration, LocalTime};
 use mio::net::TcpStream;
-
+use protocol::deserializer::Deserializer;
+use protocol::service;
+use protocol::service::io::Io;
+use protocol::service::{DisconnectReason, Metrics, Service, session};
+use protocol::wire::frame;
+use protocol::wire::frame::{Frame, FrameData, StreamId};
+use protocol::wire::*;
+use protocol::worker::{FetchRequest, FetchResult};
 use radicle::collections::{RandomMap, RandomSet};
 use radicle::crypto::{self, Signer as _};
 use radicle::node::Link;
@@ -23,21 +30,13 @@ use radicle::node::NodeId;
 #[cfg(any(feature = "i2p", feature = "tor"))]
 use radicle::node::config::AddressConfig;
 use radicle::storage::WriteStorage;
-use radicle_protocol::deserializer::Deserializer;
-pub use radicle_protocol::wire::frame;
-pub use radicle_protocol::wire::frame::{Frame, FrameData, StreamId};
-pub use radicle_protocol::wire::*;
-use radicle_protocol::worker::{FetchRequest, FetchResult};
 
 use crate::reactor;
 use crate::reactor::{Listener, Transport};
 use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
 use crate::reactor::{Token, Tokens};
-use crate::service;
-use crate::service::io::Io;
-use crate::service::{DisconnectReason, Metrics, Service, session};
 use crate::worker;
-use crate::worker::{ChannelEvent, ChannelsConfig};
+use crate::worker::channels::{ChannelEvent, ChannelsConfig};
 use crate::worker::{Task, TaskResult};
 
 /// NoiseXK handshake pattern.
@@ -73,7 +72,7 @@ type Action = reactor::Action<Listener, Transport<WireSession>>;
 /// A worker stream.
 struct Stream {
     /// Channels.
-    channels: worker::Channels,
+    channels: worker::channels::Channels,
     /// Data sent.
     sent_bytes: usize,
     /// Data received.
@@ -81,7 +80,7 @@ struct Stream {
 }
 
 impl Stream {
-    fn new(channels: worker::Channels) -> Self {
+    fn new(channels: worker::channels::Channels) -> Self {
         Self {
             channels,
             sent_bytes: 0,
@@ -123,7 +122,7 @@ impl Streams {
     }
 
     /// Open a new stream.
-    fn open(&mut self, config: ChannelsConfig) -> (StreamId, worker::Channels) {
+    fn open(&mut self, config: ChannelsConfig) -> (StreamId, worker::channels::Channels) {
         self.seq += 1;
 
         let id = StreamId::git(self.link)
@@ -137,8 +136,12 @@ impl Streams {
     }
 
     /// Register an open stream.
-    fn register(&mut self, stream: StreamId, config: ChannelsConfig) -> Option<worker::Channels> {
-        let (wire, worker) = worker::Channels::pair(config)
+    fn register(
+        &mut self,
+        stream: StreamId,
+        config: ChannelsConfig,
+    ) -> Option<worker::channels::Channels> {
+        let (wire, worker) = worker::channels::Channels::pair(config)
             .expect("Streams::register: fatal: unable to create channels");
 
         match self.streams.entry(stream) {
@@ -1029,7 +1032,7 @@ where
                         self.service.fetched(
                             rid,
                             remote,
-                            Err(crate::worker::FetchError::Io(io::Error::new(
+                            Err(protocol::worker::FetchError::Io(io::Error::new(
                                 io::ErrorKind::NotConnected,
                                 "peer disconnected before fetch could start",
                             ))),
@@ -1288,18 +1291,19 @@ mod logger {
 mod test {
     use super::*;
 
-    use radicle_protocol::service::ServiceState as _;
+    use protocol::service::ServiceState as _;
+    use protocol::service::{Message, ZeroBytes};
+    use radicle::identity::RepoId;
+    use radicle::node;
+    use radicle::test::arbitrary;
+    use radicle::test::storage::MockStorage;
 
-    use crate::identity::RepoId;
-    use crate::node;
-    use crate::service::{Message, ZeroBytes};
-    use crate::test::storage::MockStorage;
     use crate::wire;
     use crate::wire::varint;
 
     #[test]
     fn test_pong_message_with_extension() {
-        use radicle_protocol::deserializer;
+        use protocol::deserializer;
 
         let mut stream = Vec::new();
         let pong = Message::Pong {
@@ -1330,7 +1334,7 @@ mod test {
 
     #[test]
     fn test_inventory_ann_with_extension() {
-        use radicle_protocol::deserializer;
+        use protocol::deserializer;
 
         #[derive(Debug)]
         struct MessageWithExt {
@@ -1354,9 +1358,9 @@ mod test {
             }
         }
 
-        let rid = radicle::test::arbitrary::r#gen(1);
-        let pk = radicle::test::arbitrary::r#gen(1);
-        let sig: [u8; 64] = radicle::test::arbitrary::r#gen(1);
+        let rid = arbitrary::r#gen(1);
+        let pk = arbitrary::r#gen(1);
+        let sig: [u8; 64] = arbitrary::r#gen(1);
 
         // Message with extension.
         let mut stream = Vec::new();
@@ -1427,14 +1431,14 @@ mod test {
     // Returns the wire, the repo id, and bob's id/address.
     #[allow(clippy::type_complexity)]
     fn wire_with_active_fetch() -> (
-        Wire<crate::node::Database, MockStorage>,
+        Wire<radicle::node::Database, MockStorage>,
         RepoId,
         NodeId,
         NetAddr<HostName>,
     ) {
         use crate::test::peer::Peer as TestPeer;
 
-        let storage = crate::test::arbitrary::nonempty_storage(1);
+        let storage = arbitrary::nonempty_storage(1);
         let rid = *storage.repos.keys().next().unwrap();
         let mut alice = TestPeer::with_storage("alice", 7, storage);
         let bob = TestPeer::bob();
@@ -1447,7 +1451,7 @@ mod test {
         // Start a fetch from Bob so the service holds `active[rid] = { from: bob }`.
         alice.connect_to(&bob);
         let (cmd, _recv) =
-            crate::service::Command::fetch(rid, bob_id, radicle::node::DEFAULT_TIMEOUT, None);
+            protocol::service::Command::fetch(rid, bob_id, radicle::node::DEFAULT_TIMEOUT, None);
         alice.command(cmd);
         assert!(
             alice.fetches().any(|(r, _)| r == rid),
@@ -1471,7 +1475,7 @@ mod test {
             stream: StreamId::git(Link::Outbound).nth(1).unwrap(),
             result: FetchResult::Initiator {
                 rid,
-                result: Err(crate::worker::FetchError::Io(std::io::Error::from(
+                result: Err(protocol::worker::FetchError::Io(std::io::Error::from(
                     std::io::ErrorKind::TimedOut,
                 ))),
             },

@@ -9,9 +9,7 @@ use std::{
     time::Duration,
 };
 
-use crate::node::NodeId;
-use crate::storage::git::transport;
-use crate::{Runtime, runtime, runtime::Handle, service};
+use protocol::service;
 use radicle::Storage;
 use radicle::cob;
 use radicle::cob::issue;
@@ -21,6 +19,7 @@ use radicle::git::fmt::refname;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::Config;
 use radicle::node::Event;
+use radicle::node::NodeId;
 use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::seed::Store as _;
@@ -29,8 +28,11 @@ use radicle::node::{ConnectOptions, Handle as _};
 use radicle::node::{Database, POLICIES_DB_FILE};
 use radicle::profile::{Home, Profile, env};
 use radicle::rad;
+use radicle::storage::git::transport;
 use radicle::storage::{ReadStorage as _, RemoteRepository as _, SignRepository as _};
 use radicle::test::fixtures;
+
+use crate::runtime::{self, Runtime, handle::Handle};
 
 /// A node that can be run.
 pub struct Node {

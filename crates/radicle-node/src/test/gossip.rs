@@ -1,14 +1,13 @@
+use localtime::{LocalDuration, LocalTime};
+use protocol::service::message::{InventoryAnnouncement, Message, NodeAnnouncement};
 use radicle::crypto::SigningKey;
 use radicle::node;
 use radicle::node::PROTOCOL_VERSION;
 use radicle::node::UserAgent;
+use radicle::test::arbitrary;
 use radicle::test::fixtures::r#gen;
 
 use crate::test::arbitrary;
-use crate::{
-    prelude::{LocalDuration, LocalTime, Message},
-    service::message::{InventoryAnnouncement, NodeAnnouncement},
-};
 
 pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Message> {
     let mut rng = fastrand::Rng::new();

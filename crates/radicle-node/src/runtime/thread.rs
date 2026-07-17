@@ -1,8 +1,6 @@
 use std::thread;
 
-pub use thread::*;
-
-use radicle::prelude::NodeId;
+use radicle::node::NodeId;
 
 /// Spawn an OS thread.
 pub fn spawn<D, F, T>(nid: &NodeId, label: D, f: F) -> thread::JoinHandle<T>

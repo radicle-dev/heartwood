@@ -5,13 +5,11 @@ use std::time;
 
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
-use radicle::storage::refs::{self, RefsAt};
-
-use crate::identity::RepoId;
-use crate::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
-use crate::runtime::HandleError;
+use radicle::identity::RepoId;
 use radicle::node::NodeId;
 use radicle::node::policy;
+use radicle::node::{Alias, Config, ConnectOptions, ConnectResult, Event, FetchResult, Seeds};
+use radicle::storage::refs::{self, RefsAt};
 
 #[derive(Default, Clone)]
 pub struct Handle {
@@ -22,7 +20,7 @@ pub struct Handle {
 }
 
 impl radicle::node::Handle for Handle {
-    type Error = HandleError;
+    type Error = crate::runtime::handle::Error;
     type Sessions = Vec<radicle::node::Session>;
     type Events = Vec<Self::Event>;
     type Event = Result<Event, Self::Error>;

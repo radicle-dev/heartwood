@@ -7,12 +7,12 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use radicle::crypto::Signer as _;
+use radicle::crypto::ssh::keystore::Keystore;
 use radicle::node::NodeId;
 use radicle::profile;
 
-use radicle_node::crypto::ssh::keystore::Keystore;
 use radicle_node::fingerprint::{Fingerprint, FingerprintVerification};
-use radicle_node::{Runtime, VERSION};
+use radicle_node::{VERSION, runtime::Runtime};
 use radicle_signals as signals;
 
 const HELP_MSG: &str = r#"

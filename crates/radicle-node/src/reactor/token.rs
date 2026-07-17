@@ -1,4 +1,4 @@
-pub use mio::Token;
+pub(crate) use mio::Token;
 
 pub const WAKER: Token = Token(0);
 

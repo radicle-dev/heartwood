@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-mod channels;
+pub(crate) mod channels;
 mod upload_pack;
 
 pub mod fetch;
@@ -7,8 +7,10 @@ pub mod garbage;
 
 use std::path::PathBuf;
 
+use channels::Channels;
 use crossbeam_channel as chan;
-
+use protocol::wire::StreamId;
+use protocol::worker::{AuthorizationError, FetchError, FetchRequest, FetchResult, UploadError};
 use radicle::identity::RepoId;
 use radicle::node::notifications;
 use radicle::node::policy::config as policy;
@@ -18,14 +20,7 @@ use radicle::storage::refs::RefsAt;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::{Storage, cob, crypto};
 
-pub use radicle_protocol::worker::{
-    AuthorizationError, FetchError, FetchRequest, FetchResult, UploadError,
-};
-
-use crate::runtime::{Handle, thread};
-use crate::wire::StreamId;
-
-pub use channels::{ChannelEvent, Channels, ChannelsConfig};
+use crate::runtime::{handle::Handle, thread};
 
 /// Worker pool configuration.
 pub struct Config {
@@ -236,15 +231,15 @@ impl Worker {
         rid: RepoId,
         remote: NodeId,
         refs_at: Option<Vec<RefsAt>>,
-        fetch_config: radicle_fetch::Config,
+        fetch_config: ::fetch::Config,
         channels: channels::ChannelsFlush,
         notifs: notifications::StoreWriter,
-    ) -> Result<fetch::FetchResult, FetchError> {
+    ) -> Result<protocol::worker::fetch::FetchResult, FetchError> {
         let FetchConfig { local, expiry } = &self.fetch_config;
         // N.b. if the `rid` is blocked this will return an error, so
         // we won't continue with any further set up of the fetch.
-        let allowed = radicle_fetch::Allowed::from_config(rid, &self.policies)?;
-        let blocked = radicle_fetch::BlockList::from_config(&self.policies)?;
+        let allowed = ::fetch::Allowed::from_config(rid, &self.policies)?;
+        let blocked = ::fetch::BlockList::from_config(&self.policies)?;
 
         let mut cache = self.cache.clone();
         let handle = fetch::Handle::new(
@@ -278,7 +273,7 @@ impl Worker {
 
 /// A pool of workers. One thread is allocated for each worker.
 pub struct Pool {
-    pool: Vec<thread::JoinHandle<Result<(), chan::RecvError>>>,
+    pool: Vec<std::thread::JoinHandle<Result<(), chan::RecvError>>>,
 }
 
 impl Pool {
@@ -317,7 +312,7 @@ impl Pool {
     /// Run the worker pool.
     ///
     /// Blocks until all worker threads have exited.
-    pub fn run(self) -> thread::Result<()> {
+    pub fn run(self) -> std::thread::Result<()> {
         for (i, worker) in self.pool.into_iter().enumerate() {
             if let Err(err) = worker.join()? {
                 log::trace!(target: "pool", "Worker {i} exited: {err}");

@@ -19,11 +19,11 @@ use radicle::test::fixtures;
 use radicle::{assert_matches, rad};
 use radicle::{git, issue};
 
-use crate::node::config::Limits;
-use crate::node::{Config, ConnectOptions};
-use crate::service;
-use crate::storage::git::transport;
 use crate::test::node::{Node, NodeHandle, converge};
+use protocol::service;
+use radicle::node::config::Limits;
+use radicle::node::{Config, ConnectOptions};
+use radicle::storage::git::transport;
 
 mod config {
     use super::*;

@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use radicle_fetch::{ByteSlice as _, RemoteProgress};
+use fetch::{ByteSlice as _, RemoteProgress};
 
 use radicle::Storage;
 use radicle::identity::RepoId;
@@ -91,7 +91,7 @@ where
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
     let reporter = std::sync::Mutex::new(Reporter::new(header.repo, remote, emitter.clone(), send));
 
-    thread::scope(|s| {
+    std::thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
             let mut buffer = [0; u16::MAX as usize + 1];
             loop {
