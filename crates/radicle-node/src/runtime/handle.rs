@@ -105,12 +105,12 @@ impl radicle::node::Handle for Handle {
     type Error = Error;
 
     fn nid(&self) -> Result<NodeId, Self::Error> {
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let (sender, receiver) = mpsc_oneshot_channel();
         let query: Arc<QueryState> = Arc::new(move |state| {
             sender.send(*state.nid()).ok();
             Ok(())
         });
-        let (err_sender, err_receiver) = mpsc::sync_channel(1);
+        let (err_sender, err_receiver) = mpsc_oneshot_channel();
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -285,7 +285,7 @@ impl radicle::node::Handle for Handle {
 
             Ok(())
         });
-        let (err_sender, err_receiver) = mpsc::sync_channel(1);
+        let (err_sender, err_receiver) = mpsc_oneshot_channel();
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -295,14 +295,14 @@ impl radicle::node::Handle for Handle {
     }
 
     fn session(&self, nid: NodeId) -> Result<Option<radicle::node::Session>, Self::Error> {
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let (sender, receiver) = mpsc_oneshot_channel();
         let query: Arc<QueryState> = Arc::new(move |state| {
             let session = state.sessions().get(&nid).map(radicle::node::Session::from);
             sender.send(session).ok();
 
             Ok(())
         });
-        let (err_sender, err_receiver) = mpsc::sync_channel(1);
+        let (err_sender, err_receiver) = mpsc_oneshot_channel();
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -334,7 +334,7 @@ impl radicle::node::Handle for Handle {
     }
 
     fn debug(&self) -> Result<serde_json::Value, Self::Error> {
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let (sender, receiver) = mpsc_oneshot_channel();
         let query: Arc<QueryState> = Arc::new(move |state| {
             let fetching = debug::Fetching::new(state.fetching());
             let debug = serde_json::json!({
@@ -356,7 +356,7 @@ impl radicle::node::Handle for Handle {
 
             Ok(())
         });
-        let (err_sender, err_receiver) = mpsc::sync_channel(1);
+        let (err_sender, err_receiver) = mpsc_oneshot_channel();
         self.command(service::Command::QueryState(query, err_sender))?;
         err_receiver.recv()??;
 
@@ -437,4 +437,12 @@ mod debug {
             }
         }
     }
+}
+
+/// We use this function to have hints for migration to `std::sync::oneshot`.
+/// Once the `oneshot_channel` feature becomes stable (see
+/// <https://github.com/rust-lang/rust/issues/143674>), we can consider all
+/// call-sites for migration.
+fn mpsc_oneshot_channel<T>() -> (mpsc::SyncSender<T>, mpsc::Receiver<T>) {
+    mpsc::sync_channel(1)
 }
