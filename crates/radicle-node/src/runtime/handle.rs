@@ -59,6 +59,8 @@ impl From<mpsc::RecvTimeoutError> for Error {
     }
 }
 
+/// A handle to a running node.
+#[derive(Clone, Debug)]
 pub struct Handle {
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
@@ -67,6 +69,7 @@ pub struct Handle {
 
     /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
+
     /// Publishes events to subscribers.
     emitter: Emitter<Event>,
 }
@@ -75,25 +78,6 @@ impl Handle {
     /// Subscribe to events stream.
     pub fn events(&self) -> Events {
         Events::from(self.emitter.subscribe())
-    }
-}
-
-impl fmt::Debug for Handle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Handle")
-            .field("socket", &self.socket)
-            .finish()
-    }
-}
-
-impl Clone for Handle {
-    fn clone(&self) -> Self {
-        Self {
-            socket: self.socket.clone(),
-            service: self.service.clone(),
-            shutdown: self.shutdown.clone(),
-            emitter: self.emitter.clone(),
-        }
     }
 }
 
@@ -340,6 +324,7 @@ impl radicle::node::Handle for Handle {
         {
             return Ok(());
         }
+
         // Send a shutdown request to our own control socket. This is the only way to kill the
         // control thread gracefully. Since the control thread may have called this function,
         // the control socket may already be disconnected. Ignore errors.
