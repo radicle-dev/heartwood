@@ -149,7 +149,6 @@ enum RuntimeOutput {
 
 /// Node runtime. All database-owning state is moved to the service thread.
 pub struct Runtime {
-    id: NodeId,
     control: ControlSocket,
     pub(crate) handle: Handle,
     signals: std::sync::mpsc::Receiver<Signal>,
@@ -277,7 +276,6 @@ impl Runtime {
         let capacity = config.workers.into();
 
         Ok(Self {
-            id,
             control,
             handle,
             signals,
@@ -335,7 +333,7 @@ impl Runtime {
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let shared = Arc::new(Shared {
-            local: self.id,
+            local: *self.secret_key.public_key(),
             endpoint: endpoint.clone(),
             controller: self.controller.clone(),
             emitter: self.emitter.clone(),
@@ -367,7 +365,7 @@ impl Runtime {
         listener
             .set_nonblocking(true)
             .map_err(|source| Error::Control(control::Error::Bind(source)))?;
-        let control_thread = thread::spawn(&self.id, "control-listener", {
+        let control_thread = thread::spawn(self.secret_key.public_key(), "control-listener", {
             let stop = stopping.clone();
             let handle = self.handle.clone();
             move || control::listen(listener, handle, stop)
