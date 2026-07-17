@@ -1,7 +1,10 @@
-pub mod gossip;
-pub mod handle;
+#[cfg(test)]
+pub(crate) mod gossip;
+#[cfg(test)]
+pub(crate) mod handle;
+#[cfg(any(test, feature = "test"))]
 pub mod node;
-pub mod peer;
-pub mod simulator;
-
-use radicle::test::*;
+#[cfg(test)]
+pub(crate) mod peer;
+#[cfg(test)]
+pub(crate) mod simulator;

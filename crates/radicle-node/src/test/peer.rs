@@ -31,11 +31,10 @@ use radicle::node::routing::Store as _;
 use radicle::node::{Address, Event, NodeId, Timestamp};
 use radicle::node::{Alias, ConnectOptions, address};
 use radicle::rad;
-use radicle::storage::git::transport::remote;
+use radicle::storage::WriteStorage;
 use radicle::storage::refs;
 use radicle::storage::refs::{RefsAt, SignedRefs};
 use radicle::storage::{ReadRepository, RemoteRepository};
-use radicle::storage::{RemoteId, WriteStorage};
 use radicle::test::storage::MockStorage;
 use radicle::test::{arbitrary, fixtures};
 
@@ -276,14 +275,6 @@ where
             .routing()
             .get_inventory(self.nid())
             .unwrap()
-    }
-
-    pub fn git_url(&self, repo: RepoId, namespace: Option<RemoteId>) -> remote::Url {
-        remote::Url {
-            node: *self.nid(),
-            repo,
-            namespace,
-        }
     }
 
     pub fn receive(&mut self, peer: NodeId, msg: Message) -> &mut Self {

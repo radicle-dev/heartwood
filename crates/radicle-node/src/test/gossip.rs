@@ -7,8 +7,6 @@ use radicle::node::UserAgent;
 use radicle::test::arbitrary;
 use radicle::test::fixtures::r#gen;
 
-use crate::test::arbitrary;
-
 pub fn messages(count: usize, now: LocalTime, delta: LocalDuration) -> Vec<Message> {
     let mut rng = fastrand::Rng::new();
     let mut msgs = Vec::new();

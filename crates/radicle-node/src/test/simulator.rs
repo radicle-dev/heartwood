@@ -22,15 +22,12 @@ use radicle::node::NodeId;
 use radicle::node::events::Event;
 use radicle::storage::Namespaces;
 use radicle::storage::{ReadRepository, WriteStorage};
-
-use crate::test::arbitrary;
+use radicle::test::arbitrary;
 
 use super::peer::Peer;
 
 /// Minimum latency between peers.
 pub const MIN_LATENCY: LocalDuration = LocalDuration::from_millis(1);
-/// Maximum number of events buffered per peer.
-pub const MAX_EVENTS: usize = 2048;
 
 /// Simulated service input.
 #[derive(Debug, Clone)]
@@ -239,11 +236,6 @@ where
             .all(|(_, s)| matches!(s.input, Input::Wake))
     }
 
-    /// Get a node's emitted events.
-    pub fn events(&mut self, node: &NodeId) -> impl Iterator<Item = Event> + '_ {
-        self.events.entry(*node).or_default().drain(..)
-    }
-
     /// Get all messages received by nodes during the simulation.
     pub fn messages(&mut self) -> &[(NodeId, NodeId, Message)] {
         &self.messages
@@ -275,14 +267,6 @@ where
                 break;
             }
         }
-    }
-
-    /// Process one scheduled input from the inbox, using the provided peers.
-    /// This function should be called until it returns `false`, or some desired state is reached.
-    /// Returns `true` if there are more messages to process.
-    pub fn step<'a>(&mut self, peers: impl IntoIterator<Item = &'a mut Peer<S>>) -> bool {
-        let mut nodes: BTreeMap<_, _> = peers.into_iter().map(|p| (*p.nid(), p)).collect();
-        self.step_(&mut nodes)
     }
 
     fn step_(&mut self, nodes: &mut BTreeMap<NodeId, &mut Peer<S>>) -> bool {
