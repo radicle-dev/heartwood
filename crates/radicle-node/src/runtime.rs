@@ -264,7 +264,6 @@ impl Runtime {
         });
 
         let handle = Handle::new(
-            home.clone(),
             socket.clone(),
             controller.clone(),
             emitter.clone(),
