@@ -268,9 +268,9 @@ impl radicle::node::Handle for Handle {
     }
 
     fn block(&mut self, id: NodeId) -> Result<bool, Self::Error> {
-        let (sender, receiver) = mpsc::sync_channel(1);
-        self.command(service::Command::Block(id, sender))?;
-        receiver.recv().map_err(Error::from)
+        let (responder, receiver) = service::command::Responder::oneshot();
+        self.command(service::Command::Block(id, responder))?;
+        Ok(receiver.recv()??)
     }
 
     fn seed(&mut self, id: RepoId, scope: policy::Scope) -> Result<bool, Error> {

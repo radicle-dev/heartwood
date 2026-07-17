@@ -897,7 +897,7 @@ where
                 if updated {
                     self.outbox.disconnect(id, DisconnectReason::Policy);
                 }
-                resp.send(updated).ok();
+                resp.ok(updated).ok();
             }
             Command::AnnounceRefs(id, namespaces, resp) => {
                 let doc = match self.storage.get(id) {

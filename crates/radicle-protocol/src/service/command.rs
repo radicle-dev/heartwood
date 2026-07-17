@@ -107,7 +107,7 @@ pub enum Command {
     /// Unfollow the given node.
     Unfollow(NodeId, Responder<bool>),
     /// Block the given node.
-    Block(NodeId, SyncSender<bool>),
+    Block(NodeId, Responder<bool>),
     /// Query the internal service state.
     QueryState(Arc<QueryState>, SyncSender<Result<()>>),
 }
