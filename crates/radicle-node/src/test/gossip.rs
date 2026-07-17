@@ -1,11 +1,11 @@
 use radicle::crypto::SigningKey;
 use radicle::node;
+use radicle::node::PROTOCOL_VERSION;
 use radicle::node::UserAgent;
 use radicle::test::fixtures::r#gen;
 
 use crate::test::arbitrary;
 use crate::{
-    PROTOCOL_VERSION,
     prelude::{LocalDuration, LocalTime, Message},
     service::message::{InventoryAnnouncement, NodeAnnouncement},
 };

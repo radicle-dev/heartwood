@@ -23,7 +23,6 @@ use radicle::version::Version;
 
 pub use localtime::{LocalDuration, LocalTime};
 pub use radicle::node::Link;
-pub use radicle::node::PROTOCOL_VERSION;
 pub use radicle::prelude::Timestamp;
 pub use radicle::{collections, crypto, git, identity, node, profile, rad, storage};
 pub use runtime::Runtime;

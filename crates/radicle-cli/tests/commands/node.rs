@@ -1,13 +1,13 @@
 use crate::test;
 use crate::util::environment::Environment;
 use radicle::node::Address;
+use radicle::node::PROTOCOL_VERSION;
 use radicle::node::UserAgent;
 use radicle::node::address::Store as _;
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::{Alias, Handle as _};
 use radicle::test::fixtures;
 use radicle_localtime::LocalTime;
-use radicle_node::PROTOCOL_VERSION;
 use std::net;
 use std::str::FromStr;
 

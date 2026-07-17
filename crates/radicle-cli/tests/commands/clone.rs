@@ -1,6 +1,7 @@
 use crate::test;
 use crate::util::environment::Environment;
 use radicle::node;
+use radicle::node::PROTOCOL_VERSION;
 use radicle::node::UserAgent;
 use radicle::node::address::Store as _;
 use radicle::node::policy::Scope;
@@ -9,7 +10,6 @@ use radicle::node::{Alias, Handle as _};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::storage::ReadStorage as _;
 use radicle_localtime::LocalTime;
-use radicle_node::PROTOCOL_VERSION;
 use std::net;
 use std::str::FromStr;
 
