@@ -150,13 +150,11 @@ enum RuntimeOutput {
 
 /// Node runtime. All database-owning state is moved to the service thread.
 pub struct Runtime {
-    pub id: NodeId,
-    pub home: Home,
-    pub control: ControlSocket,
-    pub handle: Handle,
-    pub storage: Storage,
-    pub pool: worker::Pool,
-    pub signals: std::sync::mpsc::Receiver<Signal>,
+    id: NodeId,
+    control: ControlSocket,
+    pub(crate) handle: Handle,
+    pool: worker::Pool,
+    signals: std::sync::mpsc::Receiver<Signal>,
     config: node::Config,
     listen: Vec<net::SocketAddr>,
     secret_key: SigningKey,
@@ -295,10 +293,8 @@ impl Runtime {
 
         Ok(Self {
             id,
-            home,
             control,
             handle,
-            storage,
             pool,
             signals,
             config,
