@@ -21,7 +21,6 @@ use radicle::node::policy;
 use radicle::node::{Alias, Command, FetchResult};
 use radicle::node::{Config, NodeId};
 use radicle::node::{ConnectOptions, ConnectResult, Seeds};
-use radicle::profile::Home;
 use radicle::storage::refs;
 use radicle::storage::refs::RefsAt;
 use serde_json::json;
@@ -61,8 +60,6 @@ impl From<mpsc::RecvTimeoutError> for Error {
 }
 
 pub struct Handle {
-    pub(crate) home: Home,
-
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
 
@@ -83,14 +80,13 @@ impl Handle {
 
 impl fmt::Debug for Handle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Handle").field("home", &self.home).finish()
+        f.debug_struct("Handle").field("socket", &self.socket).finish()
     }
 }
 
 impl Clone for Handle {
     fn clone(&self) -> Self {
         Self {
-            home: self.home.clone(),
             socket: self.socket.clone(),
             controller: self.controller.clone(),
             shutdown: self.shutdown.clone(),
@@ -101,13 +97,11 @@ impl Clone for Handle {
 
 impl Handle {
     pub(crate) fn new(
-        home: Home,
         socket: PathBuf,
         controller: Controller,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {
-            home,
             socket,
             controller,
             shutdown: Arc::default(),
