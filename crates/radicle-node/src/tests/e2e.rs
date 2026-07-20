@@ -1009,9 +1009,13 @@ fn test_non_fast_forward_sigrefs() {
         log::debug!(target: "test", "bob's old 'rad/sigrefs': {before}");
     }
 
-    // Now Eve disconnects from Bob so she doesn't fetch his update.
+    // Now Eve disconnects from both peers so she doesn't learn about Bob's
+    // update directly, or indirectly through Alice's refs announcement.
     eve.handle
         .command(service::Command::Disconnect(bob.id))
+        .unwrap();
+    eve.handle
+        .command(service::Command::Disconnect(alice.id))
         .unwrap();
 
     // Bob updates his refs.
