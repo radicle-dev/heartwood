@@ -587,10 +587,13 @@ async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
                 }
             });
         }
-        Io::Disconnect(remote, _reason) => {
+        Io::Disconnect(remote, reason) => {
             if let Some(peer) = shared.peers.lock().await.remove(&remote) {
                 // TODO: Use standard error code and reason.
                 peer.connection.close(0u32.into(), b"gossip disconnected");
+                let _ = shared
+                    .service
+                    .send(ServiceInput::Disconnected(remote, peer.link, reason));
             }
         }
         Io::Fetch {
