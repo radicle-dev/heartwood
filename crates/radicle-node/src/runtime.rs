@@ -261,11 +261,7 @@ impl Runtime {
             run_service(service, input_rx, output_tx)
         });
 
-        let handle = Handle::new(
-            socket.clone(),
-            controller.clone(),
-            emitter.clone(),
-        );
+        let handle = Handle::new(socket.clone(), controller.clone(), emitter.clone());
         let fetch = worker::FetchConfig {
             local: id,
             expiry: worker::garbage::Expiry::default(),
@@ -610,9 +606,12 @@ async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
                 }
             });
         }
-        Io::Disconnect(remote, _reason) => {
+        Io::Disconnect(remote, reason) => {
             if let Some(peer) = shared.peers.lock().await.remove(&remote) {
                 peer.connection.close(0u32.into(), b"gossip disconnected");
+                let _ = shared
+                    .controller
+                    .send(ServiceInput::Disconnected(remote, peer.link, reason));
             }
         }
         Io::Fetch {
