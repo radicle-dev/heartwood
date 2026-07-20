@@ -1126,21 +1126,6 @@ impl FetchResult {
     }
 }
 
-impl<S: ToString> From<Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>> for FetchResult {
-    fn from(value: Result<(Vec<RefUpdate>, HashSet<NodeId>, bool), S>) -> Self {
-        match value {
-            Ok((updated, namespaces, clone)) => Self::Success {
-                updated,
-                namespaces,
-                clone,
-            },
-            Err(err) => Self::Failed {
-                reason: err.to_string(),
-            },
-        }
-    }
-}
-
 /// Holds multiple fetch results.
 #[derive(Clone, Debug, Default)]
 pub struct FetchResults(Vec<(NodeId, FetchResult)>);
