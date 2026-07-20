@@ -1312,7 +1312,7 @@ impl<Repo, Signer: crypto::Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
     }
 }
 
-/// This module defines a function to serialize [`Signature`] by
+/// This module defines functions to serialize and deserialize [`Signature`] by
 /// encoding it as a string [multibase format] (using `base58btc` via
 /// [`multibase::encode`] with [`multibase::Base::Base58Btc`]) and
 /// a function to deserialize a [`Signature`] from a string
@@ -1328,7 +1328,7 @@ impl<Repo, Signer: crypto::Signer> Deref for IdentityMut<'_, '_, Repo, Signer> {
 /// changed to refer to `ed25519::Signature` in order to maximize compatibility,
 /// which does not implement these traits.
 /// So, for backwards compatibility, this module fills the gap by providing a
-/// way to (se)serialize [`Signature`].
+/// way to (de)serialize [`Signature`].
 ///
 /// [multibase format]: https://datatracker.ietf.org/doc/draft-multiformats-multibase/
 mod signature {
