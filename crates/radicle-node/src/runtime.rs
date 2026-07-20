@@ -340,7 +340,8 @@ impl Runtime {
             emitter: self.emitter.clone(),
             peers: tokio::sync::Mutex::new(HashMap::new()),
             jobs: AtomicU64::new(1),
-            git_limits: Mutex::new(HashMap::new()),
+            incoming_git_limits: Mutex::new(HashMap::new()),
+            outgoing_git_limits: Mutex::new(HashMap::new()),
             git_concurrency: self.config.limits.fetch_concurrency.into(),
             shutdown: shutdown_rx,
         });
@@ -557,7 +558,8 @@ struct Shared {
     emitter: Emitter<Event>,
     peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
     jobs: AtomicU64,
-    git_limits: Mutex<HashMap<NodeId, Arc<Semaphore>>>,
+    incoming_git_limits: Mutex<HashMap<NodeId, Arc<Semaphore>>>,
+    outgoing_git_limits: Mutex<HashMap<NodeId, Arc<Semaphore>>>,
     git_concurrency: usize,
     shutdown: watch::Receiver<bool>,
 }
@@ -748,7 +750,9 @@ async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
 
 async fn run_incoming_git(shared: Arc<Shared>, connection: Connection) {
     let remote = NodeId::from_bytes(*connection.remote_id());
-    let Ok(permit) = git_limiter(&shared, remote).try_acquire_owned() else {
+    let Ok(permit) = git_limiter(&shared.incoming_git_limits, shared.git_concurrency, remote)
+        .try_acquire_owned()
+    else {
         connection.close(0u32.into(), b"Git concurrency limit exceeded");
         return;
     };
@@ -781,6 +785,7 @@ async fn run_outgoing_git(
     let addr = endpoint_addr(remote, &addresses)
         .await
         .map_err(|e| e.to_string())?;
+
     let connection =
         tokio::time::timeout(config.timeout(), shared.endpoint.connect(addr, GIT_ALPN))
             .await
@@ -935,19 +940,22 @@ async fn git_permit(
     if shared.git_concurrency == 0 {
         return Err("Git concurrency is disabled".to_owned());
     }
-    git_limiter(shared, remote)
+    git_limiter(&shared.outgoing_git_limits, shared.git_concurrency, remote)
         .acquire_owned()
         .await
         .map_err(|_| "Git limiter closed".to_owned())
 }
 
-fn git_limiter(shared: &Arc<Shared>, remote: NodeId) -> Arc<Semaphore> {
-    shared
-        .git_limits
+fn git_limiter(
+    limits: &Mutex<HashMap<NodeId, Arc<Semaphore>>>,
+    concurrency: usize,
+    remote: NodeId,
+) -> Arc<Semaphore> {
+    limits
         .lock()
         .expect("Git limiter poisoned")
         .entry(remote)
-        .or_insert_with(|| Arc::new(Semaphore::new(shared.git_concurrency)))
+        .or_insert_with(|| Arc::new(Semaphore::new(concurrency)))
         .clone()
 }
 
