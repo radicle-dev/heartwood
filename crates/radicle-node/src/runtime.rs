@@ -656,6 +656,11 @@ async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
         connection.close(0u32.into(), b"self connection");
         return;
     }
+    let preferred = if shared.local > remote {
+        Link::Outbound
+    } else {
+        Link::Inbound
+    };
 
     let streams = match link {
         Link::Outbound => connection.open_bi().await,
@@ -674,11 +679,6 @@ async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
     {
         let mut peers = shared.peers.lock().await;
         if let Some(existing) = peers.get(&remote) {
-            let preferred = if shared.local < remote {
-                Link::Outbound
-            } else {
-                Link::Inbound
-            };
             let new_wins = link == preferred && existing.link != preferred;
             if !new_wins {
                 connection.close(0u32.into(), b"duplicate gossip connection");
