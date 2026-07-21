@@ -473,10 +473,9 @@ impl Message {
         if !log::log_enabled!(level) {
             return;
         }
-        let (verb, prep) = if link.is_inbound() {
-            ("Received", "from")
-        } else {
-            ("Sending", "to")
+        let (verb, prep) = match link {
+            Link::Inbound => ("Received", "from"),
+            Link::Outbound => ("Sending", "to"),
         };
         let msg = match self {
             Self::Announcement(Announcement { node, message, .. }) => match message {

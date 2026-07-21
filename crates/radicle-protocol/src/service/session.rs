@@ -135,15 +135,14 @@ impl fmt::Display for Session {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut attrs = Vec::new();
         let state = self.state.to_string();
+        let link = self.link.to_string();
 
-        if self.link.is_inbound() {
-            attrs.push("inbound");
-        } else {
-            attrs.push("outbound");
-        }
+        attrs.push(link.as_str());
+
         if self.persistent {
             attrs.push("persistent");
         }
+
         attrs.push(state.as_str());
 
         write!(f, "{} [{}]", self.id, attrs.join(" "))
@@ -154,11 +153,7 @@ impl From<&Session> for radicle::node::Session {
     fn from(s: &Session) -> Self {
         Self {
             nid: s.id,
-            link: if s.link.is_inbound() {
-                radicle::node::Link::Inbound
-            } else {
-                radicle::node::Link::Outbound
-            },
+            link: s.link,
             addr: s.addr.clone(),
             state: s.state.clone(),
         }
