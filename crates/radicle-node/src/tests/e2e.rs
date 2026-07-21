@@ -11,7 +11,7 @@ use test_log::test;
 use radicle::git::raw::ErrorExt as _;
 use radicle::node::Event;
 use radicle::node::policy::Scope;
-use radicle::node::{Alias, ConnectResult, DEFAULT_TIMEOUT, FetchResult, Handle as _};
+use radicle::node::{Alias, ConnectResult, DEFAULT_TIMEOUT, FetchResult, Handle as _, Link};
 use radicle::storage::{
     ReadRepository, ReadStorage, RefUpdate, RemoteRepository, SignRepository, ValidateRepository,
     WriteRepository, WriteStorage,
@@ -980,60 +980,137 @@ fn test_concurrent_fetches() {
 #[test]
 fn test_connection_crossing() {
     let tmp = tempfile::tempdir().unwrap();
-    let alice = Node::init(tmp.path(), config::relay("alice"), 13);
-    let bob = Node::init(tmp.path(), config::relay("bob"), 37);
 
-    let alice = alice.spawn();
-    let bob = bob.spawn();
-    let preferred = alice.id.max(bob.id);
+    struct AmyAndBob<T> {
+        amy: T,
+        bob: T,
+    }
 
-    log::debug!(target: "test", "Preferred peer is {preferred}");
-
-    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-    let b1 = barrier.clone();
-    let b2 = barrier.clone();
-    let t1 = thread::spawn({
-        let mut alice = alice.handle.clone();
-
-        move || {
-            b1.wait();
-            alice
-                .connect(bob.id, bob.addr.into(), ConnectOptions::default())
-                .unwrap()
+    impl<T: Clone> AmyAndBob<T> {
+        fn cloned(value: T) -> Self {
+            Self {
+                amy: value.clone(),
+                bob: value,
+            }
         }
-    });
-    let t2 = thread::spawn({
-        let mut bob = bob.handle.clone();
-        move || {
-            b2.wait();
-            bob.connect(alice.id, alice.addr.into(), ConnectOptions::default())
-                .unwrap()
-        }
-    });
+    }
 
-    let r1 = t1.join().unwrap();
-    let r2 = t2.join().unwrap();
+    impl<T> AmyAndBob<T> {
+        fn map<S, F: Fn(T) -> S>(self, f: F) -> AmyAndBob<S> {
+            AmyAndBob {
+                amy: f(self.amy),
+                bob: f(self.bob),
+            }
+        }
+
+        fn pick<S, F: Fn(&T) -> S>(&self, f: F) -> AmyAndBob<S> {
+            AmyAndBob {
+                amy: f(&self.amy),
+                bob: f(&self.bob),
+            }
+        }
+
+        fn pick_map<S, U, F: Fn(&T) -> S, G: Fn(T, S) -> U>(self, f: F, g: G) -> AmyAndBob<U> {
+            let picked = self.pick(f);
+            AmyAndBob {
+                amy: g(self.amy, picked.bob),
+                bob: g(self.bob, picked.amy),
+            }
+        }
+
+        fn zip<S>(self, other: AmyAndBob<S>) -> AmyAndBob<(T, S)> {
+            AmyAndBob {
+                amy: (self.amy, other.amy),
+                bob: (self.bob, other.bob),
+            }
+        }
+
+        fn as_ref(&self) -> AmyAndBob<&T> {
+            AmyAndBob {
+                amy: &self.amy,
+                bob: &self.bob,
+            }
+        }
+    }
+
+    let node = AmyAndBob {
+        amy: Node::init(tmp.path(), config::relay("alice"), 13),
+        bob: Node::init(tmp.path(), config::relay("bob"), 37),
+    };
+
+    assert_ne!(node.amy.id, node.bob.id);
+
+    let link = if node.amy.id > node.bob.id {
+        AmyAndBob {
+            amy: Link::Outbound,
+            bob: Link::Inbound,
+        }
+    } else {
+        AmyAndBob {
+            amy: Link::Inbound,
+            bob: Link::Outbound,
+        }
+    };
+
+    let node = node.map(|node| node.spawn());
+
+    assert_ne!(link.amy, link.bob);
+
+    let barrier = AmyAndBob::cloned(std::sync::Arc::new(std::sync::Barrier::new(2)));
+
+    let threads = node.as_ref().zip(barrier).pick_map(
+        |(other, _barrier)| {
+            // In order to connect to the other node, we need their ID and address.
+            (other.id, other.addr)
+        },
+        |(node, barrier), (id, addr)| {
+            thread::spawn({
+                let mut handle = node.handle.clone();
+                move || {
+                    barrier.wait();
+                    handle
+                        .connect(id, addr.into(), ConnectOptions::default())
+                        .unwrap()
+                }
+            })
+        },
+    );
+
+    let result = threads.map(|t| t.join().unwrap());
 
     // Note that the non-preferred peer will have their outbound connection fail, and this
     // could already show up as the result of the call here (but not always).
-    if preferred == alice.id {
-        assert_matches!(r1, ConnectResult::Connected);
-    } else {
-        assert_matches!(r2, ConnectResult::Connected);
-    }
+    assert_matches!(
+        if link.amy == Link::Outbound {
+            result.amy
+        } else {
+            result.bob
+        },
+        ConnectResult::Connected
+    );
 
     let mut iterations = 0;
-    let (alice_s, bob_s, s1, s2) = loop {
-        let alice_s = alice.handle.sessions().unwrap();
-        let bob_s = bob.handle.sessions().unwrap();
+    loop {
+        let sessions = node.as_ref().pick_map(
+            |other| other.id,
+            |node, id| {
+                let sessions = node.handle.sessions().unwrap();
+                assert_eq!(sessions.len(), 1);
 
-        let s1 = alice_s.iter().find(|s| s.nid == bob.id).cloned();
-        let s2 = bob_s.iter().find(|s| s.nid == alice.id).cloned();
+                sessions.iter().find(|s| s.nid == id).cloned()
+            },
+        );
 
-        if let (Some(s1), Some(s2)) = (s1, s2) {
-            // Wait until both sessions are fully connected
-            if s1.state.is_connected() && s2.state.is_connected() {
-                break (alice_s, bob_s, s1, s2);
+        if let Some((alice, bob)) = sessions.amy.zip(sessions.bob) {
+            // Wait until both sessions reflect the connection selected by the crossing rule.
+            // Both outbound attempts can be visible briefly before the preferred connection
+            // supersedes the other one.
+            if alice.state.is_connected()
+                && bob.state.is_connected()
+                && alice.link == link.amy
+                && bob.link == link.bob
+            {
+                return;
             }
         }
         iterations += 1;
@@ -1041,19 +1118,7 @@ fn test_connection_crossing() {
             panic!("Timeout waiting for sessions to connect");
         }
         thread::sleep(time::Duration::from_millis(50));
-    };
-
-    // We assert that they have opposite link directions.
-    // In a true simultaneous crossing, the preferred peer wins the Outbound link.
-    // However, due to OS thread scheduling and reactor event ordering, one peer
-    // might fully establish the connection before the other even processes the dial command.
-    // In all valid cases (crossing or sequential), exactly one is Outbound and one is Inbound.
-    assert_ne!(
-        s1.link, s2.link,
-        "One must be Inbound and the other Outbound"
-    );
-    assert_eq!(alice_s.len(), 1);
-    assert_eq!(bob_s.len(), 1);
+    }
 }
 
 #[test]
