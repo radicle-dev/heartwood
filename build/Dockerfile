@@ -63,7 +63,7 @@ RUN cargo zigbuild --locked --release \
 
 # Now copy the files to a new image without all the intermediary artifacts to
 # save some space.
-FROM alpine:3.20 as packager
+FROM alpine:${ALPINE_VERSION} as packager
 
 ARG RADICLE_VERSION
 ARG SOURCE_DATE_EPOCH
