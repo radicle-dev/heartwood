@@ -18,7 +18,7 @@ multibase = ["dep:multibase"]
 schemars = ["dep:schemars", "serde"]
 serde = ["dep:serde", "ed25519-dalek/serde", "zeroize/serde"]
 ssh = ["ssh-agent-lib", "ssh-key", "alloc"]
-std = ["alloc", "ed25519-dalek/std", "multibase?/std", "schemars?/std", "serde?/std", "ssh-key?/std", "thiserror/std", "zeroize/std" ]
+std = ["alloc", "multibase?/std", "schemars?/std", "serde?/std", "ssh-key?/std", "thiserror/std", "zeroize/std" ]
 test = ["alloc", "qcheck"]
 
 [dependencies]
@@ -34,8 +34,8 @@ thiserror = { workspace = true, default-features = false }
 zeroize = { workspace = true, default-features = false }
 
 # dalek
-curve25519-dalek = { version = "4", default-features = false, features = ["zeroize"] }
-ed25519-dalek = { version = "2", default-features = false, features = ["zeroize"] }
+curve25519-dalek = { version = "5", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "3", default-features = false, features = ["fast", "zeroize"] }
 
 [target.'cfg(windows)'.dependencies]
 winpipe = { workspace = true }
