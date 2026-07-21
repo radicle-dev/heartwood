@@ -3,7 +3,7 @@
 ARG RUST_VERSION
 ARG ALPINE_VERSION="3.24"
 
-FROM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} as builder
+FROM docker.io/rust:${RUST_VERSION}-alpine${ALPINE_VERSION} as builder
 LABEL maintainer="Radicle Team <team@radicle.dev>"
 WORKDIR /src
 COPY . .
@@ -63,7 +63,7 @@ RUN cargo zigbuild --locked --release \
 
 # Now copy the files to a new image without all the intermediary artifacts to
 # save some space.
-FROM alpine:${ALPINE_VERSION} as packager
+FROM docker.io/alpine:${ALPINE_VERSION} as packager
 
 ARG RADICLE_VERSION
 ARG SOURCE_DATE_EPOCH
