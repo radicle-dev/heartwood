@@ -96,20 +96,27 @@ impl StreamId {
 
     /// Create a control identifier.
     pub fn control(link: Link) -> Self {
-        let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from(((u8::from(StreamType::Control)) << 1) | link))
+        Self::with_kind(StreamType::Control, link)
     }
 
     /// Create a gossip identifier.
     pub fn gossip(link: Link) -> Self {
-        let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from((u8::from(StreamType::Gossip) << 1) | link))
+        Self::with_kind(StreamType::Gossip, link)
     }
 
     /// Create a git identifier.
     pub fn git(link: Link) -> Self {
-        let link = if link.is_outbound() { 0 } else { 1 };
-        Self(VarInt::from((u8::from(StreamType::Git) << 1) | link))
+        Self::with_kind(StreamType::Git, link)
+    }
+
+    /// Create a new stream identifier given a [`StreamType`] and a [`Link`].
+    #[inline]
+    fn with_kind(kind: StreamType, link: Link) -> Self {
+        let link_bit = match link {
+            Link::Inbound => 1,
+            Link::Outbound => 0,
+        };
+        Self(VarInt::from((u8::from(kind) << 1) | link_bit))
     }
 
     /// Get the nth identifier while preserving the stream type and initiator.
