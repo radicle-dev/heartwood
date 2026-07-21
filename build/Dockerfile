@@ -17,20 +17,18 @@ ARG GIT_HEAD
 # Copy cargo configuration we're going to use to specify compiler options.
 RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml
 # Install dependencies.
-RUN apk update && apk add --no-cache git musl-dev xz asciidoctor
-
-# Install a version of Zig that supports macOS TBD v4
-ARG ZIG_VERSION="0.16.0"
-RUN wget -q https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \
-    tar -xf zig-linux-x86_64-${ZIG_VERSION}.tar.xz && \
-    mv zig-linux-x86_64-${ZIG_VERSION} /usr/local/zig && \
-    ln -s /usr/local/zig/zig /usr/local/bin/zig && \
-    rm zig-linux-x86_64-${ZIG_VERSION}.tar.xz
+RUN apk update && apk add --no-cache \
+    asciidoctor \
+    git \
+    musl-dev \
+    xz \
+    zig=0.16.0-r1
 
 # Build man pages and strip metadata. Removes all comments, since they include
 # non-reproducible information, such as version numbers.
 RUN asciidoctor --doctype manpage --backend manpage --destination-dir . *.1.adoc && \
     find . -maxdepth 1 -type f -name '*.1' -exec sed -i '/^.\\\"/d' '{}' \;
+
 # Add cargo targets.
 RUN rustup target add \
     x86_64-unknown-linux-musl \
@@ -43,7 +41,6 @@ RUN rustup target add \
 # Zig is not yet available on Debian, so we download the official binary.
 # Compilation is done via `cargo-zigbuild` which is a wrapper around `zig`.
 RUN cargo install --locked cargo-zigbuild@0.22.1
-
 
 # Parts of the macOS SDK are required to build Radicle, we make these available
 # here. So far only `CoreFoundation` and `Security` frameworks are needed.
