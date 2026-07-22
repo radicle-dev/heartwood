@@ -6,7 +6,6 @@ description = "Radicle representation of Git object identifiers"
 keywords = ["radicle", "git", "oid"]
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

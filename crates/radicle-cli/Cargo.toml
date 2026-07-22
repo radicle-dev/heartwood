@@ -6,7 +6,6 @@ description = "Radicle CLI"
 build = "build.rs"
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 rust-version.workspace = true
 

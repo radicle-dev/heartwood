@@ -6,7 +6,6 @@ description = "Radicle core data type definitions"
 keywords = ["radicle", "git", "data-types"]
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

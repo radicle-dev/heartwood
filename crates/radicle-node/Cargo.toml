@@ -6,7 +6,6 @@ description = "The Radicle Node"
 build = "build.rs"
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 rust-version.workspace = true
 

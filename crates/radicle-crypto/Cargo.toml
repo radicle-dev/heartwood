@@ -4,7 +4,6 @@ version = "0.18.0"
 description = "Radicle cryptographic primitives"
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

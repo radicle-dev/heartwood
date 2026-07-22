@@ -4,7 +4,6 @@ version = "0.10.0"
 description = "Radicle DAG implementation"
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

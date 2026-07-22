@@ -8,7 +8,6 @@ keywords = ["cli", "test", "command"]
 readme = "README.md"
 
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
