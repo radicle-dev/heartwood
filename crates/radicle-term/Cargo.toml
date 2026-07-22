@@ -1,11 +1,12 @@
 [package]
 name = "radicle-term"
-description = "Terminal library used by the Radicle CLI"
-homepage.workspace = true
-repository.workspace = true
-license.workspace = true
 version = "0.19.0"
+description = "Terminal library used by the Radicle CLI"
+
 edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [features]

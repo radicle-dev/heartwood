@@ -1,11 +1,13 @@
 [package]
 name = "radicle-cli"
+version = "0.22.0"
 description = "Radicle CLI"
+
+build = "build.rs"
+
+edition.workspace = true
 homepage.workspace = true
 license.workspace = true
-version = "0.22.0"
-edition.workspace = true
-build = "build.rs"
 rust-version.workspace = true
 
 [[bin]]

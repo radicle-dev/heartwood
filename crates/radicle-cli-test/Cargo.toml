@@ -1,13 +1,15 @@
 [package]
 name = "radicle-cli-test"
-description = "Radicle CLI test library"
-homepage.workspace = true
-license.workspace = true
 version = "0.14.0"
-edition.workspace = true
+description = "Radicle CLI test library"
+
 categories = ["development-tools::testing"]
 keywords = ["cli", "test", "command"]
 readme = "README.md"
+
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 [dependencies]

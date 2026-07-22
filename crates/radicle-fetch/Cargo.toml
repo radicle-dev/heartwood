@@ -1,10 +1,11 @@
 [package]
 name = "radicle-fetch"
+version = "0.21.0"
 description = "Radicle fetch protocol"
+
+edition.workspace = true
 homepage.workspace = true
 license.workspace = true
-version = "0.21.0"
-edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]

@@ -1,11 +1,12 @@
 [package]
 name = "radicle-crypto"
-description = "Radicle cryptographic primitives"
-homepage.workspace = true
-repository.workspace = true
-license.workspace = true
 version = "0.18.0"
+description = "Radicle cryptographic primitives"
+
 edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [features]

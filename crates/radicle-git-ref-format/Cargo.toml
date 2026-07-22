@@ -1,12 +1,14 @@
 [package]
 name = "radicle-git-ref-format"
-description = "Radicle re-exports and macros for `git-ref-format-core`"
-homepage.workspace = true
-repository.workspace = true
 version = "0.1.0"
-edition.workspace = true
-license.workspace = true
+description = "Radicle re-exports and macros for `git-ref-format-core`"
+
 keywords = ["radicle", "git", "refname", "ref", "references"]
+
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [features]

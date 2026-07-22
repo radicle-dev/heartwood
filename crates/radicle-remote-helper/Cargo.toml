@@ -1,11 +1,13 @@
 [package]
 name = "radicle-remote-helper"
+version = "0.18.0"
 description = "Radicle git remote helper"
+
+build = "build.rs"
+
+edition.workspace = true
 homepage.workspace = true
 license.workspace = true
-version = "0.18.0"
-edition.workspace = true
-build = "build.rs"
 rust-version.workspace = true
 
 [[bin]]

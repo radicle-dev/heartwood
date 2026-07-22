@@ -1,11 +1,13 @@
 [package]
 name = "radicle-node"
+version = "0.21.0"
 description = "The Radicle Node"
+
+build = "build.rs"
+
+edition.workspace = true
 homepage.workspace = true
 license.workspace = true
-version = "0.21.0"
-edition.workspace = true
-build = "build.rs"
 rust-version.workspace = true
 
 [features]

@@ -1,11 +1,12 @@
 [package]
 name = "radicle-dag"
-description = "Radicle DAG implementation"
-homepage.workspace = true
-repository.workspace = true
-license.workspace = true
 version = "0.10.0"
+description = "Radicle DAG implementation"
+
 edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
