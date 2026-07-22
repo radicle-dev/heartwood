@@ -23,7 +23,7 @@ inquire = { version = "0.9.4", default-features = false, features = [
 thiserror = { workspace = true, default-features = true }
 unicode-display-width = "0.3.0"
 unicode-segmentation = "1.7.1"
-zeroize = { workspace = true }
+zeroize = { workspace = true, features = ["alloc"] }
 git2 = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
