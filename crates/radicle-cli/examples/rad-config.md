@@ -102,7 +102,7 @@ $ rad config schema
       "type": "string"
     },
     "ConnectAddress": {
-      "description": "A node address to connect to. Format: An Ed25519 public key in multibase encoding, followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion name, or an I2P address, followed by the symbol ':', followed by a TCP port number,\n        or the string 'iroh'.",
+      "description": "A node address to connect to. Format: An Ed25519 public key in multibase encoding, followed by the symbol '@', followed by an IP address, or a DNS name, or a Tor onion name, or an I2P address, followed by the symbol ':', followed by a UDP port number,\n        or the string 'iroh'.",
       "type": "string",
       "examples": [
         "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@rosa.radicle.network:8776",
@@ -201,7 +201,7 @@ $ rad config schema
           ]
         },
         "listen": {
-          "description": "Socket address (a combination of IPv4 or IPv6 address and TCP port) to listen on.",
+          "description": "Socket address (a combination of IPv4 or IPv6 address and UDP port) to listen on.",
           "type": "array",
           "items": {
             "type": "string"
@@ -374,7 +374,7 @@ $ rad config schema
       ]
     },
     "Address": {
-      "description": "An IP address, or a DNS name, or a Tor onion name, or an I2P address,followed by the symbol ':', followed by a TCP port number, or the string 'iroh'.",
+      "description": "An IP address, or a DNS name, or a Tor onion name, or an I2P address,followed by the symbol ':', followed by a UDP port number, or the string 'iroh'.",
       "type": "string",
       "examples": [
         "xmrhfasfg5suueegrnc4gsgyi2tyclcy5oz7f5drnrodmdtob6t2ioyd.onion:8776",
@@ -558,7 +558,7 @@ $ rad config schema
           "default": "500.0 MiB"
         },
         "fetchTimeout": {
-          "description": "How long a fetch stream is allowed to stall before being aborted.\n\nThis is a per-stream inactivity timeout, not a cap on total fetch\nduration: if no bytes flow between the peers for longer than this, the\nfetch is aborted. The default value is suitable for direct TCP\nconnections; on high-latency anonymizing transports (Tor, I2P) a larger\nvalue avoids spurious aborts during tunnel rebuilds or congestion.",
+          "description": "How long a fetch stream is allowed to stall before being aborted.\n\nThis is a per-stream inactivity timeout, not a cap on total fetch\nduration: if no bytes flow between the peers for longer than this, the\nfetch is aborted. The default value is suitable for direct QUIC\nconnections; on high-latency anonymizing transports (Tor, I2P) a larger\nvalue avoids spurious aborts during tunnel rebuilds or congestion.",
           "$ref": "#/$defs/FetchTimeout",
           "default": 30
         }
