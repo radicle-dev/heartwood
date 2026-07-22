@@ -159,6 +159,14 @@ impl radicle::node::Handle for Handle {
 
     fn disconnect(&mut self, node: NodeId) -> Result<(), Self::Error> {
         let events = self.events();
+        let sessions = self.sessions()?;
+
+        if !sessions
+            .iter()
+            .any(|session| session.nid == node && session.state.is_connected())
+        {
+            return Ok(());
+        }
         self.command(service::Command::Disconnect(node))?;
         events
             .wait(
