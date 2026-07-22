@@ -2,8 +2,8 @@ use std::fmt;
 
 use localtime::LocalTime;
 
-pub use radicle_term::format::*;
-pub use radicle_term::{Paint, style};
+pub(crate) use radicle_term::format::*;
+pub(crate) use radicle_term::{Paint, style};
 
 use radicle::cob::ObjectId;
 use radicle::identity::Visibility;

@@ -26,7 +26,8 @@ use radicle::storage::git::transport::local::Url;
 use radicle::storage::{ReadRepository, SignRepository as _, WriteRepository};
 use radicle::{Profile, identity};
 use radicle::{git, rad};
-use radicle_cli::terminal as term;
+use radicle_cli as cli;
+use radicle_term as term;
 
 use crate::service::GitService;
 use crate::service::NodeSession;
@@ -85,7 +86,7 @@ pub(super) enum Error {
     PatchCache(#[from] patch::cache::Error),
     /// Patch edit message error.
     #[error(transparent)]
-    PatchEdit(#[from] term::patch::Error),
+    PatchEdit(#[from] cli::terminal::patch::Error),
     /// Policy config error.
     #[error("node policy: {0}")]
     Policy(#[from] node::policy::config::Error),
@@ -596,8 +597,12 @@ fn patch_open(
         return Err(Error::EmptyPatch);
     }
 
-    let (title, description) =
-        term::patch::get_create_message(opts.message, &stored.backend, &base.into(), &head.into())?;
+    let (title, description) = cli::terminal::patch::get_create_message(
+        opts.message,
+        &stored.backend,
+        &base.into(),
+        &head.into(),
+    )?;
 
     let patch = if opts.draft {
         patches.draft(title, &description, opts.target.clone(), base, *head, &[])
@@ -728,8 +733,12 @@ where
     let (latest_id, latest) = patch.latest();
     let latest = latest.clone();
 
-    let message =
-        term::patch::get_update_message(opts.message, &stored.backend, &latest, &head.into())?;
+    let message = cli::terminal::patch::get_update_message(
+        opts.message,
+        &stored.backend,
+        &latest,
+        &head.into(),
+    )?;
 
     let dst = dst.with_namespace(nid.into());
     push_ref(
@@ -751,7 +760,7 @@ where
     eprintln!(
         "{} Patch {} updated to revision {}",
         term::PREFIX_SUCCESS,
-        term::format::tertiary(term::format::cob(&patch_id)),
+        term::format::tertiary(cli::terminal::format::cob(&patch_id)),
         term::format::dim(revision.id())
     );
 
@@ -766,9 +775,9 @@ where
     } else {
         eprintln!(
             "To compare against your previous revision {}, run:\n\n   {}\n",
-            term::format::tertiary(term::format::cob(&cob::ObjectId::from(git::Oid::from(
-                latest_id
-            )))),
+            term::format::tertiary(cli::terminal::format::cob(&cob::ObjectId::from(
+                git::Oid::from(latest_id)
+            ))),
             patch::RangeDiff::new(&latest, &revision).to_command()
         );
     }
@@ -898,7 +907,7 @@ fn patch_revert_all(
                             "{} Patch {} reverted at revision {}",
                             term::PREFIX_WARNING,
                             term::format::tertiary(&id),
-                            term::format::dim(term::format::oid(*revision_id)),
+                            term::format::dim(cli::terminal::format::oid(*revision_id)),
                         );
                     }
                     Err(e) => {
@@ -1021,7 +1030,7 @@ where
             "{} Patch {} merged at revision {}",
             term::PREFIX_SUCCESS,
             term::format::tertiary(merged.patch),
-            term::format::dim(term::format::oid(revision)),
+            term::format::dim(cli::terminal::format::oid(revision)),
         );
     }
 

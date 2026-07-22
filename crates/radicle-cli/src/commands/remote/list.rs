@@ -37,7 +37,7 @@ pub struct Untracked {
     alias: Option<Alias>,
 }
 
-pub fn tracked(working: &git::Repository) -> anyhow::Result<Vec<Tracked>> {
+pub fn tracked(working: &radicle::git::raw::Repository) -> anyhow::Result<Vec<Tracked>> {
     Ok(git::rad_remotes(working)?
         .into_iter()
         .flat_map(|remote| {

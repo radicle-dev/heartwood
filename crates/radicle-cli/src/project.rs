@@ -13,7 +13,7 @@ pub struct SetupRemote<'a> {
     /// Whether or not to fetch the remote immediately.
     pub fetch: bool,
     /// The repository in which to set up the remote.
-    pub repo: &'a git::Repository,
+    pub repo: &'a radicle::git::raw::Repository,
 }
 
 impl SetupRemote<'_> {

@@ -31,7 +31,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
     let cwd = env::current_dir()?;
     let path = args.path.as_deref().unwrap_or(cwd.as_path());
-    let repo = match git::Repository::open(path) {
+    let repo = match raw::Repository::open(path) {
         Ok(r) => r,
         Err(e) if e.is_not_found() => {
             anyhow::bail!("a Git repository was not found at the given path")
@@ -51,7 +51,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     }
 }
 
-pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> anyhow::Result<()> {
+pub fn init(repo: raw::Repository, args: Args, profile: &profile::Profile) -> anyhow::Result<()> {
     let path = dunce::canonicalize(repo.workdir().unwrap_or_else(|| repo.path()))?;
     let interactive = args.interactive();
     let visibility = args.visibility();
@@ -225,7 +225,7 @@ pub fn init(repo: git::Repository, args: Args, profile: &profile::Profile) -> an
 }
 
 pub fn init_existing(
-    working: git::Repository,
+    working: raw::Repository,
     rid: RepoId,
     args: Args,
     profile: &profile::Profile,
@@ -486,7 +486,7 @@ pub fn announce(
 /// Set up Radicle key as commit signing key in repository.
 pub fn setup_signing(
     node_id: &NodeId,
-    repo: &git::Repository,
+    repo: &raw::Repository,
     interactive: Interactive,
 ) -> anyhow::Result<()> {
     const SIGNERS: &str = ".gitsigners";

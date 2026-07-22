@@ -3183,6 +3183,7 @@ dependencies = [
  "radicle",
  "radicle-cli",
  "radicle-log",
+ "radicle-term",
  "thiserror 2.0.18",
 ]
 

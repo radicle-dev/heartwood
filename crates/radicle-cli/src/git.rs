@@ -20,16 +20,10 @@ use thiserror::Error;
 
 use radicle::crypto::ssh;
 use radicle::git;
+use radicle::git::raw::{ErrorExt as _, Repository};
 use radicle::git::{VERSION_REQUIRED, Version};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::storage::git::transport;
-
-pub use radicle::git::Oid;
-
-pub use radicle::git::raw::{
-    AnnotatedCommit, Commit, Direction, ErrorCode, ErrorExt as _, MergeAnalysis, MergeOptions,
-    Reference, Repository, Signature, build::CheckoutBuilder,
-};
 
 pub const CONFIG_COMMIT_GPG_SIGN: &str = "commit.gpgsign";
 pub const CONFIG_SIGNING_KEY: &str = "user.signingkey";

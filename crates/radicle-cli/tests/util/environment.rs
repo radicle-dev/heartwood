@@ -232,10 +232,7 @@ impl Environment {
     /// For tests that need to act on multiple repositories,
     /// create the repositories as subdirectories of the working
     /// directory returned by [`Environment::work`].
-    pub fn repository(
-        &self,
-        has_alias: &impl HasAlias,
-    ) -> (radicle_cli::git::Repository, git::raw::Oid) {
+    pub fn repository(&self, has_alias: &impl HasAlias) -> (git::raw::Repository, git::raw::Oid) {
         radicle::test::fixtures::repository(self.work(has_alias).as_path())
     }
 

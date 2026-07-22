@@ -38,7 +38,8 @@ use radicle::storage::{ReadRepository, WriteStorage};
 use radicle::version::Version;
 use radicle::{Profile, git, storage};
 use radicle::{cob, profile};
-use radicle_cli::terminal as cli;
+use radicle_cli as cli;
+use radicle_term as term;
 
 use crate::protocol::{Command, Line, LineReader};
 
@@ -205,7 +206,7 @@ struct Options {
     /// Patch base to use, when opening or updating a patch.
     base: Option<git::Oid>,
     /// Patch message.
-    message: cli::patch::Message,
+    message: cli::terminal::patch::Message,
     /// Create a branch and set its upstream when opening a patch.
     branch: Branch,
     /// Patch target to use, when opening or updating a patch.
@@ -217,7 +218,7 @@ struct Options {
 fn run(profile: radicle::Profile) -> Result<(), Error> {
     // Since we're going to be writing user output to `stderr`, make sure the paint
     // module is aware of that.
-    cli::Paint::set_terminal(cli::TerminalFile::Stderr);
+    term::Paint::set_terminal(term::TerminalFile::Stderr);
 
     let (remote, url): (Option<git::fmt::RefString>, Url) = {
         let args = env::args().skip(1).take(2).collect::<Vec<_>>();
@@ -459,12 +460,12 @@ fn push_option(args: &[&str], opts: &mut Options) -> Result<(), Error> {
 
 /// Write a hint to the user.
 pub(crate) fn hint(s: impl fmt::Display) {
-    eprintln!("{}", cli::format::hint(format!("hint: {s}")));
+    eprintln!("{}", term::format::hint(format!("hint: {s}")));
 }
 
 /// Write a warning to the user.
 pub(crate) fn warn(s: impl fmt::Display) {
-    eprintln!("{}", cli::format::hint(format!("warn: {s}")));
+    eprintln!("{}", term::format::hint(format!("warn: {s}")));
 }
 
 /// Get the patch store.
@@ -475,7 +476,7 @@ pub(crate) fn patches<'a, Repo: ReadRepository + cob::Store<Namespace = NodeId>>
     match profile.patches(repo) {
         Ok(patches) => Ok(patches),
         Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
-            hint(cli::cob::MIGRATION_HINT);
+            hint(cli::terminal::cob::MIGRATION_HINT);
             Err(err.into())
         }
         Err(err) => Err(err.into()),
@@ -496,7 +497,7 @@ where
     match profile.patches_mut(repo, signer) {
         Ok(patches) => Ok(patches),
         Err(err @ profile::Error::CobsCache(cob::cache::Error::OutOfDate)) => {
-            hint(cli::cob::MIGRATION_HINT);
+            hint(cli::terminal::cob::MIGRATION_HINT);
             Err(err.into())
         }
         Err(err) => Err(err.into()),

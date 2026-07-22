@@ -20,7 +20,7 @@ use radicle::storage::{ReadRepository, WriteRepository as _};
 use crate::terminal as term;
 use crate::terminal::Element;
 
-pub use common::*;
+pub(crate) use common::*;
 
 #[derive(Debug, Error)]
 pub enum Error {

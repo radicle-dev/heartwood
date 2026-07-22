@@ -7,8 +7,8 @@ use radicle::crypto::ssh::Keystore;
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::profile::{Profile, Signer, SignerError};
 
-pub use radicle_term::io::*;
-pub use radicle_term::spinner;
+pub(crate) use radicle_term::io::*;
+pub(crate) use radicle_term::spinner;
 
 use inquire::validator;
 

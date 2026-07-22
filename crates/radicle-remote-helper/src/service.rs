@@ -9,7 +9,7 @@ use radicle::git;
 use radicle::node::Handle;
 use radicle::storage;
 use radicle_cli::node::{SyncError, SyncReporting, SyncSettings};
-use radicle_cli::terminal as term;
+use radicle_term as term;
 
 /// Abstraction for Git subprocess calls.
 pub(super) trait GitService {

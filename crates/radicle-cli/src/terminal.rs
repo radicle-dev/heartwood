@@ -3,7 +3,7 @@ pub(crate) use args::Error;
 
 pub mod format;
 pub mod io;
-pub use io::signer;
+pub(crate) use io::signer;
 pub mod cob;
 pub mod comment;
 pub mod highlight;
@@ -12,7 +12,7 @@ pub mod json;
 pub mod patch;
 pub mod upload_pack;
 
-pub use radicle_term::*;
+pub(crate) use radicle_term::*;
 
 use radicle::profile::{Home, Profile};
 
