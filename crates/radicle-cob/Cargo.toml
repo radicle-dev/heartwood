@@ -4,10 +4,6 @@ description = "Radicle Collaborative Objects library"
 homepage.workspace = true
 repository.workspace = true
 version = "0.21.0"
-authors = [
-  "Alex Good <alex@memoryandthought.me>",
-  "Fintan Halpenny <fintan.halpenny@gmail.com>",
-]
 edition.workspace = true
 license.workspace = true
 keywords = ["radicle", "cob", "cobs"]

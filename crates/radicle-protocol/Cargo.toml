@@ -4,7 +4,6 @@ description = "The Radicle Protocol"
 homepage.workspace = true
 license.workspace = true
 version = "0.9.0"
-authors = ["Radicle Team <team@radicle.dev>"]
 edition.workspace = true
 rust-version.workspace = true
 
