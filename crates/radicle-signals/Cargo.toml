@@ -5,7 +5,7 @@ homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 edition.workspace = true
-version = "0.11.0"
+version = "0.12.0"
 rust-version.workspace = true
 
 [target.'cfg(unix)'.dependencies]

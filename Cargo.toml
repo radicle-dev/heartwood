@@ -44,24 +44,24 @@ pretty_assertions = "1.3.0"
 proptest = "1.9"
 qcheck = { version = "1", default-features = false }
 qcheck-macros = { version = "1", default-features = false }
-radicle = { version = "0.24", path = "crates/radicle" }
-radicle-cli = { version = "0.21", path = "crates/radicle-cli" }
+radicle = { version = "0.25", path = "crates/radicle" }
+radicle-cli = { version = "0.22", path = "crates/radicle-cli" }
 radicle-cli-test = { path = "crates/radicle-cli-test" }
-radicle-cob = { version = "0.20", path = "crates/radicle-cob" }
-radicle-core = { version = "0.3", path = "crates/radicle-core" }
-radicle-crypto = { version = "0.17", path = "crates/radicle-crypto" }
+radicle-cob = { version = "0.21", path = "crates/radicle-cob" }
+radicle-core = { version = "0.4", path = "crates/radicle-core" }
+radicle-crypto = { version = "0.18", path = "crates/radicle-crypto" }
 radicle-dag = { version = "0.10", path = "crates/radicle-dag" }
-radicle-fetch = { version = "0.20", path = "crates/radicle-fetch" }
+radicle-fetch = { version = "0.21", path = "crates/radicle-fetch" }
 radicle-git-metadata = { version = "0.2.0", path = "crates/radicle-git-metadata", default-features = false }
 radicle-git-ref-format = { version = "0.1.0", path = "crates/radicle-git-ref-format", default-features = false }
 radicle-localtime = { version = "0.1", path = "crates/radicle-localtime" }
-radicle-log = { version = "0.1", path = "crates/radicle-log" }
-radicle-node = { version = "0.20", path = "crates/radicle-node" }
-radicle-oid = { version = "0.2.0", path = "crates/radicle-oid", default-features = false }
-radicle-protocol = { version = "0.8", path = "crates/radicle-protocol" }
-radicle-signals = { version = "0.11", path = "crates/radicle-signals" }
+radicle-log = { version = "0.2", path = "crates/radicle-log" }
+radicle-node = { version = "0.21", path = "crates/radicle-node" }
+radicle-oid = { version = "0.2.1", path = "crates/radicle-oid", default-features = false }
+radicle-protocol = { version = "0.9", path = "crates/radicle-protocol" }
+radicle-signals = { version = "0.12", path = "crates/radicle-signals" }
 radicle-systemd = { version = "0.13", path = "crates/radicle-systemd" }
-radicle-term = { version = "0.18", path = "crates/radicle-term" }
+radicle-term = { version = "0.19", path = "crates/radicle-term" }
 radicle-windows = { version = "0.1", path = "crates/radicle-windows" }
 schemars = { version = "1.0.4", default-features = false }
 serde = { version = "1.0", default-features = false }
