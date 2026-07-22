@@ -1849,7 +1849,7 @@ fn catchup_on_refs_announcements() {
 
     alice.connect(&seed);
     seed.has_repository(&acme);
-    alice.disconnect(&seed);
+    alice.disconnect(&mut seed);
     bob.connect(&seed);
     bob.has_repository(&acme);
 
@@ -1859,7 +1859,7 @@ fn catchup_on_refs_announcements() {
 
     log::debug!(target: "test", "Waiting for seed to fetch Bob's refs from Bob..");
     seed.has_remote_of(&acme, &bob.id); // Seed fetches Bob's refs.
-    bob.disconnect(&seed);
+    bob.disconnect(&mut seed);
     bob.shutdown();
 
     log::debug!(target: "test", "Alice re-connects to the seed..");
