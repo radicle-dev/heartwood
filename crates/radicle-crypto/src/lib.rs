@@ -402,6 +402,7 @@ pub struct VerifyingKey(dalek::ed::VerifyingKey);
 impl VerifyingKey {
     #[allow(clippy::wrong_self_convention)] // Name copied from dalek.
     #[inline]
+    #[cfg(any(feature = "diffie-hellman", feature = "ssh"))]
     pub(crate) fn to_bytes(&self) -> PublicKeyBytes {
         self.0.to_bytes()
     }
