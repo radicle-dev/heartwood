@@ -3,6 +3,7 @@ name = "radicle-git-ref-format"
 version = "0.1.0"
 description = "Radicle re-exports and macros for `git-ref-format-core`"
 
+categories = ["no-std"]
 keywords = ["radicle", "git", "refname", "ref", "references"]
 
 edition.workspace = true

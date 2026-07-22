@@ -3,6 +3,8 @@ name = "radicle-crypto"
 version = "0.18.0"
 description = "Radicle cryptographic primitives"
 
+categories = ["no-std"]
+
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
