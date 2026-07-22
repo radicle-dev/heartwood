@@ -10,7 +10,7 @@ use ::windows::core::BOOL;
 
 use crate::{Signal, already_installed};
 
-static NOTIFY: OnceLock<mpsc::Sender<Signal>> = OnceLock::new();
+static NOTIFY: OnceLock<mpsc::SyncSender<Signal>> = OnceLock::new();
 
 /// Callback function, called by the system when a control signal is to be received.
 /// See <https://learn.microsoft.com/en-us/windows/console/handlerroutine>.
@@ -38,7 +38,7 @@ unsafe extern "system" fn handler(ctrltype: u32) -> BOOL {
 
 /// Install global signal handlers, with notifications sent to the given
 /// `notify` channel.
-pub fn install(notify: mpsc::Sender<Signal>) -> io::Result<()> {
+pub fn install(notify: mpsc::SyncSender<Signal>) -> io::Result<()> {
     if let Err(_) = NOTIFY.set(notify) {
         return Err(already_installed());
     }
