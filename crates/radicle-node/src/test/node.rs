@@ -24,7 +24,7 @@ use radicle::node::config::ConnectAddress;
 use radicle::node::policy::store as policy;
 use radicle::node::seed::Store as _;
 use radicle::node::{self, Alias};
-use radicle::node::{ConnectOptions, Handle as _};
+use radicle::node::{ConnectOptions, ConnectResult, Handle as _};
 use radicle::node::{Database, POLICIES_DB_FILE};
 use radicle::profile::{Home, Profile, env};
 use radicle::rad;
@@ -95,40 +95,45 @@ impl Drop for NodeHandle {
 impl NodeHandle {
     /// Connect this node to another node, and wait for the connection to be established both ways.
     ///
-    /// If the remote has blocked this node, then the remote event will be
-    /// [`Event::PeerDisconnected`].
+    /// If the remote has blocked this node, return once the remote rejects the connection.
     pub fn connect(&mut self, remote: &NodeHandle) -> &mut Self {
-        let local_events = self.handle.events();
-        let remote_events = remote.handle.events();
-
-        self.handle
+        let events = remote.handle.events();
+        let result = self
+            .handle
             .connect(remote.id, remote.addr.into(), ConnectOptions::default())
-            .ok();
+            .unwrap();
 
-        local_events
-            .iter()
-            .find(|e| {
-                matches!(
-                    e, Event::PeerConnected { nid } if nid == &remote.id
-                )
-            })
-            .unwrap();
-        remote_events
-            .iter()
-            .find(|e| {
-                matches!(
-                    e,
-                    Event::PeerConnected { nid } | Event::PeerDisconnected { nid, .. }
-                    if nid == &self.id
-                )
-            })
-            .unwrap();
+        if matches!(result, ConnectResult::Connected) {
+            let connected = remote
+                .handle
+                .sessions()
+                .unwrap()
+                .iter()
+                .any(|session| session.nid == self.id && session.state.is_connected());
+
+            if !connected {
+                events
+                    .wait(
+                        |e| match e {
+                            Event::PeerConnected { nid } | Event::PeerDisconnected { nid, .. }
+                                if nid == &self.id =>
+                            {
+                                Some(())
+                            }
+                            _ => None,
+                        },
+                        Duration::from_secs(6),
+                    )
+                    .unwrap();
+            }
+        }
 
         self
     }
 
-    pub fn disconnect(&mut self, remote: &NodeHandle) {
+    pub fn disconnect(&mut self, remote: &mut NodeHandle) {
         self.handle.disconnect(remote.id).unwrap();
+        remote.handle.disconnect(self.id).unwrap();
     }
 
     /// Shutdown node.

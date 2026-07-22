@@ -55,6 +55,9 @@ pub const MAX_PENDING_TASKS: usize = 1024;
 /// How long shutdown waits for network tasks to finish before aborting them.
 const NETWORK_TASK_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(3);
 
+/// How long shutdown waits for iroh to drain and acknowledge connections.
+const IROH_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(3);
+
 /// A command delivered to the synchronous service actor.
 pub(crate) enum ServiceInput {
     User(service::Command),
@@ -407,10 +410,6 @@ impl Runtime {
             // Wake a non-blocking control accept loop before joining it.
             let _ = std::os::unix::net::UnixStream::connect(path);
         }
-        router
-            .shutdown()
-            .await
-            .map_err(|e| Error::Iroh(e.to_string()))?;
         if tokio::time::timeout(NETWORK_TASK_SHUTDOWN_TIMEOUT, async {
             while tasks.join_next().await.is_some() {}
         })
@@ -420,13 +419,25 @@ impl Runtime {
             tasks.abort_all();
             while tasks.join_next().await.is_some() {}
         }
+        let iroh_error = match tokio::time::timeout(IROH_SHUTDOWN_TIMEOUT, router.shutdown()).await
+        {
+            Ok(Ok(())) => None,
+            Ok(Err(err)) => Some(Error::Iroh(err.to_string())),
+            Err(_) => {
+                log::warn!(target: "node", "Timed out waiting for iroh endpoint shutdown");
+                None
+            }
+        };
         drop(shared);
         let _ = control_thread.join();
         let _ = self.service_thread.join();
         if let Some(path) = remove {
             let _ = fs::remove_file(path);
         }
-        result
+        match iroh_error {
+            Some(error) => Err(error),
+            None => result,
+        }
     }
 
     #[cfg(all(feature = "socket2", feature = "systemd", target_os = "linux"))]
@@ -700,8 +711,13 @@ async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
         .send(ServiceInput::Connected(remote, addr, link));
 
     let mut reason = DisconnectReason::connection();
+    let mut shutdown = shared.shutdown.clone();
     'gossip: loop {
         tokio::select! {
+            _ = shutdown.changed() => {
+                connection.close(0u32.into(), b"node shutting down");
+                break;
+            }
             incoming = wire::read_message(&mut recv) => match incoming {
                 Ok((message, _bytes)) => {
                     if shared.controller.send(ServiceInput::Message(remote, message)).is_err() { break; }
@@ -859,8 +875,15 @@ async fn endpoint_addr(remote: NodeId, addresses: &[Address]) -> io::Result<Endp
                 )));
             }
             Address::Dns { host, port } => {
-                for addr in tokio::net::lookup_host((host.as_str(), *port)).await? {
-                    result = result.with_ip_addr(addr);
+                match tokio::net::lookup_host((host.as_str(), *port)).await {
+                    Ok(addrs) => {
+                        for addr in addrs {
+                            result = result.with_ip_addr(addr);
+                        }
+                    }
+                    Err(err) => {
+                        log::debug!(target: "node", "Unable to resolve direct address {host}:{port}: {err}");
+                    }
                 }
             }
             #[cfg(feature = "tor")]

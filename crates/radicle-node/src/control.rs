@@ -36,13 +36,14 @@ pub enum Error {
 }
 
 /// Listen until the runtime requests shutdown. The listener must be non-blocking.
-pub fn listen<E, H>(
+pub(crate) fn listen<E, H>(
     listener: UnixListener,
     handle: H,
     stopping: Arc<AtomicBool>,
 ) -> Result<(), Error>
 where
     H: Handle<Error = runtime::handle::Error> + 'static,
+    H::Events: EventStream<Event = H::Event>,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -51,17 +52,19 @@ where
     let nid = handle.nid()?;
     let mut handlers = Vec::new();
     while !stopping.load(Ordering::Acquire) {
+        reap_finished(&mut handlers);
         match listener.accept() {
             Ok((mut stream, _)) => {
                 let handle = handle.clone();
+                let stopping = stopping.clone();
                 let shutdown = stream.try_clone().ok();
                 let join = thread::spawn(&nid, "control", move || {
-                    if let Err(e) = command(&stream, handle) {
+                    if let Err(e) = command(&stream, handle, stopping) {
                         log::debug!(target: "control", "Command returned error: {e}");
                         CommandResult::error(e).to_writer(&mut stream).ok();
-                        stream.flush().ok();
-                        stream.shutdown(net::Shutdown::Both).ok();
                     }
+                    stream.flush().ok();
+                    stream.shutdown(net::Shutdown::Both).ok();
                 });
                 handlers.push((shutdown, join));
             }
@@ -83,6 +86,23 @@ where
     Ok(())
 }
 
+/// Drop socket clones and join handlers which have already completed.
+///
+/// Socket clones are retained only so shutdown can interrupt handlers blocked
+/// in a command. Keeping them after the handler exits would otherwise prevent
+/// clients from observing EOF and leak one descriptor per command.
+fn reap_finished(handlers: &mut Vec<(Option<UnixStream>, std::thread::JoinHandle<()>)>) {
+    let mut index = 0;
+    while index < handlers.len() {
+        if handlers[index].1.is_finished() {
+            let (_, handler) = handlers.swap_remove(index);
+            let _ = handler.join();
+        } else {
+            index += 1;
+        }
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 enum CommandError {
     #[error("(de)serialization failed: {0}")]
@@ -93,9 +113,51 @@ enum CommandError {
     Io(#[from] io::Error),
 }
 
-fn command<E, H>(stream: &UnixStream, mut handle: H) -> Result<(), CommandError>
+pub(crate) enum EventPoll<T> {
+    Event(T),
+    Timeout,
+    Disconnected,
+}
+
+pub(crate) trait EventStream {
+    type Event;
+
+    fn recv_timeout(&mut self, timeout: time::Duration) -> EventPoll<Self::Event>;
+}
+
+impl EventStream for radicle::node::Events {
+    type Event = radicle::node::Event;
+
+    fn recv_timeout(&mut self, timeout: time::Duration) -> EventPoll<Self::Event> {
+        match std::sync::mpsc::Receiver::recv_timeout(self, timeout) {
+            Ok(event) => EventPoll::Event(event),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => EventPoll::Timeout,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => EventPoll::Disconnected,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T> EventStream for Vec<T> {
+    type Event = T;
+
+    fn recv_timeout(&mut self, _timeout: time::Duration) -> EventPoll<Self::Event> {
+        if self.is_empty() {
+            EventPoll::Disconnected
+        } else {
+            EventPoll::Event(self.remove(0))
+        }
+    }
+}
+
+fn command<E, H>(
+    stream: &UnixStream,
+    mut handle: H,
+    stopping: Arc<AtomicBool>,
+) -> Result<(), CommandError>
 where
     H: Handle<Error = runtime::handle::Error> + 'static,
+    H::Events: EventStream<Event = H::Event>,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -228,9 +290,15 @@ where
             }
         },
         Command::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
-            Ok(events) => {
-                for e in events {
-                    CommandResult::from(e).to_writer(&mut writer)?;
+            Ok(mut events) => {
+                while !stopping.load(Ordering::Acquire) {
+                    match events.recv_timeout(time::Duration::from_millis(100)) {
+                        EventPoll::Event(event) => {
+                            CommandResult::from(event).to_writer(&mut writer)?
+                        }
+                        EventPoll::Timeout => {}
+                        EventPoll::Disconnected => break,
+                    }
                 }
             }
             Err(e) => return Err(CommandError::Runtime(e)),
@@ -271,6 +339,7 @@ fn fetch<W: Write, H: Handle<Error = runtime::handle::Error>>(
     match handle.fetch(id, node, timeout, signed_references_minimum_feature_level) {
         Ok(result) => {
             json::to_writer(&mut writer, &result)?;
+            writer.write_all(b"\n")?;
         }
         Err(e) => {
             return Err(CommandError::Runtime(e));
@@ -288,7 +357,7 @@ mod tests {
     use radicle::identity::RepoId;
     use radicle::node::Handle;
     use radicle::node::policy::Scope;
-    use radicle::node::{Alias, Node, NodeId};
+    use radicle::node::{Alias, FetchResult, Node, NodeId};
     use radicle::test::arbitrary;
 
     use crate::test;
@@ -342,6 +411,25 @@ mod tests {
         for rid in &rids {
             assert!(handle.updates.lock().unwrap().contains(&(*rid, nid)));
         }
+
+        // Fetch results are serialized directly rather than through
+        // `CommandResult`, so make sure they are still newline-terminated.
+        let mut stream = UnixStream::connect(&socket).unwrap();
+        stream
+            .set_read_timeout(Some(time::Duration::from_secs(1)))
+            .unwrap();
+        Command::Fetch {
+            rid: *rids.iter().next().unwrap(),
+            nid: arbitrary::r#gen::<NodeId>(1),
+            timeout: time::Duration::from_secs(1),
+            signed_references_minimum_feature_level: None,
+        }
+        .to_writer(&mut stream)
+        .unwrap();
+
+        let line = BufReader::new(stream).lines().next().unwrap().unwrap();
+        let result: FetchResult = json::from_str(&line).unwrap();
+        assert!(result.is_success());
     }
 
     #[test]

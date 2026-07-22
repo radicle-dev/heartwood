@@ -158,7 +158,7 @@ pub struct Limits {
     ///
     /// This is a per-stream inactivity timeout, not a cap on total fetch
     /// duration: if no bytes flow between the peers for longer than this, the
-    /// fetch is aborted. The default value is suitable for direct TCP
+    /// fetch is aborted. The default value is suitable for direct QUIC
     /// connections; on high-latency anonymizing transports (Tor, I2P) a larger
     /// value avoids spurious aborts during tunnel rebuilds or congestion.
     pub fetch_timeout: FetchTimeout,
