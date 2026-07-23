@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   positional argument (or `--rid`).
 - The deprecated command `rad node sessions` was removed.
   Use `rad node status` instead.
+- The argument `--no-confirm` for `rad patch checkout` was removed.
 
 ## 1.11.0 - TODO
 
