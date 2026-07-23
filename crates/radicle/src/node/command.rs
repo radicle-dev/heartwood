@@ -1,11 +1,6 @@
 //! Commands sent to the node via the control socket, and auxiliary types, as
 //! well as their results (responses on the socket).
 
-// There are derives on an enum with a deprecated variant
-// in this module, see [`Command::AnnounceRefs`] and also
-// <https://github.com/rust-lang/rust/issues/92313>.
-#![allow(deprecated)]
-
 use std::collections::HashSet;
 use std::io;
 use std::time;
@@ -28,11 +23,6 @@ pub const DEFAULT_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 #[serde(rename_all = "camelCase", tag = "command")]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub enum Command {
-    /// Announce repository references for given repository to peers.
-    #[serde(rename_all = "camelCase")]
-    #[deprecated(note = "use `AnnounceRefsFor` instead")]
-    AnnounceRefs { rid: RepoId },
-
     /// Announce repository references for given repository
     /// and namespaces to peers.
     #[serde(rename_all = "camelCase")]
@@ -67,11 +57,6 @@ pub enum Command {
     /// Disconnect from a node.
     #[serde(rename_all = "camelCase")]
     Disconnect { nid: NodeId },
-
-    /// Look up seeds for the given repository in the routing table.
-    #[serde(rename_all = "camelCase")]
-    #[deprecated(note = "use `SeedsFor` instead")]
-    Seeds { rid: RepoId },
 
     /// Look up seeds for the given repository in the routing table and
     /// report sync status for the given namespaces.
