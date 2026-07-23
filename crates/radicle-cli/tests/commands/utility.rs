@@ -1,8 +1,9 @@
 use std::str::FromStr as _;
 
-use radicle::node::DEFAULT_TIMEOUT;
+use radicle::node::config::ConnectAddress;
 use radicle::node::policy::Scope;
 use radicle::node::{Alias, Handle as _};
+use radicle::node::{DEFAULT_TIMEOUT, PeerAddr};
 use radicle::prelude::RepoId;
 use radicle::profile;
 
@@ -58,12 +59,93 @@ fn rad_config() {
 
 #[test]
 fn rad_warn_old_nodes() {
-    Environment::alice(["rad-warn-old-nodes"]);
+    use std::str::FromStr as _;
+
+    let mut environment = Environment::new();
+    let alias = Alias::new("alice");
+
+    let mut config = profile::Config::new(alias);
+
+    config.preferred_seeds = vec![
+        ConnectAddress::from(
+            PeerAddr::from_str(
+                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@seed.radicle.garden:8776",
+            )
+            .unwrap(),
+        ),
+        ConnectAddress::from(
+            PeerAddr::from_str(
+                "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@rosa.radicle.xyz:8776",
+            )
+            .unwrap(),
+        ),
+    ];
+
+    config.node.connect = [
+        ConnectAddress::from(
+            PeerAddr::from_str(
+                "z6Mkmqogy2qEM2ummccUthFEaaHvyYmYBYh3dbe9W4ebScxo@ash.radicle.garden:8776",
+            )
+            .unwrap(),
+        ),
+        ConnectAddress::from(
+            PeerAddr::from_str(
+                "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.xyz:8776",
+            )
+            .unwrap(),
+        ),
+    ]
+    .into_iter()
+    .collect();
+
+    let profile = environment.profile_with(config);
+    let working = tempfile::tempdir().unwrap();
+
+    test(
+        "examples/rad-warn-old-nodes.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]
 fn rad_warn_ipv6() {
-    Environment::alice(["rad-warn-ipv6"]);
+    let mut environment = Environment::new();
+    let alias = Alias::new("alice");
+    let profile = environment.profile_with(profile::Config::new(alias));
+
+    let config = serde_json::json!({
+        "preferredSeeds": [
+            "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::1:8776"
+        ],
+        "node": {
+            "alias": "alice",
+            "connect": [
+                "z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::2:8776"
+            ],
+            "externalAddresses": [
+                "2001:db8::3:8776"
+            ]
+        }
+    });
+
+    std::fs::write(
+        profile.home.config(),
+        serde_json::to_string_pretty(&config).unwrap(),
+    )
+    .unwrap();
+
+    let working = tempfile::tempdir().unwrap();
+
+    test(
+        "examples/rad-warn-ipv6.md",
+        working.path(),
+        Some(&profile.home),
+        [],
+    )
+    .unwrap();
 }
 
 #[test]
