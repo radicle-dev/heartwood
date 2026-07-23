@@ -189,11 +189,16 @@ impl From<StreamType> for u8 {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |      'r'      |      'a'      |      'd'      |      0x1      | Version
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                     Stream ID                           |TTT|I| Stream ID with Stream [T]ype and [I]nitiator bits
+/// |                                                       |T T T I| Stream ID
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// |                     Data                                     …| Data (variable size)
+/// |                                                              …| Data (variable size)
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// ```
+///
+/// Note that the last four bits of the Stream ID encode the Stream Type
+/// and Initiator.
+/// The first three bits of the last four bits encode the Stream Type,
+/// while the last bit encodes the Initiator.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Frame<M = Message> {
     /// The protocol version.
