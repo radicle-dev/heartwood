@@ -16,9 +16,4 @@ pub struct Args {
     /// The DID of the remote peer to checkout
     #[arg(long, value_name = "DID")]
     pub(super) remote: Option<Did>,
-
-    /// Don't ask for confirmation during checkout
-    // TODO(erikli): This is obsolete and should be removed
-    #[arg(long)]
-    no_confirm: bool,
 }
