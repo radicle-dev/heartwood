@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Whenever the repository ID is optional (in most cases inferred from the
   current working directory), it is now passed via `--repo`, and not a
   positional argument (or `--rid`).
+- The deprecated command `rad node sessions` was removed.
+  Use `rad node status` instead.
 
 ## 1.11.0 - TODO
 
