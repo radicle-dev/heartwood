@@ -265,11 +265,33 @@ impl NodeHandle {
         self.rad("clone", &[rid.to_string().as_str()], cwd)
     }
 
-    /// Fork a repo.
+    /// Clone a repo and initialize our namespace by pushing its default branch.
+    ///
+    /// This function is called "fork" for historical reasons. There used to
+    /// be a command `rad fork` that was used to initialize namespaces.
     pub fn fork<P: AsRef<Path>>(&self, rid: RepoId, cwd: P) -> io::Result<()> {
-        self.clone(rid, &cwd)?;
-        self.rad("fork", &[rid.to_string().as_str()], &cwd)?;
-        self.announce(rid, 1, &cwd)?;
+        let cwd = cwd.as_ref();
+        self.clone(rid, cwd)?;
+
+        let doc = self
+            .storage
+            .get(rid)
+            .map_err(io::Error::other)?
+            .ok_or_else(|| io::Error::other(format!("repository {rid} was not found")))?;
+
+        let project = doc.project().map_err(io::Error::other)?;
+        let working =
+            git::raw::Repository::open(cwd.join(project.name())).map_err(io::Error::other)?;
+        let branch = git::fmt::Qualified::from(git::fmt::lit::refs_heads(project.default_branch()));
+
+        transport::local::register(self.storage.clone());
+        git::push(&working, &rad::REMOTE_NAME, [(&branch, &branch)]).map_err(io::Error::other)?;
+        self.storage
+            .repository(rid)
+            .map_err(io::Error::other)?
+            .sign_refs(&self.signer)
+            .map_err(io::Error::other)?;
+        self.announce(rid, 1, cwd)?;
 
         Ok(())
     }

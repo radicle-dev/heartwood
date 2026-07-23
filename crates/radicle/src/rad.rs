@@ -8,7 +8,6 @@ use thiserror::Error;
 use crate::cob::ObjectId;
 use crate::git;
 use crate::git::BranchName;
-use crate::identity::doc;
 use crate::identity::doc::{DocError, GetPayload as _, RepoId, Visibility};
 use crate::identity::project::{Project, ProjectName};
 use crate::storage::RepositoryError;
@@ -140,78 +139,6 @@ fn init_configure(
     let signed = stored.sign_refs(signer)?;
 
     Ok(signed)
-}
-
-#[derive(Error, Debug)]
-pub enum ForkError {
-    #[error("git: {0}")]
-    Git(#[from] git::raw::Error),
-    #[error("storage: {0}")]
-    Storage(#[from] storage::Error),
-    #[error("payload: {0}")]
-    Payload(#[from] doc::PayloadError),
-    #[error("repository `{0}` was not found in storage")]
-    NotFound(RepoId),
-    #[error("repository: {0}")]
-    Repository(#[from] RepositoryError),
-}
-
-/// Create a local tree for an existing project, from an existing remote.
-#[cfg(any(test, feature = "test"))]
-pub fn fork_remote(
-    proj: RepoId,
-    remote: &RemoteId,
-    signer: &impl crypto::Signer,
-    storage: impl storage::WriteStorage,
-) -> Result<(), ForkError> {
-    // TODO: Copy tags over?
-
-    // Creates or copies the following references:
-    //
-    // refs/namespaces/<pk>/refs/heads/master
-    // refs/namespaces/<pk>/refs/rad/sigrefs
-    // refs/namespaces/<pk>/refs/tags/*
-
-    let me = signer.public_key();
-    let doc = storage.get(proj)?.ok_or(ForkError::NotFound(proj))?;
-    let repository = storage.repository_mut(proj)?;
-
-    let raw = repository.raw();
-
-    let default_branch = doc.default_branch().unwrap();
-
-    let remote_head = raw.refname_to_id(default_branch.with_namespace(remote.into()).as_str())?;
-
-    raw.reference(
-        &default_branch.with_namespace(me.into()),
-        remote_head,
-        false,
-        &format!("creating default branch for {me}"),
-    )?;
-    repository.sign_refs(signer)?;
-
-    Ok(())
-}
-
-pub fn fork(
-    rid: RepoId,
-    signer: &impl crypto::Signer,
-    storage: &impl storage::WriteStorage,
-) -> Result<(), ForkError> {
-    let me = signer.public_key();
-    let repository = storage.repository_mut(rid)?;
-    let (canonical_branch, canonical_head) = repository.head()?;
-    let raw = repository.raw();
-
-    raw.reference(
-        &canonical_branch.with_namespace(me.into()),
-        canonical_head.into(),
-        true,
-        &format!("creating default branch for {me}"),
-    )?;
-    repository.sign_refs(signer)?;
-
-    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -499,11 +426,11 @@ mod tests {
 
     use crate::crypto::{Signer as _, SigningKey};
     use crate::identity::Did;
+    use crate::storage::ReadStorage;
     use crate::storage::git::Storage;
     use crate::storage::git::transport;
-    use crate::storage::{ReadStorage, RemoteRepository as _};
     use crate::test::fixtures;
-    use git::fmt::{component, qualified};
+    use git::fmt::component;
 
     use super::*;
 
@@ -557,45 +484,6 @@ mod tests {
         assert_eq!(project.description(), "Acme's repo");
         assert_eq!(project.default_branch(), &git::fmt::refname!("master"));
         assert_eq!(doc.delegates().first(), &Did::from(public_key));
-    }
-
-    #[test]
-    fn test_fork() {
-        let mut rng = fastrand::Rng::new();
-        let tempdir = tempfile::tempdir().unwrap();
-        let alice = SigningKey::mock(rng.usize(..));
-        let bob = SigningKey::mock(rng.usize(..));
-        let bob_id = bob.public_key();
-        let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
-
-        transport::local::register(storage.clone());
-
-        // Alice creates a project.
-        let (original, _) = fixtures::repository(tempdir.path().join("original"));
-        let (id, _, alice_refs) = init(
-            &original,
-            "acme".try_into().unwrap(),
-            "Acme's repo",
-            git::fmt::refname!("master"),
-            Visibility::default(),
-            &alice,
-            &storage,
-        )
-        .unwrap();
-
-        // Bob forks it and creates a checkout.
-        fork(id, &bob, &storage).unwrap();
-        checkout(id, bob_id, tempdir.path().join("copy"), &storage, false).unwrap();
-
-        let bob_remote = storage.repository(id).unwrap().remote(bob_id).unwrap();
-
-        assert_eq!(
-            bob_remote
-                .refs
-                .get(&qualified!("refs/heads/master"))
-                .unwrap(),
-            alice_refs.get(&qualified!("refs/heads/master")).unwrap()
-        );
     }
 
     #[test]

@@ -382,3 +382,40 @@ fn git_push_canonical() {
     .run()
     .unwrap();
 }
+
+#[test]
+fn git_push_initial() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let rid = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
+
+    alice.connect(&bob);
+    environment.repository(&alice);
+
+    // Bob already has a matching Git repository, but hasn't initialized a
+    // namespace for the Radicle project yet.
+    let (working, _) = environment.repository(&bob);
+    let url = radicle::git::Url::from(rid);
+    radicle::git::configure_repository(&working).unwrap();
+    radicle::git::configure_remote(
+        &working,
+        &radicle::rad::REMOTE_NAME,
+        &url,
+        &url.clone().with_namespace(bob.id),
+    )
+    .unwrap();
+
+    // Alice initializes a repo after her node has started, and after bob has connected to it.
+    environment.test("rad-init-sync", &alice).unwrap();
+
+    // Wait for bob to get any updates to the routing table.
+    bob.converge([&alice]);
+
+    environment
+        .tests(["rad-fetch", "git/git-push-initial"], &bob)
+        .unwrap();
+}

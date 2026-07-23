@@ -459,6 +459,37 @@ impl Repository {
         Ok(Self { id, backend })
     }
 
+    /// Initialize the signer's namespace by populating it with the default
+    /// branch for this repository, taken from the source namespace.
+    ///
+    /// This has the same effect on storage, as an initial push of the default
+    /// branch, but is intended for low-level tests where no profile or
+    /// working copy is available.
+    ///
+    /// # Panics
+    ///
+    /// On error. This function is intended for testing only.
+    #[cfg(any(test, feature = "test"))]
+    #[allow(clippy::unwrap_used)]
+    pub fn initialize_namespace(&self, source: &RemoteId, signer: &impl crate::crypto::Signer) {
+        let default_branch = self.identity_doc().unwrap().default_branch().unwrap();
+
+        let (source, target) = (
+            default_branch.with_namespace(source.into()),
+            default_branch.with_namespace(signer.public_key().into()),
+        );
+
+        // Resolve the head from the source namespace.
+        let head = self.raw().refname_to_id(source.as_str()).unwrap();
+
+        // Write the head to the target namespace.
+        self.raw()
+            .reference(target.as_str(), head, false, "initialize namespace")
+            .unwrap();
+
+        self.sign_refs(signer).unwrap();
+    }
+
     /// Remove an existing repository
     pub fn remove(&self) -> Result<(), Error> {
         let path = self.backend.path();

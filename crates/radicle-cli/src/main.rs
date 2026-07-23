@@ -68,8 +68,6 @@ enum Command {
     Config(config::Args),
     Debug(debug::Args),
     Follow(follow::Args),
-    #[command(hide = true)] // `rad fork` command is deprecated
-    Fork(fork::Args),
     Id(id::Args),
     Inbox(inbox::Args),
     Init(init::Args),
@@ -265,7 +263,6 @@ fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::
         Command::Config(args) => config::run(args, ctx),
         Command::Debug(args) => debug::run(args, ctx),
         Command::Follow(args) => follow::run(args, ctx),
-        Command::Fork(args) => fork::run(args, ctx),
         Command::Id(args) => id::run(args, ctx),
         Command::Inbox(args) => inbox::run(args, ctx),
         Command::Init(args) => init::run(args, ctx),
