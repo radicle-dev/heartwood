@@ -1,9 +1,8 @@
 [package]
 name = "radicle-git-ref-format"
 version = "0.1.0"
-description = "Radicle re-exports and macros for `git-ref-format-core`"
+description = "Everything you never knew you wanted for handling git ref names."
 
-categories = ["no-std"]
 keywords = ["radicle", "git", "refname", "ref", "references"]
 
 edition.workspace = true
@@ -13,8 +12,10 @@ rust-version.workspace = true
 
 [features]
 macro = []
-bstr = ["git-ref-format-core/bstr"]
-serde = ["git-ref-format-core/serde"]
 
 [dependencies]
-git-ref-format-core.workspace = true
+thiserror = { workspace = true }
+serde = { workspace = true, optional = true, features = ["derive", "std"] }
+bstr = { workspace = true, optional = true }
+percent-encoding = { version = "2.1.0", optional = true }
+minicbor = { version = "0.13", features = ["std"], optional = true }

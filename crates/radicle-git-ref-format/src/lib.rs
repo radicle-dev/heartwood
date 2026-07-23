@@ -1,15 +1,13 @@
-#![no_std]
-
 //! [`git_ref_format`]: https://crates.io/crates/git-ref-format
 //! [`radicle-git-ext`]: https://crates.io/crates/radicle-git-ext
 //!
-//! This crate depends on and re-exports from [`git_ref_format_core`].
-//!
 //! ## Macros
 //!
-//! Instead of providing procedural macros, like [`git_ref_format`]
-//! it just provides much simpler declarative macros, guarded by the feature
+//! Instead of providing procedural macros, like [`git_ref_format`] this
+//! crate just provides much simpler declarative macros, guarded by the feature
 //! flag `macro`.
+//!
+//! ## Comparison to [`git_ref_format`]
 //!
 //! ### Benefits
 //!
@@ -25,9 +23,29 @@
 //! these tests are run, then the guarantees are equally strong. Consumers that
 //! do not or cannot test their code should not use the macros then.
 
-pub use git_ref_format_core::*;
+mod check;
+pub use check::{Error, Options, ref_format as check_ref_format};
 
-/// Create a [`git_ref_format_core::RefString`] from a string literal.
+mod deriv;
+pub use deriv::{Namespaced, Qualified};
+
+pub mod lit;
+
+pub mod name;
+#[cfg(feature = "percent-encoding")]
+pub use name::PercentEncode;
+pub use name::{Component, RefStr, RefString};
+
+pub mod refspec;
+pub use refspec::DuplicateGlob;
+
+#[cfg(feature = "minicbor")]
+mod cbor;
+
+#[cfg(feature = "serde")]
+mod serde;
+
+/// Create a [`crate::RefString`] from a string literal.
 ///
 /// Similar to [`core::debug_assert`], an optimized build will not validate
 /// (but rather perform an unsafe conversion) unless `-C debug-assertions` is
@@ -59,7 +77,7 @@ macro_rules! refname {
     }};
 }
 
-/// Create a [`git_ref_format_core::Qualified`] from a string literal.
+/// Create a [`crate::Qualified`] from a string literal.
 ///
 /// Similar to [`core::debug_assert`], an optimized build will not validate
 /// (but rather perform an unsafe conversion) unless `-C debug-assertions` is
@@ -100,7 +118,7 @@ macro_rules! qualified {
     }};
 }
 
-/// Create a [`git_ref_format_core::Component`] from a string literal.
+/// Create a [`crate::Component`] from a string literal.
 ///
 /// Similar to [`core::debug_assert`], an optimized build will not validate
 /// (but rather perform an unsafe conversion) unless `-C debug-assertions` is
@@ -141,7 +159,7 @@ macro_rules! component {
     }};
 }
 
-/// Create a [`git_ref_format_core::refspec::PatternString`] from a string literal.
+/// Create a [`crate::refspec::PatternString`] from a string literal.
 ///
 /// Similar to [`core::debug_assert`], an optimized build will not validate
 /// (but rather perform an unsafe conversion) unless `-C debug-assertions` is
@@ -173,7 +191,7 @@ macro_rules! pattern {
     }};
 }
 
-/// Create a [`git_ref_format_core::refspec::QualifiedPattern`] from a string literal.
+/// Create a [`crate::refspec::QualifiedPattern`] from a string literal.
 ///
 /// Similar to [`core::debug_assert`], an optimized build will not validate
 /// (but rather perform an unsafe conversion) unless `-C debug-assertions` is

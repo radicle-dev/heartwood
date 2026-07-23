@@ -1,14 +1,13 @@
 use std::convert::TryFrom;
 
 use minicbor::{
-    decode,
+    Decode, Decoder, Encode, Encoder, decode,
     encode::{self, Write},
-    Decode, Decoder, Encode, Encoder,
 };
 
 use crate::{
-    refspec::{PatternStr, PatternString},
     Namespaced, Qualified, RefStr, RefString,
+    refspec::{PatternStr, PatternString},
 };
 
 impl<'de: 'a, 'a> Decode<'de> for &'a RefStr {

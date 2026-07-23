@@ -76,9 +76,6 @@ winpipe = "0.1.1"
 winsplit = "0.1.0"
 zeroize = { version = "1.5.7", default-features = false }
 
-# Crates from the "radicle-git" workspace.
-git-ref-format-core = { version = "0.6.0", default-features = false }
-
 [workspace.lints.clippy]
 fallible_impl_from = "deny"
 fn_params_excessive_bools = "deny"

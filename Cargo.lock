@@ -1207,17 +1207,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
-name = "git-ref-format-core"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1955ef3abddd586f24c834d28f959d610157ab5cb71f2200911932a0018d0364"
-dependencies = [
- "bstr",
- "serde",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "git2"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2911,7 +2900,6 @@ name = "radicle-cob"
 version = "0.21.0"
 dependencies = [
  "fastrand",
- "git-ref-format-core",
  "git2",
  "log",
  "nonempty 0.9.0",
@@ -2954,10 +2942,10 @@ dependencies = [
  "curve25519-dalek",
  "cyphernet",
  "ed25519-dalek",
- "git-ref-format-core",
  "multibase",
  "qcheck",
  "qcheck-macros",
+ "radicle-git-ref-format",
  "schemars",
  "serde",
  "sqlite",
@@ -3006,7 +2994,11 @@ dependencies = [
 name = "radicle-git-ref-format"
 version = "0.1.0"
 dependencies = [
- "git-ref-format-core",
+ "bstr",
+ "minicbor",
+ "percent-encoding",
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

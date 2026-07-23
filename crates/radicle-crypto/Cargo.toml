@@ -24,7 +24,7 @@ test = ["alloc", "qcheck"]
 
 [dependencies]
 cyphernet = { workspace = true, features = ["ed25519"], optional = true }
-git-ref-format-core = { workspace = true, optional = true }
+radicle-git-ref-format = { workspace = true, optional = true }
 multibase = { workspace = true, default-features = false, optional = true }
 qcheck = { workspace = true, optional = true }
 schemars = { workspace = true, default-features = false, features = ["derive"], optional = true }

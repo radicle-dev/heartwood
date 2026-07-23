@@ -7,13 +7,12 @@ use std::{
 };
 
 use crate::{
-    check,
+    Namespaced, Qualified, check,
     refspec::{PatternStr, PatternString},
-    Namespaced, Qualified,
 };
 
 mod iter;
-pub use iter::{component, Component, Components, Iter};
+pub use iter::{Component, Components, Iter, component};
 
 #[cfg(feature = "percent-encoding")]
 pub use percent_encoding::PercentEncode;
@@ -152,7 +151,7 @@ impl RefStr {
     }
 
     #[cfg(feature = "percent-encoding")]
-    pub fn percent_encode(&self) -> PercentEncode {
+    pub fn percent_encode(&self) -> PercentEncode<'_> {
         /// https://url.spec.whatwg.org/#fragment-percent-encode-set
         const FRAGMENT_PERCENT_ENCODE_SET: &percent_encoding::AsciiSet =
             &percent_encoding::CONTROLS

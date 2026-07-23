@@ -1,4 +1,4 @@
-use crate::{name, Qualified, RefStr};
+use crate::{Qualified, RefStr, name};
 
 /// A literal [`RefStr`].
 ///

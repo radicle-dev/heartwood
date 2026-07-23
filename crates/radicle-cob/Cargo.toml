@@ -18,7 +18,7 @@ test = []
 
 [dependencies]
 fastrand = { workspace = true }
-git-ref-format-core = { workspace = true }
+radicle-git-ref-format = { workspace = true }
 git2 = { workspace = true, optional = true }
 log = { workspace = true }
 nonempty = { workspace = true, features = ["serialize"] }
@@ -34,7 +34,7 @@ thiserror = { workspace = true, default-features = true }
 fastrand = { workspace = true }
 qcheck = { workspace = true }
 qcheck-macros = { workspace = true }
-radicle-crypto = { workspace = true, features = ["test", "git-ref-format-core"] }
+radicle-crypto = { workspace = true, features = ["test", "radicle-git-ref-format"] }
 radicle-git-ref-format = { workspace = true, features = ["macro"] }
 radicle-oid = { workspace = true, features = ["qcheck"] }
 tempfile = { workspace = true }

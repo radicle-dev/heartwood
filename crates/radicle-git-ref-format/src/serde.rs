@@ -1,10 +1,10 @@
 use std::convert::TryFrom;
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
-    refspec::{NamespacedPattern, PatternStr, PatternString, QualifiedPattern},
     Namespaced, Qualified, RefStr, RefString,
+    refspec::{NamespacedPattern, PatternStr, PatternString, QualifiedPattern},
 };
 
 impl<'de: 'a, 'a> Deserialize<'de> for &'a RefStr {

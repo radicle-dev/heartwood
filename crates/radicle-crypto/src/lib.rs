@@ -225,25 +225,25 @@ impl PublicKey {
     /// and `<public-key>` is encoded in human-readable format
     /// ([`PublicKey::to_human`]).
     #[cfg(all(
-        feature = "git-ref-format-core",
+        feature = "radicle-git-ref-format",
         feature = "alloc",
         feature = "multibase"
     ))]
-    pub fn to_namespace(&self) -> git_ref_format_core::RefString {
+    pub fn to_namespace(&self) -> radicle_git_ref_format::RefString {
         use alloc::borrow::ToOwned as _;
-        use git_ref_format_core::name::{NAMESPACES, REFS};
+        use radicle_git_ref_format::name::{NAMESPACES, REFS};
         REFS.to_owned().and(NAMESPACES).and(self.to_component())
     }
 
     /// Encode the public key a Git reference component, which is equivalent to
     /// the human-readable format ([`PublicKey::to_human`]).
     #[cfg(all(
-        feature = "git-ref-format-core",
+        feature = "radicle-git-ref-format",
         feature = "alloc",
         feature = "multibase"
     ))]
-    pub fn to_component(&self) -> git_ref_format_core::Component<'_> {
-        git_ref_format_core::Component::from(self)
+    pub fn to_component(&self) -> radicle_git_ref_format::Component<'_> {
+        radicle_git_ref_format::Component::from(self)
     }
 
     /// Decode a [`PublicKey`] from a namespaced Git reference, expected to be
@@ -254,12 +254,12 @@ impl PublicKey {
     /// The `<public-key>` is decoded from the human-readable format
     /// ([`PublicKey::to_human`]).
     #[cfg(all(
-        feature = "git-ref-format-core",
+        feature = "radicle-git-ref-format",
         feature = "alloc",
         feature = "multibase"
     ))]
     pub fn from_namespaced(
-        refstr: &git_ref_format_core::Namespaced,
+        refstr: &radicle_git_ref_format::Namespaced,
     ) -> Result<Self, PublicKeyError> {
         use alloc::str::FromStr as _;
 
@@ -292,13 +292,13 @@ impl alloc::str::FromStr for PublicKey {
 }
 
 #[cfg(all(
-    feature = "git-ref-format-core",
+    feature = "radicle-git-ref-format",
     feature = "alloc",
     feature = "multibase"
 ))]
-impl From<&PublicKey> for git_ref_format_core::Component<'_> {
+impl From<&PublicKey> for radicle_git_ref_format::Component<'_> {
     fn from(id: &PublicKey) -> Self {
-        use git_ref_format_core::{Component, RefString};
+        use radicle_git_ref_format::{Component, RefString};
         let refstr =
             RefString::try_from(id.to_string()).expect("encoded public keys are valid ref strings");
         Component::from_refstr(refstr).expect("encoded public keys are valid refname components")

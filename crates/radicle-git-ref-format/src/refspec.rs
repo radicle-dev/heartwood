@@ -8,10 +8,10 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{check, lit, Namespaced, Qualified, RefStr, RefString};
+use crate::{Namespaced, Qualified, RefStr, RefString, check, lit};
 
 mod iter;
-pub use iter::{component, Component, Components, Iter};
+pub use iter::{Component, Components, Iter, component};
 
 pub const STAR: &PatternStr = PatternStr::from_str("*");
 
@@ -458,19 +458,20 @@ impl From<QualifiedPattern<'_>> for PatternString {
 /// A [`PatternString`] ref under a git namespace.
 ///
 /// A ref is namespaced if it starts with "refs/namespaces/", another path
-/// component, and "refs/". Eg.
-///
-///     refs/namespaces/xyz/refs/heads/main
+/// component, and "refs/", for example, "refs/namespaces/xyz/refs/heads/main".
 ///
 /// Note that namespaces can be nested, so the result of
 /// [`NamespacedPattern::strip_namespace`] may be convertible to a
 /// [`NamespacedPattern`] again. For example:
 ///
-/// ```no_run
-/// let full = pattern!("refs/namespaces/a/refs/namespaces/b/refs/heads/*");
+/// ```
+/// use radicle_git_ref_format::refspec::PatternString;
+///
+/// let full =
+///     PatternString::try_from("refs/namespaces/a/refs/namespaces/b/refs/heads/*").unwrap();
 /// let namespaced = full.to_namespaced().unwrap();
 /// let strip_first = namespaced.strip_namespace();
-/// let nested = strip_first.namespaced().unwrap();
+/// let nested = strip_first.to_namespaced().unwrap();
 /// let strip_second = nested.strip_namespace();
 ///
 /// assert_eq!("a", namespaced.namespace().as_str());

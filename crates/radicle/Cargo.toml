@@ -43,7 +43,7 @@ nonempty = { workspace = true, features = ["serialize"] }
 qcheck = { workspace = true, optional = true }
 radicle-cob = { workspace = true, features = ["git2"] }
 radicle-core = { workspace = true, features = ["git2", "serde", "sqlite"] }
-radicle-crypto = { workspace = true, features = ["git-ref-format-core", "serde", "ssh", "sqlite", "cyphernet"] }
+radicle-crypto = { workspace = true, features = ["radicle-git-ref-format", "serde", "ssh", "sqlite", "cyphernet"] }
 radicle-git-ref-format = { workspace = true, features = ["macro", "serde"] }
 radicle-git-metadata = { workspace = true }
 radicle-localtime = { workspace = true, features = ["serde"] }

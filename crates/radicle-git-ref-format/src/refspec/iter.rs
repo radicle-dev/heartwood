@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 use super::PatternStr;
-use crate::{lit, RefStr};
+use crate::{RefStr, lit};
 
 pub type Iter<'a> = std::str::Split<'a, char>;
 

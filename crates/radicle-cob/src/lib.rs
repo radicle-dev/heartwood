@@ -59,10 +59,10 @@ extern crate qcheck;
 #[macro_use(quickcheck)]
 extern crate qcheck_macros;
 
-extern crate git_ref_format_core as fmt;
 extern crate radicle_crypto as crypto;
 extern crate radicle_dag as dag;
 extern crate radicle_git_metadata as metadata;
+extern crate radicle_git_ref_format as fmt;
 extern crate radicle_oid as oid;
 
 mod backend;

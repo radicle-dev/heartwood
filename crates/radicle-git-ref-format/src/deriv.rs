@@ -5,9 +5,8 @@ use std::{
 };
 
 use crate::{
-    lit, name,
+    Component, RefStr, RefString, lit, name,
     refspec::{PatternStr, QualifiedPattern},
-    Component, RefStr, RefString,
 };
 
 /// A fully-qualified refname.
@@ -28,8 +27,8 @@ impl<'a> Qualified<'a> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// use git_ref_format::{component, Qualified};
+    /// ```
+    /// use radicle_git_ref_format::{name::component, Qualified};
     ///
     /// assert_eq!(
     ///     "refs/heads/main",
@@ -269,20 +268,22 @@ impl Display for Qualified<'_> {
 /// A [`Qualified`] ref under a git namespace.
 ///
 /// A ref is namespaced if it starts with "refs/namespaces/", another path
-/// component, and "refs" or "HEAD". Eg.
-///
-///     refs/namespaces/xyz/refs/heads/main
-///     refs/namespaces/xyz/HEAD
+/// component, and "refs" or "HEAD".
+/// For example "/namespaces/xyz/refs/heads/main"
+/// or "refs/namespaces/xyz/HEAD".
 ///
 /// Note that namespaces can be nested, so the result of
 /// [`Namespaced::strip_namespace`] may be convertible to a [`Namespaced`]
 /// again. For example:
 ///
-/// ```no_run
-/// let full = refname!("refs/namespaces/a/refs/namespaces/b/refs/heads/main");
-/// let namespaced = full.namespaced().unwrap();
+/// ```
+/// use radicle_git_ref_format::RefString;
+///
+/// let full =
+///     RefString::try_from("refs/namespaces/a/refs/namespaces/b/refs/heads/main").unwrap();
+/// let namespaced = full.to_namespaced().unwrap();
 /// let strip_first = namespaced.strip_namespace();
-/// let nested = strip_first.namespaced().unwrap();
+/// let nested = strip_first.to_namespaced().unwrap();
 /// let strip_second = nested.strip_namespace();
 ///
 /// assert_eq!("a", namespaced.namespace().as_str());
