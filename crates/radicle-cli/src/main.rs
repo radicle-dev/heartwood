@@ -311,10 +311,6 @@ impl ExternalCommand {
         Self { command, args }
     }
 
-    fn is_diff(&self) -> bool {
-        self.command == "diff"
-    }
-
     fn exe(&self) -> OsString {
         let mut exe = OsString::from(NAME);
         exe.push("-");
@@ -330,15 +326,6 @@ impl ExternalCommand {
     }
 
     fn run(self) -> anyhow::Result<()> {
-        // This command is deprecated and delegates to `git diff`.
-        // Even before it was deprecated, it was not printed by
-        // `rad -h`.
-        //
-        // Since it is external, `--help` will delegate to `git diff --help`.
-        if self.is_diff() {
-            return diff::run(self.args);
-        }
-
         let status = process::Command::new(self.exe()).args(&self.args).status();
         match status {
             Ok(status) => {

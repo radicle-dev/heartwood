@@ -6,7 +6,6 @@ pub mod clone;
 pub mod cob;
 pub mod config;
 pub mod debug;
-pub mod diff;
 pub mod follow;
 pub mod id;
 pub mod inbox;
