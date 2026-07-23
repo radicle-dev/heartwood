@@ -192,27 +192,6 @@ fn rad_diff() {
 }
 
 #[test]
-fn rad_fork() {
-    let mut environment = Environment::new();
-    let alice = environment.node("alice");
-    let bob = environment.node("bob");
-
-    let mut alice = alice.spawn();
-    let bob = bob.spawn();
-
-    alice.connect(&bob);
-    environment.repository(&alice);
-
-    // Alice initializes a repo after her node has started, and after bob has connected to it.
-    environment.test("rad-init-sync", &alice).unwrap();
-
-    // Wait for bob to get any updates to the routing table.
-    bob.converge([&alice]);
-
-    environment.tests(["rad-fetch", "rad-fork"], &bob).unwrap();
-}
-
-#[test]
 fn framework_home() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");

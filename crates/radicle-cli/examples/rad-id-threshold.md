@@ -189,8 +189,7 @@ Run `cd ./heartwood` to go to the repository directory.
 
 ``` ~bob
 $ cd heartwood
-$ rad fork
-✓ Forked repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+$ git push rad master
 ```
 
 ``` ~alice

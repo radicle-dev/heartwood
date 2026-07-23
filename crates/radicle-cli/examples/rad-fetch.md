@@ -24,5 +24,6 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
-However, we don't have a local fork of the project. We can follow this
-up with [rad-fork](rad-fork.md).
+However, we don't have a local namespace for the project. From an
+existing working copy, we can follow this up with an initial
+[Git push](git/git-push-initial.md).

@@ -76,10 +76,10 @@ pub mod setup {
 
     use super::storage::{Namespaces, RefUpdate};
     use crate::crypto::{Signer as _, SigningKey};
+    use crate::prelude::*;
     use crate::storage::git::Repository;
     use crate::storage::git::transport::remote;
     use crate::{Storage, git, profile::Home, rad::REMOTE_NAME, test::fixtures};
-    use crate::{prelude::*, rad};
 
     /// A node.
     ///
@@ -127,8 +127,7 @@ pub mod setup {
         pub fn clone(&mut self, rid: RepoId, other: &Self) {
             let repo = self.storage.create(rid).unwrap();
             super::fetch(&repo, other.signer.public_key(), Namespaces::All).unwrap();
-
-            rad::fork(rid, &self.signer, &self.storage).unwrap();
+            repo.initialize_namespace(other.signer.public_key(), &self.signer);
         }
 
         pub fn project(&self) -> NodeRepo {

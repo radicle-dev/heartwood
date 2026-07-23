@@ -8,7 +8,6 @@ pub mod config;
 pub mod debug;
 pub mod diff;
 pub mod follow;
-pub mod fork;
 pub mod id;
 pub mod inbox;
 pub mod init;

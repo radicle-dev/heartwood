@@ -1,6 +1,7 @@
-If we have fetched a project, then we do not have a fork of the
-repository in the storage, i.e. there is no ref hierarchy for our
-NID. This is demonstrated below where our NID is
+If we have fetched a project into storage and have an existing working
+copy, then we still do not have a namespace in the stored repository,
+i.e. there is no ref hierarchy for our NID. This is demonstrated below
+where our NID is
 `z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk`:
 
 ```
@@ -18,12 +19,10 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
         └── sigrefs
 ```
 
-To remedy this, we can use the `rad fork` command for the project we
-wish to fork:
+To remedy this, we can push the default branch to our namespace:
 
 ```
-$ rad fork rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
-✓ Forked repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+$ git push rad master
 ```
 
 Now, if we `rad inspect` the project's refs again we will see that we
@@ -51,5 +50,5 @@ z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
         └── sigrefs
 ```
 
-We are now able to set up a remote in our own working copy of the
-project and push to our own fork.
+We can now continue pushing changes from our working copy to our own
+namespace.
