@@ -28,51 +28,6 @@ pub(crate) enum Command {
     },
     /// Open the config in your editor
     Edit,
-    /// Get a value from the current configuration
-    // Command is obsolete.
-    #[command(hide = true)]
-    Get {
-        /// The JSON key path to the value you want to get
-        key: String,
-    },
     /// Prints the JSON Schema of the Radicle configuration
     Schema,
-    /// Set a key to a value in the current configuration
-    // Command is obsolete.
-    #[command(hide = true)]
-    Set {
-        /// The JSON key path to the value you want to set
-        key: String,
-        /// The JSON value used to set the field
-        value: String,
-    },
-    /// Set a key in the current configuration to `null`
-    // Command is obsolete.
-    #[command(hide = true)]
-    Unset {
-        /// The JSON key path to the value you want to unset
-        key: String,
-    },
-    /// Push a value onto an array, which is identified by the key, in the
-    /// current configuration
-    // Command is obsolete.
-    #[command(hide = true)]
-    Push {
-        /// The JSON key path to the array you want to push to
-        key: String,
-        /// The JSON value being pushed onto the array
-        value: String,
-    },
-    /// Remove a value from an array, which is identified by the key, in the
-    /// current configuration
-    ///
-    /// All instances of the value in the array will be removed
-    // Command is obsolete.
-    #[command(hide = true)]
-    Remove {
-        /// The JSON key path to the array you want to push to
-        key: String,
-        /// The JSON value being pushed onto the array
-        value: String,
-    },
 }

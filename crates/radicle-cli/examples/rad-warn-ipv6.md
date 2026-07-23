@@ -1,13 +1,4 @@
-```
-$ rad config push preferredSeeds z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::1:8776
-z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::1:8776
-$ rad config push node.connect z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::2:8776
-z6MkvUJtYD9dHDJfpevWRT98mzDDpdAtmUjwyDSkyqksUr7C@2001:db8::2:8776
-$ rad config push node.externalAddresses 2001:db8::3:8776
-2001:db8::3:8776
-```
-
-Note the warnings that the above configuration causes when running `rad node status`:
+Note the warnings that the configuration causes when running `rad node status`:
 
 ```
 $ rad node status
