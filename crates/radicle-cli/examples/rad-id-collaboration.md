@@ -134,7 +134,7 @@ $ rad id list
 │ ●   069e7d5   Add Bob            alice    (you)             accepted   now     │
 │ ●   0656c21   Initial revision   alice    (you)             accepted   now     │
 ╰────────────────────────────────────────────────────────────────────────────────╯
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 6acd3b370839318d96dbfff43948bab2bcdd3681
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk c40018821dc1b41cad75e91e0c9d00827e815324
 $ rad id accept 3cd3c7f
@@ -161,7 +161,7 @@ $ rad sync --timeout 3s
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 3 node(s)
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi 1f716870f890be0c13fdd0af9f527af849fec792 parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk c40018821dc1b41cad75e91e0c9d00827e815324 parent
 z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z 95cd447c57de8d232c6154f5dba0451aa593520e parent

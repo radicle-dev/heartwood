@@ -29,7 +29,7 @@ pub(super) enum Command {
     /// List all COBs of a given type
     List {
         /// Repository ID of the repository to operate on
-        #[arg(long, short, value_name = "RID")]
+        #[arg(long, value_name = "RID")]
         repo: RepoId,
 
         /// Typename of the object(s) to list
@@ -40,7 +40,7 @@ pub(super) enum Command {
     /// Print a log of all raw operations on a COB
     Log {
         /// Repository ID of the repository to operate on
-        #[arg(long, short, value_name = "RID")]
+        #[arg(long, value_name = "RID")]
         repo: RepoId,
 
         /// Typename of the object(s) to show
@@ -70,7 +70,7 @@ pub(super) enum Command {
     /// Print the state of COBs
     Show {
         /// Repository ID of the repository to operate on
-        #[arg(long, short, value_name = "RID")]
+        #[arg(long, value_name = "RID")]
         repo: RepoId,
 
         /// Typename of the object(s) to show
@@ -112,7 +112,7 @@ pub(super) struct Operation {
 #[derive(Parser, Debug)]
 pub(super) struct Create {
     /// Repository ID of the repository to operate on
-    #[arg(long, short, value_name = "RID")]
+    #[arg(long, value_name = "RID")]
     pub(super) repo: RepoId,
 
     /// Typename of the object to create
@@ -126,7 +126,7 @@ pub(super) struct Create {
 #[derive(Parser, Debug)]
 pub(super) struct Update {
     /// Repository ID of the repository to operate on
-    #[arg(long, short)]
+    #[arg(long, value_name = "RID")]
     pub(super) repo: RepoId,
 
     /// Typename of the object to update

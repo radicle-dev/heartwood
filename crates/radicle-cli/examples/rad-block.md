@@ -4,7 +4,7 @@ repositories from being seeded.
 For instance, if our default policy is to seed, any unknown repository will
 have its policy set to allow seeding:
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --policy
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --policy
 Repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji is being seeded with scope `all`
 ```
 
@@ -27,7 +27,7 @@ $ rad block rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 We can see that it is now no longer seeded:
 
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --policy
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --policy
 Repository rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji is not being seeded
 ```
 

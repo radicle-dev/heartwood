@@ -66,8 +66,7 @@ pub(super) struct EmptyArgs {
     show_unknown: bool,
 
     /// Operate on a given repository [default: cwd]
-    #[arg(value_name = "RID")]
-    #[arg(long, hide = true)]
+    #[arg(long, value_name = "RID", hide = true)]
     repo: Option<RepoId>,
 
     /// Operate on all repositories

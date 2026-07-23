@@ -18,7 +18,7 @@ our local storage. Note that the `seed` command can also be told to fetch
 by passing the `--fetch` option.
 
 ```
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

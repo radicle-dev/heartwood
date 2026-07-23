@@ -96,8 +96,7 @@ pub struct Args {
     /// Specify the repository to operate on. Defaults to the current repository
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
-    #[arg(long)]
-    #[arg(value_name = "RID", global = true)]
+    #[arg(long, value_name = "RID", global = true)]
     pub(super) repo: Option<RepoId>,
 
     /// Do not ask for confirmation

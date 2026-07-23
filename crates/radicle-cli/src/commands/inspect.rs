@@ -2,7 +2,6 @@ mod args;
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::str::FromStr;
 
 use anyhow::Context as _;
 use chrono::prelude::*;
@@ -17,27 +16,14 @@ use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal as term;
 use crate::terminal::Element;
+use crate::terminal::args::rid_or_cwd;
 use crate::terminal::json;
 
 pub use args::Args;
 use args::Target;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
-    let rid = match args.repo {
-        Some(rid) => {
-            if let Ok(val) = RepoId::from_str(&rid) {
-                val
-            } else {
-                radicle::rad::at(Path::new(&rid))
-                    .map(|(_, id)| id)
-                    .context("Supplied argument is not a valid path")?
-            }
-        }
-        None => radicle::rad::cwd()
-            .map(|(_, rid)| rid)
-            .context("Current directory is not a Radicle repository")?,
-    };
-
+    let (_, rid) = rid_or_cwd(args.repo)?;
     let target = args.target.into();
 
     if matches!(target, Target::RepoId) {
