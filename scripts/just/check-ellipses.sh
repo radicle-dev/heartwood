@@ -40,7 +40,6 @@ printf '%s\0' "${files[@]}" | xargs -0 "${sed_cmd[@]}" \
     -e "/${git_hex_range}/b" \
     -e "/${git_ref_range}/b" \
     -e "/${bracket_wildcard}/b" \
-    -e 's/\.\.\./…/g'
 
 after=$(printf '%s\0' "${files[@]}" | xargs -0 md5sum)
 
