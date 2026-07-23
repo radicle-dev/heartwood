@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The argument `--no-confirm` for `rad patch checkout` was removed.
 - The deprecated command `rad fork` was removed.
   Use `git push` instead.
+- The obsolete commands to read and modify particular values in Radicle
+  configuration via the CLI, i.e.,
+    - `rad config get`
+    - `rad config push`
+    - `rad config remove`
+    - `rad config set`
+    - `rad config unset`
+  were removed.
 
 ## 1.11.0 - TODO
 
