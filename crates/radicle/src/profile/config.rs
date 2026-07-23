@@ -6,8 +6,6 @@ use thiserror::Error;
 
 use crate::explorer::Explorer;
 use crate::node::Alias;
-use crate::node::config::DefaultSeedingPolicy;
-use crate::node::policy::{Policy, Scope};
 use crate::{cli, node, web};
 
 #[derive(Debug, Error)]
@@ -148,28 +146,11 @@ impl Config {
             path: path.to_path_buf(),
             err,
         })?;
-        let mut cfg: Self = json::from_reader(file).map_err(|err| LoadError::Json {
+
+        json::from_reader(file).map_err(|err| LoadError::Json {
             path: path.to_path_buf(),
             err,
-        })?;
-
-        // Handle deprecated policy configuration.
-        // Nb. This will override "seedingPolicy" if set! This code should be removed after 1.0.
-        if let (Some(p), Some(s)) = (cfg.node.extra.get("policy"), cfg.node.extra.get("scope"))
-            && let (Ok(policy), Ok(scope)) = (
-                json::from_value::<Policy>(p.clone()),
-                json::from_value::<Scope>(s.clone()),
-            )
-        {
-            log::warn!(target: "radicle", "Overwriting `seedingPolicy` configuration");
-            cfg.node.seeding_policy = match policy {
-                Policy::Allow => DefaultSeedingPolicy::Allow {
-                    scope: node::config::Scope::explicit(scope),
-                },
-                Policy::Block => DefaultSeedingPolicy::Block,
-            }
-        }
-        Ok(cfg)
+        })
     }
 
     /// Write configuration to disk.
