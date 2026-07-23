@@ -1377,7 +1377,6 @@ mod test {
     use crate::identity::Visibility;
     use crate::identity::did::Did;
     use crate::identity::doc::{GetPayload as _, PayloadId};
-    use crate::rad;
     use crate::storage::ReadStorage as _;
     use crate::storage::git::Storage;
     use crate::test::fixtures;
@@ -2583,11 +2582,11 @@ mod test {
         let (id, _, _, _) =
             fixtures::project(tempdir.path().join("copy"), &storage, &alice).unwrap();
 
-        // Bob and Eve fork the project from Alice.
-        rad::fork_remote(id, alice.public_key(), &bob, &storage).unwrap();
-        rad::fork_remote(id, alice.public_key(), &eve, &storage).unwrap();
-
         let repo = storage.repository(id).unwrap();
+        // Bob and Eve initialize their namespaces from Alice's default branch.
+        repo.initialize_namespace(alice.public_key(), &bob);
+        repo.initialize_namespace(alice.public_key(), &eve);
+
         let mut identity = Identity::load_mut(&repo, &alice).unwrap();
         let doc = identity.doc().clone();
         let prj = doc.project().unwrap().unwrap();
