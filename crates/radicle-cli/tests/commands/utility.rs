@@ -254,25 +254,6 @@ fn rad_auth_errors() {
     .unwrap();
 }
 
-#[cfg(unix)]
-#[test]
-fn rad_diff() {
-    use radicle::test::fixtures;
-
-    if std::env::consts::OS == "macos" {
-        // macOS's `sed` requires an argument for `-i`, which we don't provide
-        // in the example. Providing it makes the test fail on Linux.
-        // Since this command is deprecated anyway, we just skip macOS.
-        return;
-    }
-
-    let tmp = tempfile::tempdir().unwrap();
-
-    fixtures::repository(&tmp);
-
-    test("examples/rad-diff.md", tmp, None, []).unwrap();
-}
-
 #[test]
 fn framework_home() {
     let mut environment = Environment::new();
