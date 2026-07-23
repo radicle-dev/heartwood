@@ -1,7 +1,7 @@
 ``` ~alice
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
 069e7d58faa9a7473d27f5510d676af33282796f
-$ rad inspect --sigrefs rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..] parent
 z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z c9a828fc2fb01f893d6e6e9e17b9092dea2b3aba parent
@@ -9,7 +9,7 @@ z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z c9a828fc2fb01f893d6e6e9e17b9092
 
 ``` ~bob
 $ rad watch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --node z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -r 'refs/rad/sigrefs' -t c9a828fc2fb01f893d6e6e9e17b9092dea2b3aba -i 500 --timeout 5000ms
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -26,11 +26,11 @@ Hints:
   ● accepted
   ● rejected:
     ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..] root
 z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z [..] parent
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm
@@ -68,12 +68,12 @@ $ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --des
 ```
 
 ``` ~alice
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential seed(s).
 ✓ Target met: 2 seed(s)
 🌱 Fetched from z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 $ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
@@ -90,7 +90,7 @@ $ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk
 │ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
 │ ✓ did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk bob         │
 ╰────────────────────────────────────────────────────────────────────────╯
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
 did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)

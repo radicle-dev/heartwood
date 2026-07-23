@@ -37,7 +37,7 @@ pub struct Args {
     no_announce: bool,
 
     /// Operate on the given repository [default: cwd]
-    #[arg(long, global = true, value_name = "RID")]
+    #[arg(long, value_name = "RID", global = true)]
     pub(super) repo: Option<RepoId>,
 
     /// Verbose output

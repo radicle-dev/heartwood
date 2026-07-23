@@ -1,5 +1,7 @@
 use clap::Parser;
 
+use radicle::prelude::RepoId;
+
 const ABOUT: &str = "Inspect a Radicle repository";
 const LONG_ABOUT: &str = r#"Inspects the given path or RID. If neither is specified,
 the current repository is inspected.
@@ -89,8 +91,8 @@ impl From<TargetArgs> for Target {
 #[command(about = ABOUT, long_about = LONG_ABOUT, disable_version_flag = true)]
 pub struct Args {
     /// Repository, by RID or by path
-    #[arg(value_name = "RID|PATH")]
-    pub(super) repo: Option<String>,
+    #[arg(long, value_name = "RID")]
+    pub(super) repo: Option<RepoId>,
 
     #[clap(flatten)]
     pub(super) target: TargetArgs,

@@ -400,14 +400,6 @@ pub fn cwd() -> Result<(git::raw::Repository, RepoId), CwdError> {
     Ok((repo, id))
 }
 
-/// Get the repository of project in specified directory
-pub fn at(path: impl AsRef<Path>) -> Result<(git::raw::Repository, RepoId), RemoteError> {
-    let repo = git::raw::Repository::open(path)?;
-    let (_, id) = remote(&repo)?;
-
-    Ok((repo, id))
-}
-
 /// Get the current Git repository.
 pub fn repo() -> Result<git::raw::Repository, git::raw::Error> {
     let mut flags = git::raw::RepositoryOpenFlags::empty();

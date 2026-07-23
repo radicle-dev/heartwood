@@ -96,7 +96,7 @@ Any other seeds can also still fetch changes from Alice without any
 errors:
 
 ``` ~seed
-$ rad sync rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -f
+$ rad sync --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

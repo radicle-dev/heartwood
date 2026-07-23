@@ -4,7 +4,7 @@ NID. This is demonstrated below where our NID is
 `z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk`:
 
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs
@@ -30,7 +30,7 @@ Now, if we `rad inspect` the project's refs again we will see that we
 have a copy of the main set of refs:
 
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --refs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 └── refs
     ├── cobs

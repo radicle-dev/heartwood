@@ -28,7 +28,7 @@ Bob can now fetch the private repo without specifying a seed, because he knows
 that Alice has the repo after she announced her refs:
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
+$ rad sync --repo rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
