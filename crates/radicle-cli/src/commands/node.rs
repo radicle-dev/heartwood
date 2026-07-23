@@ -15,8 +15,6 @@ use radicle::node::routing::Store;
 
 use crate::commands::node::args::Only;
 use crate::terminal as term;
-use crate::terminal::Element as _;
-use crate::warning;
 
 pub use args::Args;
 use args::{Addr, Command};
@@ -58,13 +56,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         }
         Command::Debug => {
             control::debug(&mut node)?;
-        }
-        Command::Sessions => {
-            warning::deprecated("rad node sessions", "rad node status");
-            let sessions = control::sessions(&node)?;
-            if let Some(table) = sessions {
-                table.print();
-            }
         }
         Command::Events { timeout, count } => {
             let count = count.unwrap_or(usize::MAX);

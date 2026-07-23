@@ -202,12 +202,6 @@ pub(super) enum Command {
     /// This includes metrics fetching, peer connections, rate limiting, etc.
     Debug,
 
-    /// Show the active sessions of the running node.
-    ///
-    /// Deprecated, use `status` instead.
-    #[command(hide = true)]
-    Sessions,
-
     /// Stop the node
     Stop,
 }
