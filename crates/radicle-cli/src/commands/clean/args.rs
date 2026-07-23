@@ -16,8 +16,9 @@ followed and/or the follow scope is "all".
 #[command(about = ABOUT, long_about = LONG_ABOUT, disable_version_flag = true)]
 pub struct Args {
     /// Operate on the given repository
+    #[arg(long)]
     #[arg(value_name = "RID")]
-    pub(super) repo: RepoId,
+    pub(super) repo: Option<RepoId>,
 
     /// Do not ask for confirmation before removal
     #[arg(long)]
