@@ -1050,12 +1050,6 @@ pub trait Handle: Clone + Sync + Send {
     /// Disconnect from a peer.
     fn disconnect(&mut self, node: NodeId) -> Result<(), Self::Error>;
 
-    /// Look up the seeds of a given repository in the routing table.
-    #[deprecated(note = "use `seeds_for` instead")]
-    fn seeds(&mut self, id: RepoId) -> Result<Seeds, Self::Error> {
-        self.seeds_for(id, [self.nid()?])
-    }
-
     /// Look up the seeds of a given repository in the routing table
     /// and report sync status for `namespaces`.
     fn seeds_for(
@@ -1083,13 +1077,6 @@ pub trait Handle: Clone + Sync + Send {
     fn unseed(&mut self, id: RepoId) -> Result<bool, Self::Error>;
     /// Unfollow the given peer.
     fn unfollow(&mut self, id: NodeId) -> Result<bool, Self::Error>;
-
-    /// Notify the service that a repository has been updated, and references
-    /// should be announced over the network.
-    #[deprecated(note = "use `announce_refs_for` instead")]
-    fn announce_refs(&mut self, id: RepoId) -> Result<RefsAt, Self::Error> {
-        self.announce_refs_for(id, [self.nid()?])
-    }
 
     /// Notify the service that a repository has been updated, and references
     /// for the given `namespaces` should be announced over the network.
