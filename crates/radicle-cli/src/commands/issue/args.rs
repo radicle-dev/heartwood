@@ -40,9 +40,7 @@ pub struct Args {
     pub(crate) header: bool,
 
     /// Operate on the given repository (default: cwd)
-    #[arg(value_name = "RID")]
-    #[arg(long, short)]
-    #[clap(global = true)]
+    #[arg(long, value_name = "RID", global = true)]
     pub(crate) repo: Option<RepoId>,
 
     /// Enable verbose output

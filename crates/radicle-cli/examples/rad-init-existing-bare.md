@@ -14,7 +14,7 @@ $ rad .
 
 Let's pick an existing repository:
 ```
-$ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ```
 

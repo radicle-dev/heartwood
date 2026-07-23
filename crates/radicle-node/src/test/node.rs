@@ -279,6 +279,7 @@ impl NodeHandle {
         self.rad(
             "sync",
             &[
+                "--repo",
                 rid.to_string().as_str(),
                 "--announce",
                 "--replicas",

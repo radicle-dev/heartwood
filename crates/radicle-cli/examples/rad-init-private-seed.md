@@ -16,14 +16,14 @@ $ rad seed rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --no-fetch
 If Bob just tries to fetch it without specifying seeds, he gets an error:
 
 ``` ~bob (fails)
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
+$ rad sync --repo rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch
 ✗ Error: no candidate seeds were found to fetch from
 ```
 
 He has to specify a seed that isn't in his routing table:
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad sync --repo rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✓ Target met: 1 preferred seed(s).
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -42,7 +42,7 @@ Note that if multiple seeds are specified, the command succeeds as long as one
 seed succeeds.
 
 ``` ~bob
-$ rad sync rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx
+$ rad sync --repo rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu --fetch --seed z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --seed z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx
 Fetching rad:z2ug5mwNKZB8KGpBDRTrWHAMbvHCu from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

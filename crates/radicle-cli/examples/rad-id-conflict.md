@@ -6,7 +6,7 @@ $ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delega
 ```
 ``` ~bob
 $ cd heartwood
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
@@ -29,7 +29,7 @@ revisions, and because she's created one of them she has implicitly voted
 for it.
 
 ``` ~alice
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
@@ -114,7 +114,7 @@ Alice's revision was redacted and is no longer visible. Bob syncs and sees
 that the conflict is resolved:
 
 ``` ~bob
-$ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad sync --fetch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi

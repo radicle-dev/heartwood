@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## Fixes
+### Improvements
+
+- The way repository IDs are passed to CLI commands is unified accross the CLI:
+  Whenever the repository ID is optional (in most cases inferred from the
+  current working directory), it is now passed via `--repo`, and not a
+  positional argument (or `--rid`).
+
+## 1.11.0 - TODO
+
+### Fixes
 
 - A patch now merges on the quorum of the canonical reference rule that
   matches its target branch, not on the identity document threshold.

@@ -19,7 +19,7 @@ const ABOUT: &str = "Sync repositories to the network";
 
 const LONG_ABOUT: &str = r#"
 By default, the current repository is synchronized both ways.
-If an <RID> is specified, that repository is synced instead.
+If a `--repo` is specified, that repository is synced instead.
 
 The process begins by fetching changes from connected seeds,
 followed by announcing local refs to peers, thereby prompting
@@ -107,7 +107,7 @@ pub(super) struct SyncArgs {
     timeout: std::time::Duration,
 
     /// The repository to perform the synchronizing for [default: cwd]
-    #[arg(value_name = "RID")]
+    #[arg(long, value_name = "RID")]
     repo: Option<RepoId>,
 
     /// Synchronize with a specific number of seeds

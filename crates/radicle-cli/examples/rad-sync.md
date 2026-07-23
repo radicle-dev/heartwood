@@ -110,13 +110,13 @@ $ rad seed rad:z39mP9rQAaGmERfUMPULfPUi473tY --no-fetch
 ✓ Seeding policy updated for rad:z39mP9rQAaGmERfUMPULfPUi473tY with scope 'followed'
 ```
 ``` (fail)
-$ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
+$ rad sync --repo rad:z39mP9rQAaGmERfUMPULfPUi473tY
 ✗ Error: no candidate seeds were found to fetch from
 ```
 
 Or when trying to fetch from an unknown seed, using `--seed`:
 ```
-$ rad sync --fetch rad:z39mP9rQAaGmERfUMPULfPUi473tY --seed z6MkjM3HpqNVV4ZsL5s3RAd8ThVG3VG98YsDCjHBNnGMq5o7
+$ rad sync --fetch --repo rad:z39mP9rQAaGmERfUMPULfPUi473tY --seed z6MkjM3HpqNVV4ZsL5s3RAd8ThVG3VG98YsDCjHBNnGMq5o7
 Fetching rad:z39mP9rQAaGmERfUMPULfPUi473tY from the network, found 1 potential seed(s).
 ✗ Target not met: could not fetch from [z6MkjM3HpqNVV4ZsL5s3RAd8ThVG3VG98YsDCjHBNnGMq5o7], and required 1 more seed(s)
 ✗ Error: Fetched from 0 preferred seed(s), could not reach 1 seed(s)
@@ -130,6 +130,6 @@ $ rad unseed rad:z39mP9rQAaGmERfUMPULfPUi473tY
 [...]
 ```
 ``` (fail)
-$ rad sync rad:z39mP9rQAaGmERfUMPULfPUi473tY
+$ rad sync --repo rad:z39mP9rQAaGmERfUMPULfPUi473tY
 ✗ Error: repository rad:z39mP9rQAaGmERfUMPULfPUi473tY is not seeded
 ```

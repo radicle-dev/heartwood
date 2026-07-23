@@ -147,7 +147,7 @@ pub(super) enum Command {
         json: bool,
 
         /// Show the routing table entries for the given RID
-        #[arg(long = "rid", value_name = "RID")]
+        #[arg(long, value_name = "RID")]
         repo: Option<RepoId>,
 
         /// Show the routing table entries for the given NID
