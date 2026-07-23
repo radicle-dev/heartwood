@@ -444,11 +444,12 @@ fn test_fetch_followed_remotes() {
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
     let acme = alice.project("acme", "");
+    let repo = alice.storage.repository(acme).unwrap();
     let mut signers = Vec::with_capacity(5);
     {
         for i in 0..5 {
             let signer = SigningKey::mock(i);
-            rad::fork_remote(acme, &alice.id, &signer, &alice.storage).unwrap();
+            repo.initialize_namespace(&alice.id, &signer);
             signers.push(signer);
         }
     }
@@ -517,7 +518,8 @@ fn test_missing_remote() {
     assert!(result.is_success());
     log::debug!(target: "test", "Fetch complete with {}", bob.id);
 
-    rad::fork_remote(acme, &alice.id, &carol, &bob.storage).unwrap();
+    let repo = bob.storage.repository(acme).unwrap();
+    repo.initialize_namespace(&alice.id, &carol);
 
     alice.issue(
         acme,
@@ -607,7 +609,8 @@ fn test_clone() {
         .unwrap();
     assert!(result.is_success());
 
-    rad::fork(acme, &alice.signer, &alice.storage).unwrap();
+    let repo = alice.storage.repository(acme).unwrap();
+    repo.initialize_namespace(&bob.id, &alice.signer);
 
     let working = rad::checkout(
         acme,
@@ -1084,13 +1087,15 @@ fn test_outdated_sigrefs() {
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
-    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+    let repo = bob.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &bob.signer);
 
     eve.handle
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(eve.storage.contains(&rid).unwrap());
-    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+    let repo = eve.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &eve.signer);
 
     alice
         .handle
@@ -1193,13 +1198,15 @@ fn test_outdated_delegate_sigrefs() {
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
-    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+    let repo = bob.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &bob.signer);
 
     eve.handle
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(eve.storage.contains(&rid).unwrap());
-    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+    let repo = eve.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &eve.signer);
 
     alice
         .handle
@@ -1491,13 +1498,15 @@ fn test_background_foreground_fetch() {
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
-    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+    let repo = bob.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &bob.signer);
 
     eve.handle
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(eve.storage.contains(&rid).unwrap());
-    rad::fork(rid, &eve.signer, &eve.storage).unwrap();
+    let repo = eve.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &eve.signer);
 
     // Alice fetches Eve's fork and we make note of the sigrefs
     alice
@@ -1939,7 +1948,8 @@ fn fetch_does_not_contain_rad_sigrefs_parent() {
         .fetch(rid, alice.id, DEFAULT_TIMEOUT, None)
         .unwrap();
     assert!(bob.storage.contains(&rid).unwrap());
-    rad::fork(rid, &bob.signer, &bob.storage).unwrap();
+    let repo = bob.storage.repository(rid).unwrap();
+    repo.initialize_namespace(&alice.id, &bob.signer);
 
     let issue_id = alice.issue(
         rid,
