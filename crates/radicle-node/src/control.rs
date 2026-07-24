@@ -51,6 +51,7 @@ where
     let nid = handle.nid()?;
     let mut handlers = Vec::new();
     while !stopping.load(Ordering::Acquire) {
+        reap_finished(&mut handlers);
         match listener.accept() {
             Ok((mut stream, _)) => {
                 let handle = handle.clone();
@@ -59,9 +60,9 @@ where
                     if let Err(e) = command(&stream, handle) {
                         log::debug!(target: "control", "Command returned error: {e}");
                         CommandResult::error(e).to_writer(&mut stream).ok();
-                        stream.flush().ok();
-                        stream.shutdown(net::Shutdown::Both).ok();
                     }
+                    stream.flush().ok();
+                    stream.shutdown(net::Shutdown::Both).ok();
                 });
                 handlers.push((shutdown, join));
             }
@@ -81,6 +82,23 @@ where
         let _ = handler.join();
     }
     Ok(())
+}
+
+/// Drop socket clones and join handlers which have already completed.
+///
+/// Socket clones are retained only so shutdown can interrupt handlers blocked
+/// in a command. Keeping them after the handler exits would otherwise prevent
+/// clients from observing EOF and leak one descriptor per command.
+fn reap_finished(handlers: &mut Vec<(Option<UnixStream>, std::thread::JoinHandle<()>)>) {
+    let mut index = 0;
+    while index < handlers.len() {
+        if handlers[index].1.is_finished() {
+            let (_, handler) = handlers.swap_remove(index);
+            let _ = handler.join();
+        } else {
+            index += 1;
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -271,6 +289,7 @@ fn fetch<W: Write, H: Handle<Error = runtime::handle::Error>>(
     match handle.fetch(id, node, timeout, signed_references_minimum_feature_level) {
         Ok(result) => {
             json::to_writer(&mut writer, &result)?;
+            writer.write_all(b"\n")?;
         }
         Err(e) => {
             return Err(CommandError::Runtime(e));
@@ -288,7 +307,7 @@ mod tests {
     use radicle::identity::RepoId;
     use radicle::node::Handle;
     use radicle::node::policy::Scope;
-    use radicle::node::{Alias, Node, NodeId};
+    use radicle::node::{Alias, FetchResult, Node, NodeId};
     use radicle::test::arbitrary;
 
     use crate::test;
@@ -342,6 +361,25 @@ mod tests {
         for rid in &rids {
             assert!(handle.updates.lock().unwrap().contains(&(*rid, nid)));
         }
+
+        // Fetch results are serialized directly rather than through
+        // `CommandResult`, so make sure they are still newline-terminated.
+        let mut stream = UnixStream::connect(&socket).unwrap();
+        stream
+            .set_read_timeout(Some(time::Duration::from_secs(1)))
+            .unwrap();
+        Command::Fetch {
+            rid: *rids.iter().next().unwrap(),
+            nid: arbitrary::r#gen::<NodeId>(1),
+            timeout: time::Duration::from_secs(1),
+            signed_references_minimum_feature_level: None,
+        }
+        .to_writer(&mut stream)
+        .unwrap();
+
+        let line = BufReader::new(stream).lines().next().unwrap().unwrap();
+        let result: FetchResult = json::from_str(&line).unwrap();
+        assert!(result.is_success());
     }
 
     #[test]
