@@ -2794,7 +2794,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radicle"
-version = "0.25.0"
+version = "0.25.1"
 dependencies = [
  "base64 0.21.7",
  "bytesize",
@@ -2834,7 +2834,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -2882,7 +2882,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli-test"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "escargot",
  "log",
@@ -2897,7 +2897,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-cob"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "fastrand",
  "git2",
@@ -2918,7 +2918,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "git2",
  "gix-hash",
@@ -2937,7 +2937,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-crypto"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "curve25519-dalek",
  "cyphernet",
@@ -2966,7 +2966,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-fetch"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "bstr",
  "either",
@@ -2984,7 +2984,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-metadata"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "git2",
  "thiserror 2.0.18",
@@ -2992,7 +2992,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-git-ref-format"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bstr",
  "minicbor",
@@ -3022,7 +3022,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-node"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "backtrace",
  "bytes",
@@ -3058,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-oid"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "git2",
  "gix-hash",
@@ -3071,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-protocol"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bloomy",
  "bytes",
@@ -3094,7 +3094,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-remote-helper"
-version = "0.18.0"
+version = "0.18.1"
 dependencies = [
  "dunce",
  "log",
@@ -3107,7 +3107,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-schemars"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "radicle",
  "schemars",
@@ -3116,7 +3116,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-signals"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "libc",
  "signals_receipts",
@@ -3125,7 +3125,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-surf"
-version = "0.28.0"
+version = "0.29.0"
 dependencies = [
  "base64 0.21.7",
  "flate2",
@@ -3155,7 +3155,7 @@ dependencies = [
 
 [[package]]
 name = "radicle-term"
-version = "0.19.0"
+version = "0.19.1"
 dependencies = [
  "anstyle-query",
  "crossterm",

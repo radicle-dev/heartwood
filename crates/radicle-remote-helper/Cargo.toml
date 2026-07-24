@@ -1,6 +1,6 @@
 [package]
 name = "radicle-remote-helper"
-version = "0.18.0"
+version = "0.18.1"
 description = "Radicle git remote helper"
 
 build = "build.rs"

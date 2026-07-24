@@ -1,6 +1,6 @@
 [package]
 name = "radicle-git-metadata"
-version = "0.2.0"
+version = "0.2.1"
 description = "Radicle structs that carry Git commit metadata"
 
 keywords = ["radicle", "git", "metadata"]

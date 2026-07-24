@@ -1,6 +1,6 @@
 [package]
 name = "radicle-oid"
-version = "0.2.1"
+version = "0.2.2"
 description = "Radicle representation of Git object identifiers"
 
 categories = ["no-std"]

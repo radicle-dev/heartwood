@@ -1,6 +1,6 @@
 [package]
 name = "radicle-git-ref-format"
-version = "0.1.0"
+version = "0.2.0"
 description = "Everything you never knew you wanted for handling git ref names."
 
 keywords = ["radicle", "git", "refname", "ref", "references"]
