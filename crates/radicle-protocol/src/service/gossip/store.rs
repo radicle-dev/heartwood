@@ -191,7 +191,15 @@ impl Store for Database {
             "SELECT rowid, node, type, message, signature, timestamp
              FROM announcements
              WHERE timestamp >= ?1 and timestamp < ?2
-             ORDER BY timestamp, node, type",
+             -- Inventory and refs announcements from unknown nodes are ignored by
+             -- the receiver. Ensure that an announcement introducing a node is
+             -- replayed first when messages share a timestamp.
+             ORDER BY timestamp, node,
+                 CASE type
+                     WHEN 'node' THEN 0
+                     WHEN 'inventory' THEN 1
+                     ELSE 2
+                 END",
         )?;
         assert!(*from <= *to);
 
@@ -400,8 +408,9 @@ mod test {
     use crate::bounded::BoundedVec;
     use localtime::LocalTime;
     use radicle::assert_matches;
-    use radicle::crypto::SigningKey;
+    use radicle::crypto::{Signer as _, SigningKey};
     use radicle::identity::RepoId;
+    use radicle::node::{Alias, Config};
     use radicle::test::arbitrary;
 
     #[test]
@@ -445,5 +454,48 @@ mod test {
         );
         // But only once.
         assert_matches!(db.relays(LocalTime::now().into()).unwrap().as_slice(), &[]);
+    }
+
+    #[test]
+    fn test_filtered_orders_node_before_inventory() {
+        let mut db = Database::memory().unwrap();
+        let secret_key = SigningKey::mock(100);
+        let nid = (*secret_key.public_key()).into();
+        let timestamp = LocalTime::now().into();
+        let inventory = AnnouncementMessage::Inventory(InventoryAnnouncement {
+            inventory: BoundedVec::new(),
+            timestamp,
+        })
+        .signed(&secret_key);
+        let node = AnnouncementMessage::Node(crate::service::gossip::node(
+            &Config::test(Alias::new("alice")),
+            timestamp,
+        ))
+        .signed(&secret_key);
+
+        // Store these in the order that used to cause an unknown node's
+        // inventory to be discarded during historical replay.
+        db.announced(&nid, &inventory).unwrap().unwrap();
+        db.announced(&nid, &node).unwrap().unwrap();
+
+        let announcements = db
+            .filtered(&Filter::default(), Timestamp::MIN, Timestamp::MAX)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_matches!(
+            announcements.as_slice(),
+            [
+                Announcement {
+                    message: AnnouncementMessage::Node(_),
+                    ..
+                },
+                Announcement {
+                    message: AnnouncementMessage::Inventory(_),
+                    ..
+                }
+            ]
+        );
     }
 }
