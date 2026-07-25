@@ -436,7 +436,7 @@ impl From<dalek::ed::VerifyingKey> for VerifyingKey {
 
 impl signature::Verifier<Signature> for VerifyingKey {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-        self.0.verify(msg, signature)
+        self.0.verify_strict(msg, signature)
     }
 }
 
