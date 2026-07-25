@@ -191,7 +191,15 @@ impl Store for Database {
             "SELECT rowid, node, type, message, signature, timestamp
              FROM announcements
              WHERE timestamp >= ?1 and timestamp < ?2
-             ORDER BY timestamp, node, type",
+             -- Inventory and refs announcements from unknown nodes are ignored by
+             -- the receiver. Ensure that an announcement introducing a node is
+             -- replayed first when messages share a timestamp.
+             ORDER BY timestamp, node,
+                 CASE type
+                     WHEN 'node' THEN 0
+                     WHEN 'inventory' THEN 1
+                     ELSE 2
+                 END",
         )?;
         assert!(*from <= *to);
 
