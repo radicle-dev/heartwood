@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt;
 use std::net;
 use std::path::PathBuf;
 use std::sync::Arc;

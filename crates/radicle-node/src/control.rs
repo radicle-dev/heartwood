@@ -36,13 +36,14 @@ pub enum Error {
 }
 
 /// Listen until the runtime requests shutdown. The listener must be non-blocking.
-pub fn listen<E, H>(
+pub(crate) fn listen<E, H>(
     listener: UnixListener,
     handle: H,
     stopping: Arc<AtomicBool>,
 ) -> Result<(), Error>
 where
     H: Handle<Error = runtime::handle::Error> + 'static,
+    H::Events: EventStream<Event = H::Event>,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -55,9 +56,10 @@ where
         match listener.accept() {
             Ok((mut stream, _)) => {
                 let handle = handle.clone();
+                let stopping = stopping.clone();
                 let shutdown = stream.try_clone().ok();
                 let join = thread::spawn(&nid, "control", move || {
-                    if let Err(e) = command(&stream, handle) {
+                    if let Err(e) = command(&stream, handle, stopping) {
                         log::debug!(target: "control", "Command returned error: {e}");
                         CommandResult::error(e).to_writer(&mut stream).ok();
                     }
@@ -111,9 +113,51 @@ enum CommandError {
     Io(#[from] io::Error),
 }
 
-fn command<E, H>(stream: &UnixStream, mut handle: H) -> Result<(), CommandError>
+pub(crate) enum EventPoll<T> {
+    Event(T),
+    Timeout,
+    Disconnected,
+}
+
+pub(crate) trait EventStream {
+    type Event;
+
+    fn recv_timeout(&mut self, timeout: time::Duration) -> EventPoll<Self::Event>;
+}
+
+impl EventStream for radicle::node::Events {
+    type Event = radicle::node::Event;
+
+    fn recv_timeout(&mut self, timeout: time::Duration) -> EventPoll<Self::Event> {
+        match std::sync::mpsc::Receiver::recv_timeout(self, timeout) {
+            Ok(event) => EventPoll::Event(event),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => EventPoll::Timeout,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => EventPoll::Disconnected,
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T> EventStream for Vec<T> {
+    type Event = T;
+
+    fn recv_timeout(&mut self, _timeout: time::Duration) -> EventPoll<Self::Event> {
+        if self.is_empty() {
+            EventPoll::Disconnected
+        } else {
+            EventPoll::Event(self.remove(0))
+        }
+    }
+}
+
+fn command<E, H>(
+    stream: &UnixStream,
+    mut handle: H,
+    stopping: Arc<AtomicBool>,
+) -> Result<(), CommandError>
 where
     H: Handle<Error = runtime::handle::Error> + 'static,
+    H::Events: EventStream<Event = H::Event>,
     H::Sessions: serde::Serialize,
     CommandResult<E>: From<H::Event>,
     E: serde::Serialize,
@@ -246,9 +290,15 @@ where
             }
         },
         Command::Subscribe => match handle.subscribe(MAX_TIMEOUT) {
-            Ok(events) => {
-                for e in events {
-                    CommandResult::from(e).to_writer(&mut writer)?;
+            Ok(mut events) => {
+                while !stopping.load(Ordering::Acquire) {
+                    match events.recv_timeout(time::Duration::from_millis(100)) {
+                        EventPoll::Event(event) => {
+                            CommandResult::from(event).to_writer(&mut writer)?
+                        }
+                        EventPoll::Timeout => {}
+                        EventPoll::Disconnected => break,
+                    }
                 }
             }
             Err(e) => return Err(CommandError::Runtime(e)),
