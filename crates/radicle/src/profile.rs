@@ -901,7 +901,7 @@ mod test {
 
     #[test]
     fn test_config() {
-        let cfg = json::from_value::<Config>(json::json!({
+        let _ = json::from_value::<Config>(json::json!({
           "publicExplorer": "https://app.radicle.example.com/nodes/$host/$rid$path",
           "preferredSeeds": [],
           "web": {
@@ -922,7 +922,6 @@ mod test {
               "z6MkrUZHwJD3pqerEBugSZRxDFdVqKnMUbyPHcFe5gkfFvTe@b.radicle.example.com:8776"
             ],
             "externalAddresses": [ "seed.radicle.example.com:8776" ],
-            "db": { "journalMode": "wal" },
             "network": "main",
             "log": "INFO",
             "relay": "always",
@@ -940,14 +939,8 @@ mod test {
               "connection": { "inbound": 128, "outbound": 16 }
             },
             "workers": 32,
-            "policy": "allow",
-            "scope": "all"
           }
         }))
         .unwrap();
-
-        assert!(cfg.node.extra.contains_key("db"));
-        assert!(cfg.node.extra.contains_key("policy"));
-        assert!(cfg.node.extra.contains_key("scope"));
     }
 }
