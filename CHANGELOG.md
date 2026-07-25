@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were removed.
 - Hunk-based code review and the associated obsolete commands were removed.
 - The deprecated command `rad diff` was removed.
+- The default value for `node.fetch.signedReferences.featureLevel.minimum`
+  (which was introduced in 1.8.0 with default value `"none"`) was changed to
+  `"parent'`.
 
 ## 1.11.0 - TODO
 

@@ -98,7 +98,10 @@ impl FeatureLevels {
     }
 
     pub fn max(&self) -> FeatureLevel {
-        self.0.last_key_value().map(|(k, _)| *k).unwrap_or_default()
+        self.0
+            .last_key_value()
+            .map(|(k, _)| *k)
+            .unwrap_or(FeatureLevel::None)
     }
 
     fn insert(&mut self, verified: &VerifiedCommit) {

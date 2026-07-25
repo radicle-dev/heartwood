@@ -278,7 +278,6 @@ where
 pub enum FeatureLevel {
     /// The lowest feature level, with least security. It is vulnerable to
     /// graft attacks and replay attacks.
-    #[default]
     None,
 
     #[cfg_attr(
@@ -303,6 +302,7 @@ pub enum FeatureLevel {
     ")
     )]
     /// Requires [`SIGREFS_PARENT`].
+    #[default]
     Parent,
 }
 

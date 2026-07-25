@@ -34,7 +34,7 @@ pub fn signed_refs(refs: Refs, at: Oid, signer: &impl crypto::Signer) -> SignedR
         refs,
         signature,
         id: *signer.public_key(),
-        level: FeatureLevel::default(),
+        level: FeatureLevel::None,
         parent: None,
         at,
     }
