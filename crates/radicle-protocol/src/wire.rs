@@ -1,8 +1,6 @@
-pub mod frame;
 pub mod message;
 pub mod varint;
 
-pub use frame::StreamId;
 pub use message::MessageType;
 
 use std::convert::TryFrom;
@@ -59,22 +57,12 @@ pub enum Invalid {
     Timestamp { actual_millis: u64 },
 
     // Message types
-    #[error("invalid control message type: {actual:x}")]
-    ControlType { actual: u8 },
-    #[error("invalid stream type: {actual:x}")]
-    StreamType { actual: u8 },
     #[error("invalid address type: {actual:x}")]
     AddressType { actual: u8 },
     #[error("invalid message type: {actual:x}")]
     MessageType { actual: u16 },
     #[error("invalid info message type: {actual:x}")]
     InfoMessageType { actual: u16 },
-
-    // Protocol version handling
-    #[error("invalid protocol version string: {actual:x?}")]
-    ProtocolVersion { actual: [u8; 4] },
-    #[error("unsupported protocol version: {actual}")]
-    ProtocolVersionUnsupported { actual: u8 },
 }
 
 #[derive(thiserror::Error, Debug)]
