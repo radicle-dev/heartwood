@@ -793,9 +793,19 @@ async fn run_outgoing_git(
     reader_limit: node::config::FetchPackSizeLimit,
     config: radicle_protocol::fetcher::FetchConfig,
 ) -> Result<(), String> {
-    let addr = endpoint_addr(remote, &addresses)
-        .await
-        .map_err(|e| e.to_string())?;
+    let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
+        Ok(id) => id,
+        Err(err) => {
+            let _ = shared.controller.send(ServiceInput::Disconnected(
+                remote,
+                Link::Outbound,
+                DisconnectReason::Dial(Arc::new(err)),
+            ));
+            return Err("invalid remote node ID".to_owned());
+        }
+    };
+
+    let addr = endpoint_addr(id, &addresses).await;
 
     let connection =
         tokio::time::timeout(config.timeout(), shared.endpoint.connect(addr, GIT_ALPN))
