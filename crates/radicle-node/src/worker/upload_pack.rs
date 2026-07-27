@@ -1,5 +1,6 @@
 use std::io;
 use std::process::{Command, ExitStatus, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use fetch::{ByteSlice as _, RemoteProgress};
@@ -11,8 +12,6 @@ use radicle::node::events::Emitter;
 use radicle::node::{Event, NodeId};
 use radicle::storage::git::paths;
 
-use crate::runtime::thread;
-
 /// Perform the Git upload-pack process, given that the Git request
 /// `header` has already been read and parsed.
 ///
@@ -20,7 +19,6 @@ use crate::runtime::thread;
 /// requests from the client indefinitely, and so the client side MUST
 /// send the EOF file message.
 pub fn upload_pack<R, W>(
-    nid: &NodeId,
     rid: &RepoId,
     remote: NodeId,
     storage: &Storage,
@@ -74,20 +72,24 @@ where
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
     let mut reporter = Reporter::new(*rid, remote, emitter.clone(), send);
 
-    std::thread::scope(|s| {
-        thread::spawn_scoped(nid, "upload-pack", s, || {
-            if let Err(e) = io::copy(&mut stdout, &mut reporter) {
-                log::debug!(target: "worker", "Failure on upload-pack writer for {}: {e}", rid);
-                emitter.emit(events::UploadPack::error(*rid, remote, e).into());
-            }
-        });
+    thread::scope(|s| {
+        thread::Builder::new()
+            .name(format!("w-{:.8}-{:.5}", remote, rid))
+            .spawn_scoped(s, || {
+                if let Err(e) = io::copy(&mut stdout, &mut reporter) {
+                    log::debug!(target: "worker", "Failure on upload-pack writer for {}: {e}", rid);
+                    emitter.emit(events::UploadPack::error(*rid, remote, e).into());
+                }
+            })?;
 
-        let reader = thread::spawn_scoped(nid, "upload-pack", s, || {
-            if let Err(e) = io::copy(&mut recv, &mut stdin) {
-                log::debug!(target: "worker", "Failure on upload-pack reader for {}: {e}", rid);
-                emitter.emit(events::UploadPack::error(*rid, remote, e).into());
-            }
-        });
+        let reader = thread::Builder::new()
+            .name(format!("r-{:.8}-{:.5}", remote, rid))
+            .spawn_scoped(s, || {
+                if let Err(e) = io::copy(&mut recv, &mut stdin) {
+                    log::debug!(target: "worker", "Failure on upload-pack reader for {}: {e}", rid);
+                    emitter.emit(events::UploadPack::error(*rid, remote, e).into());
+                }
+            })?;
 
         // N.b. we only care if the `reader` is finished. We then kill
         // the child which will end the thread for the sender.
