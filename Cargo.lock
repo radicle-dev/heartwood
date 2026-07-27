@@ -4696,6 +4696,7 @@ dependencies = [
  "radicle-protocol",
  "radicle-signals",
  "radicle-systemd",
+ "radicle-varint",
  "radicle-windows",
  "serde",
  "serde_json",

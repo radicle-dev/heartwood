@@ -4,6 +4,7 @@ use bytes::Buf as _;
 use iroh::endpoint::{RecvStream, SendStream};
 use radicle_protocol::service::Message;
 use radicle_protocol::wire::{self};
+use radicle_varint::BufMutExt;
 
 /// ALPN used by long-lived gossip connections.
 pub const GOSSIP_ALPN: &[u8] = b"radicle/gossip/1";
@@ -29,12 +30,15 @@ pub enum Error {
 /// including its QUIC-varint framing.
 pub async fn write_message(send: &mut SendStream, message: &Message) -> Result<usize, Error> {
     let payload = wire::Encode::encode_to_vec(message);
-    let prefix = wire::Encode::encode_to_vec(
-        &wire::varint::VarInt::new(payload.len() as u64).expect("1 MiB fits in a QUIC varint"),
-    );
-    send.write_all(&prefix).await?;
+
+    let prefix =
+        radicle_varint::VarInt::new(payload.len() as u64).expect("1 MiB fits in a QUIC varint");
+    let mut buf = Vec::with_capacity(8);
+    buf.put_uvar(prefix);
+
+    send.write_all(&buf).await?;
     send.write_all(&payload).await?;
-    Ok(prefix.len() + payload.len())
+    Ok(buf.len() + payload.len())
 }
 
 /// Read one length-delimited Gossip message. Oversized lengths are rejected
