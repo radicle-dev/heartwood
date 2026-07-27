@@ -20,7 +20,6 @@ use radicle::storage::refs;
 use serde_json as json;
 
 use crate::runtime;
-use crate::runtime::thread;
 
 /// Maximum timeout for waiting for node events.
 const MAX_TIMEOUT: time::Duration = time::Duration::MAX;
@@ -49,7 +48,6 @@ where
     E: serde::Serialize,
 {
     log::debug!(target: "control", "Control thread listening on socket..");
-    let nid = handle.nid()?;
     let mut handlers = Vec::new();
     while !stopping.load(Ordering::Acquire) {
         reap_finished(&mut handlers);
@@ -58,15 +56,21 @@ where
                 let handle = handle.clone();
                 let stopping = stopping.clone();
                 let shutdown = stream.try_clone().ok();
-                let join = thread::spawn(&nid, "control", move || {
-                    if let Err(e) = command(&stream, handle, stopping) {
-                        log::debug!(target: "control", "Command returned error: {e}");
-                        CommandResult::error(e).to_writer(&mut stream).ok();
-                    }
-                    stream.flush().ok();
-                    stream.shutdown(net::Shutdown::Both).ok();
-                });
-                handlers.push((shutdown, join));
+                let join = std::thread::Builder::new()
+                    .name("control".to_owned())
+                    .spawn(move || {
+                        if let Err(e) = command(&stream, handle, stopping) {
+                            log::debug!(target: "control", "Command returned error: {e}");
+                            CommandResult::error(e).to_writer(&mut stream).ok();
+                        }
+                        stream.flush().ok();
+                        stream.shutdown(net::Shutdown::Both).ok();
+                    });
+
+                match join {
+                    Ok(join) => handlers.push((shutdown, join)),
+                    Err(e) => log::warn!(target: "control", "Failed to spawn control handler: {e}"),
+                }
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                 std::thread::sleep(time::Duration::from_millis(25));

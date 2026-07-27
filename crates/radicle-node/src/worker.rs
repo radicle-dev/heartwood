@@ -74,7 +74,6 @@ type Policies = policy::Config<policy::store::Read>;
 
 /// A worker that replicates Git objects.
 pub(crate) struct Worker {
-    nid: NodeId,
     storage: Storage,
     fetch_config: FetchConfig,
     notifications: notifications::StoreWriter,
@@ -90,7 +89,6 @@ pub(crate) struct Worker {
 impl Worker {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        nid: NodeId,
         storage: Storage,
         fetch_config: FetchConfig,
         notifications: notifications::StoreWriter,
@@ -101,7 +99,6 @@ impl Worker {
         timeout: Duration,
     ) -> Self {
         Self {
-            nid,
             storage,
             fetch_config,
             notifications,
@@ -233,7 +230,6 @@ impl Worker {
                 log::debug!(target: "worker", "Spawning upload-pack process for {} in job {job}..", header.repo);
 
                 let result = upload_pack::upload_pack(
-                    &self.nid,
                     &header.repo,
                     remote,
                     &self.storage,
