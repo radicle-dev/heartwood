@@ -21,10 +21,10 @@ use crate::runtime::thread;
 /// send the EOF file message.
 pub fn upload_pack<R, W>(
     nid: &NodeId,
+    rid: &RepoId,
     remote: NodeId,
     storage: &Storage,
     emitter: &Emitter<Event>,
-    header: &GitRequest,
     mut recv: R,
     send: W,
     timeout: Duration,
@@ -34,30 +34,7 @@ where
     W: io::Write + Send,
 {
     let timer = Instant::now();
-    let protocol_version = header
-        .extra
-        .iter()
-        .find_map(|kv| match kv {
-            (k, Some(v)) if k == "version" => {
-                let version = match v.as_str() {
-                    "2" => 2,
-                    "1" => 1,
-                    _ => 0,
-                };
-                Some(version)
-            }
-            _ => None,
-        })
-        .unwrap_or(0);
-
-    if protocol_version != 2 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "only Git protocol version 2 is supported",
-        ));
-    }
-
-    let git_dir = paths::repository(storage, &header.repo);
+    let git_dir = paths::repository(storage, rid);
     let mut child = {
         let mut cmd = Command::new("git");
 
@@ -70,7 +47,7 @@ where
         cmd.current_dir(git_dir)
             .env_clear()
             .envs(std::env::vars().filter(|(key, _)| key == "PATH" || key.starts_with("GIT_TRACE")))
-            .env("GIT_PROTOCOL", format!("version={protocol_version}"))
+            .env("GIT_PROTOCOL", "version=2")
             .args([
                 "-c",
                 "uploadpack.allowAnySha1InWant=true",
@@ -95,20 +72,20 @@ where
 
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
-    let mut reporter = Reporter::new(header.repo, remote, emitter.clone(), send);
+    let mut reporter = Reporter::new(*rid, remote, emitter.clone(), send);
 
     std::thread::scope(|s| {
         thread::spawn_scoped(nid, "upload-pack", s, || {
             if let Err(e) = io::copy(&mut stdout, &mut reporter) {
-                log::debug!(target: "worker", "Failure on upload-pack writer for {}: {e}", header.repo);
-                emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
+                log::debug!(target: "worker", "Failure on upload-pack writer for {}: {e}", rid);
+                emitter.emit(events::UploadPack::error(*rid, remote, e).into());
             }
         });
 
         let reader = thread::spawn_scoped(nid, "upload-pack", s, || {
             if let Err(e) = io::copy(&mut recv, &mut stdin) {
-                log::debug!(target: "worker", "Failure on upload-pack reader for {}: {e}", header.repo);
-                emitter.emit(events::UploadPack::error(header.repo, remote, e).into());
+                log::debug!(target: "worker", "Failure on upload-pack reader for {}: {e}", rid);
+                emitter.emit(events::UploadPack::error(*rid, remote, e).into());
             }
         });
 
@@ -126,7 +103,7 @@ where
     })?;
 
     let status = child.wait()?;
-    emitter.emit(events::UploadPack::done(header.repo, remote, status).into());
+    emitter.emit(events::UploadPack::done(*rid, remote, status).into());
     log::debug!(target: "worker", "Upload pack finished ({}ms)", timer.elapsed().as_millis());
     Ok(status)
 }
