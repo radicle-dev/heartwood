@@ -1,0 +1,12 @@
+[package]
+name = "radicle-varint"
+version = "0.1.0"
+description = "Implementation of QUIC variable length integers for Radicle"
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
