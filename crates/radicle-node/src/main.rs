@@ -384,8 +384,10 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         listen,
         signals,
         signer,
-        options.upgrade_sigrefs,
-        options.recompute_identity_docs,
+        radicle_node::runtime::RuntimeFlags {
+            upgrade_sigrefs: options.upgrade_sigrefs,
+            recompute_identity_docs: options.recompute_identity_docs,
+        },
     )?
     .run()?;
 

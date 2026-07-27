@@ -103,6 +103,13 @@ pub enum ControlSocket {
     Received(UnixListener),
 }
 
+/// Flags for runtime initialization.
+#[derive(Debug, Clone, Default)]
+pub struct RuntimeFlags {
+    pub upgrade_sigrefs: bool,
+    pub recompute_identity_docs: bool,
+}
+
 /// Holds join handles to the client threads, as well as a client handle.
 pub struct Runtime {
     pub id: NodeId,
@@ -127,8 +134,7 @@ impl Runtime {
         listen: Vec<net::SocketAddr>,
         signals: mpsc::Receiver<Signal>,
         secret_key: SigningKey,
-        upgrade_sigrefs: bool,
-        recompute_identity_docs: bool,
+        flags: RuntimeFlags,
     ) -> Result<Runtime, Error> {
         let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
@@ -210,8 +216,8 @@ impl Runtime {
             rng,
             announcement,
             emitter.clone(),
-            upgrade_sigrefs,
-            recompute_identity_docs,
+            flags.upgrade_sigrefs,
+            flags.recompute_identity_docs,
         );
         service.initialize(clock)?;
 

@@ -484,8 +484,10 @@ impl Node {
             listen,
             signals,
             self.secret_key.clone(),
-            upgrade_sigrefs,
-            recompute_identity_docs,
+            runtime::RuntimeFlags {
+                upgrade_sigrefs,
+                recompute_identity_docs,
+            },
         )
         .unwrap();
 
