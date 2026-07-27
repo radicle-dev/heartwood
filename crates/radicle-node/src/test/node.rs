@@ -514,13 +514,18 @@ impl Node {
 
         let id = NodeId::from(*self.secret_key.public_key());
         let handle = ManuallyDrop::new(rt.handle.clone());
-        let thread = ManuallyDrop::new(runtime::thread::spawn(&id, "runtime", move || {
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(rt.run())
-        }));
+        let thread = ManuallyDrop::new(
+            std::thread::Builder::new()
+                .name("runtime".to_owned())
+                .spawn(move || {
+                    tokio::runtime::Builder::new_multi_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(rt.run())
+                })
+                .unwrap(),
+        );
         let addr = loop {
             if let Some(addr) = handle.listen_addrs().unwrap().into_iter().next() {
                 break addr;

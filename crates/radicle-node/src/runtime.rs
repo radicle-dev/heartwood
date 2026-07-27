@@ -1,5 +1,4 @@
 pub mod handle;
-pub mod thread;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -125,6 +124,8 @@ pub enum Error {
     AlreadyRunning(PathBuf),
     #[error("git version error: {0}")]
     GitVersion(#[from] git::VersionError),
+    #[error("failed to spawn thread: {0}")]
+    Spawn(std::io::Error),
 }
 
 impl From<service::Error> for Error {
@@ -260,9 +261,10 @@ impl Runtime {
         let (input_tx, input_rx) = chan::unbounded();
         let controller = Controller(input_tx);
         let (output_tx, output) = mpsc::unbounded_channel();
-        let service_thread = thread::spawn(&id, "service", move || {
-            run_service(service, input_rx, output_tx)
-        });
+        let service_thread = std::thread::Builder::new()
+            .name("service".to_owned())
+            .spawn(move || run_service(service, input_rx, output_tx))
+            .map_err(Error::Spawn)?;
 
         let handle = Handle::new(socket.clone(), controller.clone(), emitter.clone());
         let fetch = worker::FetchConfig {
@@ -363,11 +365,14 @@ impl Runtime {
         listener
             .set_nonblocking(true)
             .map_err(|source| Error::Control(control::Error::Bind(source)))?;
-        let control_thread = thread::spawn(self.secret_key.public_key(), "control-listener", {
-            let stop = stopping.clone();
-            let handle = self.handle.clone();
-            move || control::listen(listener, handle, stop)
-        });
+        let control_thread = std::thread::Builder::new()
+            .name("control-listener".to_owned())
+            .spawn({
+                let stop = stopping.clone();
+                let handle = self.handle.clone();
+                move || control::listen(listener, handle, stop)
+            })
+            .map_err(Error::Spawn)?;
 
         let mut poll = tokio::time::interval(time::Duration::from_millis(100));
         let mut tasks = JoinSet::new();
@@ -840,7 +845,6 @@ async fn run_git_worker(
     let remote = fetch.remote();
 
     let mut worker = Worker::new(
-        shared.local,
         shared.worker.config.storage.clone(),
         shared.worker.config.fetch.clone(),
         shared.worker.notifications.clone(),
