@@ -57,6 +57,7 @@ impl<Read: io::Read, Write: io::Write> Handle<Read, Write> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn fetch<D: node::refs::Store>(
         self,
         rid: RepoId,
