@@ -4827,6 +4827,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-varint"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "radicle-windows"
 version = "0.1.0"
 dependencies = [
