@@ -249,53 +249,6 @@ impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for BoundedVec<T, N> {
     }
 }
 
-unsafe impl<const N: usize> bytes::BufMut for BoundedVec<u8, N> {
-    fn remaining_mut(&self) -> usize {
-        N - self.v.len()
-    }
-
-    unsafe fn advance_mut(&mut self, cnt: usize) {
-        let len = {
-            let len = self.v.len();
-            let remaining = N - len;
-
-            if remaining >= cnt {
-                len + cnt
-            } else {
-                panic!("advance out of bounds: have {remaining} remaining, but advancing by {cnt}",);
-            }
-        };
-
-        debug_assert!(len <= N);
-
-        // SAFETY: See bounds check above.
-        unsafe {
-            self.v.set_len(len);
-        }
-    }
-
-    fn chunk_mut(&mut self) -> &mut bytes::buf::UninitSlice {
-        let len = self.v.len();
-
-        // If the vector is full, we double its capacity using `reserve`, but not beyond the limit.
-        if self.v.capacity() == len {
-            self.v.reserve(std::cmp::min(len, N - len));
-        }
-
-        let cap = self.v.capacity();
-
-        debug_assert!(cap <= N);
-        debug_assert!(len <= cap);
-
-        let ptr = self.v.as_mut_ptr();
-
-        // SAFETY: Since `ptr` is valid for `cap` bytes, `ptr.add(len)` must be
-        // valid for `cap - len` bytes. The subtraction will not underflow since
-        // `len <= cap`.
-        unsafe { bytes::buf::UninitSlice::from_raw_parts_mut(ptr.add(len), cap - len) }
-    }
-}
-
 #[cfg(any(test, feature = "test"))]
 impl<T, const N: usize> qcheck::Arbitrary for BoundedVec<T, N>
 where
