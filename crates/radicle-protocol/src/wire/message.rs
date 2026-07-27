@@ -400,7 +400,6 @@ mod tests {
     use radicle::storage::refs::RefsAt;
     use radicle::test::arbitrary;
 
-    use crate::deserializer::Deserializer;
     use crate::prop_roundtrip;
     use crate::wire::{Encode as _, roundtrip};
 
@@ -492,24 +491,6 @@ mod tests {
             zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES + 1),
         }
         .encode_to_vec();
-    }
-
-    #[test]
-    fn prop_message_decoder() {
-        fn property(items: Vec<Message>) {
-            let mut decoder = Deserializer::<1048576, Message>::new(8);
-
-            for item in &items {
-                item.encode(&mut decoder);
-            }
-            for item in items {
-                assert_eq!(decoder.next().unwrap().unwrap(), item);
-            }
-        }
-
-        qcheck::QuickCheck::new()
-            .r#gen(qcheck::Gen::new(16))
-            .quickcheck(property as fn(items: Vec<Message>));
     }
 
     #[quickcheck]

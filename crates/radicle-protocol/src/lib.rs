@@ -1,5 +1,4 @@
 pub mod bounded;
-pub mod deserializer;
 pub mod fetcher;
 pub mod service;
 pub mod wire;
