@@ -37,6 +37,7 @@ radicle-localtime = { workspace = true }
 radicle-protocol = { workspace = true }
 radicle-signals = { workspace = true }
 radicle-log = { workspace = true }
+radicle-varint = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 snapbox = { workspace = true, optional = true }
