@@ -473,6 +473,7 @@ impl Node {
         let alias = self.config.alias.clone();
 
         let upgrade_sigrefs = true;
+        let recompute_identity_docs = false;
 
         let listen = vec![(Ipv4Addr::LOCALHOST, 0).into()];
         let (_, signals) = mpsc::sync_channel(1);
@@ -484,6 +485,7 @@ impl Node {
             signals,
             self.secret_key.clone(),
             upgrade_sigrefs,
+            recompute_identity_docs,
         )
         .unwrap();
 

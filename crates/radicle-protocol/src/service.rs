@@ -380,6 +380,7 @@ pub struct Service<D, S> {
     /// Latest metrics for all nodes connected to since the last start.
     metrics: Metrics,
     upgrade_sigrefs: bool,
+    recompute_identity_docs: bool,
 }
 
 impl<D, S> Service<D, S> {
@@ -444,6 +445,23 @@ where
                 repo = self.upgrade_sigrefs(repo)?;
             }
             let rid = repo.rid;
+
+            if let Ok(repo_mut) = self.storage.repository_mut(rid)
+                && self.recompute_identity_docs
+            {
+                match (repo_mut.identity_head(), repo_mut.canonical_identity_head()) {
+                    (Ok(current), Ok(canonical)) if current != canonical => {
+                        log::info!(
+                        target: "service",
+                            "Identity document tip changed for {rid}: {current} -> {canonical}"
+                        );
+                        if let Err(e) = repo_mut.set_identity_head_to(canonical) {
+                            log::warn!(target: "service", "Failed to update identity head for {rid}: {e}")
+                        }
+                    }
+                    _ => {}
+                }
+            }
 
             // If we're not seeding this repo, just skip it.
             if !self.policies.is_seeding(&rid)? {
@@ -557,6 +575,7 @@ where
         node: NodeAnnouncement,
         emitter: Emitter<Event>,
         upgrade_sigrefs: bool,
+        recompute_identity_docs: bool,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
         let limiter = RateLimiter::new(config.peers());
@@ -601,6 +620,7 @@ where
             listening: vec![],
             metrics: Metrics::default(),
             upgrade_sigrefs,
+            recompute_identity_docs,
         }
     }
 

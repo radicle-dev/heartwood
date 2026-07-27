@@ -128,6 +128,7 @@ impl Runtime {
         signals: mpsc::Receiver<Signal>,
         secret_key: SigningKey,
         upgrade_sigrefs: bool,
+        recompute_identity_docs: bool,
     ) -> Result<Runtime, Error> {
         let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
@@ -210,6 +211,7 @@ impl Runtime {
             announcement,
             emitter.clone(),
             upgrade_sigrefs,
+            recompute_identity_docs,
         );
         service.initialize(clock)?;
 

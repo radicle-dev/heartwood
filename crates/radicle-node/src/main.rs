@@ -38,6 +38,7 @@ Options
                   (default: radicle)
     --log-format  json                              Set log format for logger implementation
     --upgrade-sigrefs                               Upgrade sigrefs to the latest feature level
+    --recompute-identity-docs                       Recompute and update identity document tips
     --version                                       Print program version
     --help                                          Print help
 "#;
@@ -115,6 +116,7 @@ struct Options {
     log: LogOptions,
     force: bool,
     upgrade_sigrefs: bool,
+    recompute_identity_docs: bool,
 }
 
 fn parse_options() -> Result<Options, lexopt::Error> {
@@ -127,6 +129,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     let mut secret = None;
     let mut force = false;
     let mut upgrade_sigrefs = false;
+    let mut recompute_identity_docs = false;
     let mut log_level = None;
     let mut log_logger = Logger::default();
     let mut log_format = None;
@@ -138,6 +141,9 @@ fn parse_options() -> Result<Options, lexopt::Error> {
             }
             Long("upgrade-sigrefs") => {
                 upgrade_sigrefs = true;
+            }
+            Long("recompute-identity-docs") => {
+                recompute_identity_docs = true;
             }
             Long("config") => {
                 config = Some(parser.value()?.parse_with(PathBuf::from_str)?);
@@ -190,6 +196,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
         listen,
         config,
         upgrade_sigrefs,
+        recompute_identity_docs,
         log: LogOptions {
             level: log_level,
             logger: log_logger,
@@ -378,6 +385,7 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         signals,
         signer,
         options.upgrade_sigrefs,
+        options.recompute_identity_docs,
     )?
     .run()?;
 

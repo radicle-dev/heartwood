@@ -213,6 +213,7 @@ where
         let emitter: Emitter<Event> = Default::default();
 
         let upgrade_sigrefs = true;
+        let recompute_identity_docs = false;
 
         let mut service = Service::new(
             config.config,
@@ -224,6 +225,7 @@ where
             announcement,
             emitter,
             upgrade_sigrefs,
+            recompute_identity_docs,
         );
 
         info!(
