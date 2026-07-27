@@ -1,8 +1,3 @@
-// N.b. Rust 1.85 introduced some annoying clippy warnings about using `b""`
-// syntax in place of `b''`, but in our cases they were u8 and not [u8] so the
-// suggestions did not make sense.
-#![allow(clippy::byte_char_slices)]
-
 pub mod fingerprint;
 pub mod runtime;
 
