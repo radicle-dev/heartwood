@@ -214,27 +214,22 @@ impl Worker {
                     };
                 }
 
-                let protocol_version = header
-                    .extra
-                    .iter()
-                    .find_map(|kv| match kv {
-                        (k, Some(v)) if k == "version" => {
-                            let version = match v.as_str() {
-                                "2" => 2,
-                                "1" => 1,
-                                _ => 0,
-                            };
-                            Some(version)
-                        }
-                        _ => None,
-                    })
-                    .unwrap_or(0);
+                let version = header.extra.iter().find_map(|(key, value)| {
+                    value
+                        .as_ref()
+                        .and_then(|value| (key == "version").then_some(value.clone()))
+                });
 
-                if protocol_version != 2 {
-                    return FetchResult::Responder {
-                        rid: Some(header.repo),
-                        result: Err(UploadError::ProtocolVersionUnsupported),
-                    };
+                match version {
+                    Some(version) if version == "2" => {}
+                    version => {
+                        return FetchResult::Responder {
+                            rid: Some(header.repo),
+                            result: Err(UploadError::ProtocolVersionUnsupported {
+                                version: version.unwrap_or_else(|| "<unknown>".into()),
+                            }),
+                        };
+                    }
                 }
 
                 let result = upload_pack::upload_pack(

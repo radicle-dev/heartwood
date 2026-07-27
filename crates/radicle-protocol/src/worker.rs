@@ -47,8 +47,8 @@ pub enum UploadError {
     UploadPack(io::Error),
     #[error(transparent)]
     Authorization(#[from] AuthorizationError),
-    #[error("git protocol version is not supported")]
-    ProtocolVersionUnsupported,
+    #[error("git protocol version {version} is not supported")]
+    ProtocolVersionUnsupported { version: String },
 }
 
 impl UploadError {
