@@ -212,6 +212,8 @@ where
             service::gossip::node(&config.config, Timestamp::from(config.local_time) + 1);
         let emitter: Emitter<Event> = Default::default();
 
+        let upgrade_sigrefs = true;
+
         let mut service = Service::new(
             config.config,
             db,
@@ -221,6 +223,7 @@ where
             fastrand::Rng::with_seed(id as u64),
             announcement,
             emitter,
+            upgrade_sigrefs,
         );
 
         info!(

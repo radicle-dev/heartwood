@@ -379,6 +379,7 @@ pub struct Service<D, S> {
     listening: Vec<net::SocketAddr>,
     /// Latest metrics for all nodes connected to since the last start.
     metrics: Metrics,
+    upgrade_sigrefs: bool,
 }
 
 impl<D, S> Service<D, S> {
@@ -438,8 +439,10 @@ where
         let mut inventory = BTreeSet::new();
         let mut private = BTreeSet::new();
 
-        for repo in self.storage.repositories()? {
-            let repo = self.upgrade_sigrefs(repo)?;
+        for mut repo in self.storage.repositories()? {
+            if self.upgrade_sigrefs {
+                repo = self.upgrade_sigrefs(repo)?;
+            }
             let rid = repo.rid;
 
             // If we're not seeding this repo, just skip it.
@@ -553,6 +556,7 @@ where
         rng: Rng,
         node: NodeAnnouncement,
         emitter: Emitter<Event>,
+        upgrade_sigrefs: bool,
     ) -> Self {
         let sessions = Sessions::new(rng.clone());
         let limiter = RateLimiter::new(config.peers());
@@ -596,6 +600,7 @@ where
             emitter,
             listening: vec![],
             metrics: Metrics::default(),
+            upgrade_sigrefs,
         }
     }
 

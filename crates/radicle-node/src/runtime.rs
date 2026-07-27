@@ -127,6 +127,7 @@ impl Runtime {
         listen: Vec<net::SocketAddr>,
         signals: mpsc::Receiver<Signal>,
         secret_key: SigningKey,
+        upgrade_sigrefs: bool,
     ) -> Result<Runtime, Error> {
         let id = NodeId::from(*secret_key.public_key());
         let alias = config.alias.clone();
@@ -208,6 +209,7 @@ impl Runtime {
             rng,
             announcement,
             emitter.clone(),
+            upgrade_sigrefs,
         );
         service.initialize(clock)?;
 

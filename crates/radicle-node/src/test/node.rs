@@ -472,6 +472,8 @@ impl Node {
     pub fn spawn(self) -> NodeHandle {
         let alias = self.config.alias.clone();
 
+        let upgrade_sigrefs = true;
+
         let listen = vec![(Ipv4Addr::LOCALHOST, 0).into()];
         let (_, signals) = mpsc::sync_channel(1);
         let rt = Runtime::init(
@@ -481,6 +483,7 @@ impl Node {
             listen,
             signals,
             self.secret_key.clone(),
+            upgrade_sigrefs,
         )
         .unwrap();
 

@@ -37,6 +37,7 @@ Options
     --log-logger  (radicle | structured | systemd)  Set logger implementation
                   (default: radicle)
     --log-format  json                              Set log format for logger implementation
+    --upgrade-sigrefs                               Upgrade sigrefs to the latest feature level
     --version                                       Print program version
     --help                                          Print help
 "#;
@@ -113,6 +114,7 @@ struct Options {
     listen: Vec<SocketAddr>,
     log: LogOptions,
     force: bool,
+    upgrade_sigrefs: bool,
 }
 
 fn parse_options() -> Result<Options, lexopt::Error> {
@@ -124,6 +126,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
     let mut config = None;
     let mut secret = None;
     let mut force = false;
+    let mut upgrade_sigrefs = false;
     let mut log_level = None;
     let mut log_logger = Logger::default();
     let mut log_format = None;
@@ -132,6 +135,9 @@ fn parse_options() -> Result<Options, lexopt::Error> {
         match arg {
             Long("force") => {
                 force = true;
+            }
+            Long("upgrade-sigrefs") => {
+                upgrade_sigrefs = true;
             }
             Long("config") => {
                 config = Some(parser.value()?.parse_with(PathBuf::from_str)?);
@@ -183,6 +189,7 @@ fn parse_options() -> Result<Options, lexopt::Error> {
         secret,
         listen,
         config,
+        upgrade_sigrefs,
         log: LogOptions {
             level: log_level,
             logger: log_logger,
@@ -363,7 +370,16 @@ fn execute(options: Options) -> Result<(), ExecutionError> {
         log::debug!(target: "node", "Removing existing control socket..");
         std::fs::remove_file(&socket).ok();
     }
-    Runtime::init(home, config.node, socket, listen, signals, signer)?.run()?;
+    Runtime::init(
+        home,
+        config.node,
+        socket,
+        listen,
+        signals,
+        signer,
+        options.upgrade_sigrefs,
+    )?
+    .run()?;
 
     Ok(())
 }
