@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc as chan;
 use std::{fs, io, net, time};
 
 #[cfg(unix)]
@@ -43,9 +42,16 @@ use radicle_protocol::worker::{FetchRequest, FetchResult};
 use radicle_signals::Signal;
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 use tokio::task::JoinSet;
 use tokio_util::io::SyncIoBridge;
+
+/// Re-export MPSC from both Tokio and the Standard Library, so we can use them
+/// in the same file without having to fully qualify them.
+mod mpsc {
+    pub(super) use std::sync::mpsc as std;
+    pub(super) use tokio::sync::mpsc as tokio;
+}
 
 /// Maximum pending worker tasks allowed.
 pub const MAX_PENDING_TASKS: usize = 1024;
@@ -116,8 +122,8 @@ impl From<service::Error> for Error {
     }
 }
 
-impl From<chan::SendError<ServiceInput>> for Error {
-    fn from(_: chan::SendError<ServiceInput>) -> Self {
+impl From<mpsc::std::SendError<ServiceInput>> for Error {
+    fn from(_: mpsc::std::SendError<ServiceInput>) -> Self {
         Self::ServiceSend
     }
 }
@@ -137,12 +143,12 @@ enum RuntimeOutput {
 pub struct Runtime {
     control: ControlSocket,
     pub(crate) handle: Handle,
-    signals: std::sync::mpsc::Receiver<Signal>,
+    signals: mpsc::std::Receiver<Signal>,
     config: node::Config,
     listen: Vec<net::SocketAddr>,
     secret_key: SigningKey,
-    service: chan::Sender<ServiceInput>,
-    output: mpsc::UnboundedReceiver<RuntimeOutput>,
+    service: mpsc::std::Sender<ServiceInput>,
+    output: mpsc::tokio::UnboundedReceiver<RuntimeOutput>,
     service_thread: std::thread::JoinHandle<()>,
     emitter: Emitter<Event>,
     worker: SharedForWorker,
@@ -155,7 +161,7 @@ impl Runtime {
         config: node::Config,
         socket: PathBuf,
         listen: Vec<net::SocketAddr>,
-        signals: std::sync::mpsc::Receiver<Signal>,
+        signals: mpsc::std::Receiver<Signal>,
         secret_key: SigningKey,
     ) -> Result<Runtime, Error> {
         if config.proxy.is_some() {
@@ -240,8 +246,10 @@ impl Runtime {
         );
         service.initialize(clock)?;
 
-        let (service_tx, input_rx) = chan::channel();
-        let (output_tx, output) = mpsc::unbounded_channel();
+        let (service_tx, input_rx) = mpsc::std::channel();
+
+        let (output_tx, output) = mpsc::tokio::unbounded_channel();
+
         let service_thread = std::thread::Builder::new()
             .name("service".to_owned())
             .spawn(move || run_service(service, input_rx, output_tx))
@@ -324,7 +332,7 @@ impl Runtime {
             worker: self.worker,
         });
 
-        let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel();
+        let (incoming_tx, mut incoming_rx) = mpsc::tokio::unbounded_channel();
         let router = Router::builder(endpoint)
             .accept(
                 GOSSIP_ALPN,
@@ -454,8 +462,8 @@ impl Runtime {
 
 fn run_service<D, S>(
     mut service: service::Service<D, S>,
-    input: chan::Receiver<ServiceInput>,
-    output: mpsc::UnboundedSender<RuntimeOutput>,
+    input: mpsc::std::Receiver<ServiceInput>,
+    output: mpsc::tokio::UnboundedSender<RuntimeOutput>,
 ) where
     D: service::Store + Send + 'static,
     S: storage::WriteStorage + Send + 'static,
@@ -485,11 +493,11 @@ fn run_service<D, S>(
                     error,
                 ))),
             ),
-            Ok(ServiceInput::Shutdown) | Err(chan::RecvTimeoutError::Disconnected) => {
+            Ok(ServiceInput::Shutdown) | Err(mpsc::std::RecvTimeoutError::Disconnected) => {
                 let _ = output.send(RuntimeOutput::Shutdown);
                 break;
             }
-            Err(chan::RecvTimeoutError::Timeout) => {
+            Err(mpsc::std::RecvTimeoutError::Timeout) => {
                 service.tick(LocalTime::now(), &Metrics::default());
                 service.wake();
             }
@@ -516,7 +524,7 @@ enum Incoming {
 #[derive(Debug, Clone)]
 struct IncomingHandler {
     kind: Protocol,
-    tx: mpsc::UnboundedSender<Incoming>,
+    tx: mpsc::tokio::UnboundedSender<Incoming>,
 }
 
 impl ProtocolHandler for IncomingHandler {
@@ -535,7 +543,7 @@ struct GossipPeer {
     job: u64,
     link: Link,
     connection: Connection,
-    sender: mpsc::Sender<Vec<service::Message>>,
+    sender: mpsc::tokio::Sender<Vec<service::Message>>,
 }
 
 struct SharedForWorker {
@@ -548,7 +556,7 @@ struct SharedForWorker {
 struct Shared {
     local: NodeId,
     endpoint: Endpoint,
-    service: chan::Sender<ServiceInput>,
+    service: mpsc::std::Sender<ServiceInput>,
     emitter: Emitter<Event>,
     peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
     jobs: AtomicU64,
@@ -671,7 +679,7 @@ async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
         }
     };
     let job = shared.jobs.fetch_add(1, Ordering::Relaxed);
-    let (tx, mut rx) = mpsc::channel(32);
+    let (tx, mut rx) = mpsc::tokio::channel(32);
     {
         let mut peers = shared.peers.lock().await;
         if let Some(existing) = peers.get(&remote) {
