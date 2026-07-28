@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc as chan;
 use std::{fs, io, net, time};
 
 #[cfg(unix)]
@@ -17,7 +18,6 @@ use crate::control;
 use crate::wire::{self, GIT_ALPN, GOSSIP_ALPN};
 use crate::worker::TaskResult;
 use crate::worker::{self, Worker};
-use crossbeam_channel as chan;
 use handle::Handle;
 use iroh::endpoint::{Connection, RecvStream, SendStream, presets};
 use iroh::protocol::{AcceptError, ProtocolHandler, Router};
@@ -240,7 +240,7 @@ impl Runtime {
         );
         service.initialize(clock)?;
 
-        let (service_tx, input_rx) = chan::unbounded();
+        let (service_tx, input_rx) = chan::channel();
         let (output_tx, output) = mpsc::unbounded_channel();
         let service_thread = std::thread::Builder::new()
             .name("service".to_owned())

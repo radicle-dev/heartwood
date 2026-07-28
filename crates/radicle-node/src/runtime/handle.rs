@@ -64,7 +64,7 @@ pub struct Handle {
     /// Path to the control socket in use. Required for shutdown.
     pub(crate) socket: PathBuf,
 
-    pub(crate) service: super::chan::Sender<ServiceInput>,
+    pub(crate) service: mpsc::Sender<ServiceInput>,
 
     /// Whether or not a shutdown was initiated. Prevents attempting to shutdown twice.
     shutdown: Arc<AtomicBool>,
@@ -83,7 +83,7 @@ impl Handle {
 impl Handle {
     pub(crate) fn new(
         socket: PathBuf,
-        service: super::chan::Sender<ServiceInput>,
+        service: mpsc::Sender<ServiceInput>,
         emitter: Emitter<Event>,
     ) -> Self {
         Self {
