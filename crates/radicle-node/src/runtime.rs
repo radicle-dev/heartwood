@@ -19,8 +19,10 @@ use crate::wire::{self, GIT_ALPN, GOSSIP_ALPN};
 use crate::worker::TaskResult;
 use crate::worker::{self, Worker};
 use handle::Handle;
-use iroh::endpoint::{Connection, RecvStream, SendStream, presets};
-use iroh::protocol::{AcceptError, ProtocolHandler, Router};
+use iroh::endpoint::{
+    ConnectError, ConnectWithOptsError, Connection, RecvStream, SendStream, presets,
+};
+use iroh::protocol::{AcceptError, Router};
 use iroh::{Endpoint, EndpointAddr, RelayMode};
 use localtime::LocalTime;
 use protocol::service;
@@ -169,7 +171,11 @@ pub struct Runtime {
     output: mpsc::tokio::UnboundedReceiver<RuntimeOutput>,
     service_thread: std::thread::JoinHandle<()>,
     emitter: Emitter<Event>,
-    worker: SharedForWorker,
+
+    notifications: notifications::StoreWriter,
+    cache: cob::cache::StoreWriter,
+    db: radicle::node::Database,
+    worker_config: crate::worker::Config,
 }
 
 impl Runtime {
@@ -294,18 +300,16 @@ impl Runtime {
             output,
             service_thread,
             emitter,
-            worker: SharedForWorker {
-                notifications,
-                cache: cobs_cache,
-                db,
-                config: worker::Config::new(
-                    capacity,
-                    storage,
-                    fetch,
-                    seeding_policy,
-                    home.node().join(node::POLICIES_DB_FILE),
-                ),
-            },
+            notifications,
+            cache: cobs_cache,
+            db,
+            worker_config: worker::Config::new(
+                capacity,
+                storage,
+                fetch,
+                seeding_policy,
+                home.node().join(node::POLICIES_DB_FILE),
+            ),
         })
     }
 
@@ -340,31 +344,36 @@ impl Runtime {
         }
 
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
-        let shared = Arc::new(Shared {
+        let gossip = Arc::new(SharedForGossip {
             local: *self.secret_key.public_key(),
             endpoint: endpoint.clone(),
             controller: self.controller.clone(),
-            emitter: self.emitter.clone(),
             peers: tokio::sync::Mutex::new(HashMap::new()),
             jobs: AtomicU64::new(1),
             shutdown: shutdown_rx,
-            worker: self.worker,
         });
 
-        let (incoming_tx, mut incoming_rx) = mpsc::tokio::unbounded_channel();
-        let router = Router::builder(endpoint)
+        let worker = Arc::new(SharedForWorker {
+            controller: self.controller.clone(),
+            jobs: AtomicU64::new(1),
+            emitter: self.emitter.clone(),
+            cache: self.cache.clone(),
+            db: self.db.clone(),
+            config: self.worker_config,
+            notifications: self.notifications,
+        });
+
+        let router = Router::builder(endpoint.clone())
             .accept(
                 GOSSIP_ALPN,
-                IncomingHandler {
-                    kind: Protocol::Gossip,
-                    tx: incoming_tx.clone(),
+                GossipProtocolHandler {
+                    shared: gossip.clone(),
                 },
             )
             .accept(
                 GIT_ALPN,
-                IncomingHandler {
-                    kind: Protocol::Git,
-                    tx: incoming_tx,
+                GitProtocolHandler {
+                    shared: worker.clone(),
                 },
             )
             .spawn();
@@ -386,17 +395,8 @@ impl Runtime {
         let mut tasks = JoinSet::new();
         let result = loop {
             tokio::select! {
-                Some(incoming) = incoming_rx.recv() => {
-                    let shared = shared.clone();
-                    tasks.spawn(async move {
-                        match incoming {
-                            Incoming::Gossip(connection) => run_gossip(shared, connection, Link::Inbound).await,
-                            Incoming::Git(connection) => run_incoming_git(shared, connection).await,
-                        }
-                    });
-                }
                 Some(output) = self.output.recv() => match output {
-                    RuntimeOutput::Io(io) => dispatch(io, shared.clone(), &mut tasks).await,
+                    RuntimeOutput::Io(io) => dispatch(io, gossip.clone(), worker.clone(), endpoint.clone(), &mut tasks).await,
                     RuntimeOutput::Shutdown => break Ok(()),
                 },
                 Some(result) = tasks.join_next(), if !tasks.is_empty() => {
@@ -441,7 +441,7 @@ impl Runtime {
                 None
             }
         };
-        drop(shared);
+        drop(gossip);
         let _ = control_thread.join();
         let _ = self.service_thread.join();
         if let Some(path) = remove {
@@ -529,35 +529,6 @@ fn run_service<D, S>(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Protocol {
-    Gossip,
-    Git,
-}
-
-enum Incoming {
-    Gossip(Connection),
-    Git(Connection),
-}
-
-#[derive(Debug, Clone)]
-struct IncomingHandler {
-    kind: Protocol,
-    tx: mpsc::tokio::UnboundedSender<Incoming>,
-}
-
-impl ProtocolHandler for IncomingHandler {
-    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        let incoming = match self.kind {
-            Protocol::Gossip => Incoming::Gossip(connection),
-            Protocol::Git => Incoming::Git(connection),
-        };
-        self.tx
-            .send(incoming)
-            .map_err(|_| AcceptError::from_err(io::Error::from(io::ErrorKind::BrokenPipe)))
-    }
-}
-
 struct GossipPeer {
     job: u64,
     link: Link,
@@ -570,23 +541,31 @@ struct SharedForWorker {
     cache: cob::cache::StoreWriter,
     db: radicle::node::Database,
     config: crate::worker::Config,
+
+    controller: Controller,
+    jobs: AtomicU64,
+    emitter: Emitter<Event>,
 }
 
-struct Shared {
+struct SharedForGossip {
     local: NodeId,
     endpoint: Endpoint,
     controller: Controller,
-    emitter: Emitter<Event>,
     peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
     jobs: AtomicU64,
     shutdown: watch::Receiver<bool>,
-    worker: SharedForWorker,
 }
 
-async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
+async fn dispatch(
+    io: Io,
+    gossip: Arc<SharedForGossip>,
+    worker: Arc<SharedForWorker>,
+    endpoint: Endpoint,
+    tasks: &mut JoinSet<()>,
+) {
     match io {
         Io::Write(remote, messages) => {
-            let sender = shared
+            let sender = gossip
                 .peers
                 .lock()
                 .await
@@ -597,43 +576,63 @@ async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
             }
         }
         Io::Connect(remote, addr) => {
-            let shared = shared.clone();
+            let shared = gossip.clone();
             tasks.spawn(async move {
                 let _ = shared
                     .controller
                     .send(ServiceInput::Attempted(remote, addr.clone()));
 
-                match endpoint_addr(remote, std::slice::from_ref(&addr)).await {
-                    Ok(endpoint_addr) => {
-                        match shared.endpoint.connect(endpoint_addr, GOSSIP_ALPN).await {
-                            Ok(connection) => run_gossip(shared, connection, Link::Outbound).await,
-                            Err(err) => {
-                                let reason = DisconnectReason::Dial(Arc::new(io::Error::other(
-                                    err.to_string(),
-                                )));
-                                let _ = shared.controller.send(ServiceInput::Disconnected(
-                                    remote,
-                                    Link::Outbound,
-                                    reason,
-                                ));
-                            }
-                        }
-                    }
+                let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
+                    Ok(id) => id,
                     Err(err) => {
-                        let reason = DisconnectReason::Dial(Arc::new(err));
                         let _ = shared.controller.send(ServiceInput::Disconnected(
                             remote,
                             Link::Outbound,
-                            reason,
+                            DisconnectReason::Dial(Arc::new(err)),
+                        ));
+                        return;
+                    }
+                };
+
+                let endpoint_addr = endpoint_addr(id, &[addr]).await;
+
+                match shared.endpoint.connect(endpoint_addr, GOSSIP_ALPN).await {
+                    Ok(connection) => {
+                        GossipProtocolHandler { shared }
+                            .run(connection, Link::Outbound)
+                            .await
+                    }
+                    Err(ConnectError::Connect {
+                        source: ConnectWithOptsError::SelfConnect { .. },
+                        ..
+                    }) => {
+                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                            remote,
+                            Link::Outbound,
+                            DisconnectReason::SelfConnection,
+                        ));
+                    }
+                    Err(err @ ConnectError::Connection { .. }) => {
+                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                            remote,
+                            Link::Outbound,
+                            DisconnectReason::Connection(Arc::new(err)),
+                        ));
+                    }
+                    Err(err) => {
+                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                            remote,
+                            Link::Outbound,
+                            DisconnectReason::Dial(Arc::new(err)),
                         ));
                     }
                 }
             });
         }
         Io::Disconnect(remote, reason) => {
-            if let Some(peer) = shared.peers.lock().await.remove(&remote) {
+            if let Some(peer) = gossip.peers.lock().await.remove(&remote) {
                 peer.connection.close(0u32.into(), b"gossip disconnected");
-                let _ = shared
+                let _ = gossip
                     .controller
                     .send(ServiceInput::Disconnected(remote, peer.link, reason));
             }
@@ -648,18 +647,19 @@ async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
         } => {
             tasks.spawn(async move {
                 if let Err(error) = run_outgoing_git(
-                    shared.clone(),
+                    worker.clone(),
                     rid,
                     remote,
                     addresses,
                     refs_at,
                     reader_limit,
                     config,
+                    endpoint,
                 )
                 .await
                 {
                     let _ =
-                        shared
+                        gossip
                             .controller
                             .send(ServiceInput::FetchFailed { rid, remote, error });
                 }
@@ -669,142 +669,16 @@ async fn dispatch(io: Io, shared: Arc<Shared>, tasks: &mut JoinSet<()>) {
     }
 }
 
-async fn run_gossip(shared: Arc<Shared>, connection: Connection, link: Link) {
-    let remote = NodeId::from_bytes(*connection.remote_id());
-
-    if remote == shared.local {
-        connection.close(0u32.into(), b"self connection");
-        return;
-    }
-    let preferred = if shared.local > remote {
-        Link::Outbound
-    } else {
-        Link::Inbound
-    };
-
-    let streams = match link {
-        Link::Outbound => connection.open_bi().await,
-        Link::Inbound => connection.accept_bi().await,
-    };
-
-    let (mut send, mut recv) = match streams {
-        Ok(streams) => streams,
-        Err(err) => {
-            log::debug!(target: "gossip", "Failed to open gossip stream with {remote}: {err}");
-            return;
-        }
-    };
-    let job = shared.jobs.fetch_add(1, Ordering::Relaxed);
-    let (tx, mut rx) = mpsc::tokio::channel(32);
-    {
-        let mut peers = shared.peers.lock().await;
-        if let Some(existing) = peers.get(&remote) {
-            let new_wins = link == preferred && existing.link != preferred;
-            if !new_wins {
-                connection.close(0u32.into(), b"duplicate gossip connection");
-                return;
-            }
-            existing
-                .connection
-                .close(0u32.into(), b"superseded gossip connection");
-        }
-        peers.insert(
-            remote,
-            GossipPeer {
-                job,
-                link,
-                connection: connection.clone(),
-                sender: tx,
-            },
-        );
-    }
-    let addr = Address::Iroh;
-    let _ = shared
-        .controller
-        .send(ServiceInput::Connected(remote, addr, link));
-
-    let mut reason = DisconnectReason::connection();
-    let mut shutdown = shared.shutdown.clone();
-    'gossip: loop {
-        tokio::select! {
-            _ = shutdown.changed() => {
-                connection.close(0u32.into(), b"node shutting down");
-                break;
-            }
-            incoming = wire::read_message(&mut recv) => match incoming {
-                Ok((message, _bytes)) => {
-                    if shared.controller.send(ServiceInput::Message(remote, message)).is_err() { break; }
-                }
-                Err(err) => {
-                    if connection.close_reason().is_some() {
-                        break;
-                    }
-                    log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
-                    reason = DisconnectReason::Session(session::Error::Misbehavior);
-                    connection.close(0u32.into(), b"invalid gossip");
-                    break;
-                }
-            },
-            Some(messages) = rx.recv() => {
-                for message in messages {
-                    if let Err(err) = crate::wire::write_message(&mut send, &message).await {
-                        log::warn!(target: "gossip", "Unable to send gossip to {remote}: {err}");
-                        connection.close(0u32.into(), b"unable to encode gossip");
-                        break 'gossip;
-                    }
-                }
-            }
-            _ = connection.closed() => break,
-        }
-    }
-    let removed = {
-        let mut peers = shared.peers.lock().await;
-        if peers.get(&remote).is_some_and(|peer| peer.job == job) {
-            peers.remove(&remote);
-            true
-        } else {
-            false
-        }
-    };
-    if removed {
-        let _ = shared
-            .controller
-            .send(ServiceInput::Disconnected(remote, link, reason));
-    }
-}
-
-async fn run_incoming_git(shared: Arc<Shared>, connection: Connection) {
-    let remote = NodeId::from_bytes(*connection.remote_id());
-    let Ok((send, recv)) = connection.accept_bi().await else {
-        return;
-    };
-
-    let fetch = FetchRequest::Responder {
-        remote,
-        emitter: shared.emitter.clone(),
-    };
-    if let Err(error) = run_git_worker(
-        shared,
-        send,
-        recv,
-        fetch,
-        service::FETCH_TIMEOUT,
-        FetchPackSizeLimit::default(),
-    )
-    .await
-    {
-        log::debug!(target: "worker", "Incoming Git connection from {remote} failed: {error}");
-    }
-}
-
+#[allow(clippy::too_many_arguments)]
 async fn run_outgoing_git(
-    shared: Arc<Shared>,
+    shared: Arc<SharedForWorker>,
     rid: radicle::identity::RepoId,
     remote: NodeId,
     addresses: Vec<Address>,
     refs_at: Option<Vec<radicle::storage::refs::RefsAt>>,
     reader_limit: node::config::FetchPackSizeLimit,
     config: radicle_protocol::fetcher::FetchConfig,
+    endpoint: Endpoint,
 ) -> Result<(), String> {
     let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
         Ok(id) => id,
@@ -820,12 +694,12 @@ async fn run_outgoing_git(
 
     let addr = endpoint_addr(id, &addresses).await;
 
-    let connection =
-        tokio::time::timeout(config.timeout(), shared.endpoint.connect(addr, GIT_ALPN))
-            .await
-            .map_err(|_| "Git dial timed out".to_owned())?
-            .map_err(|e| e.to_string())?;
+    let connection = tokio::time::timeout(config.timeout(), endpoint.connect(addr, GIT_ALPN))
+        .await
+        .map_err(|_| "Git dial timed out".to_owned())?
+        .map_err(|e| e.to_string())?;
     let (send, recv) = connection.open_bi().await.map_err(|e| e.to_string())?;
+
     let fetch = FetchRequest::Initiator {
         rid,
         remote,
@@ -836,7 +710,7 @@ async fn run_outgoing_git(
 }
 
 async fn run_git_worker(
-    shared: Arc<Shared>,
+    shared: Arc<SharedForWorker>,
     send: SendStream,
     recv: RecvStream,
     fetch: FetchRequest,
@@ -853,13 +727,13 @@ async fn run_git_worker(
     let remote = fetch.remote();
 
     let mut worker = Worker::new(
-        shared.worker.config.storage.clone(),
-        shared.worker.config.fetch.clone(),
-        shared.worker.notifications.clone(),
-        shared.worker.cache.clone(),
-        shared.worker.db.clone(),
-        shared.worker.config.policy,
-        shared.worker.config.policies_db.clone(),
+        shared.config.storage.clone(),
+        shared.config.fetch.clone(),
+        shared.notifications.clone(),
+        shared.cache.clone(),
+        shared.db.clone(),
+        shared.config.policy,
+        shared.config.policies_db.clone(),
         timeout,
     );
 
@@ -929,4 +803,209 @@ async fn endpoint_addr(remote: NodeId, addresses: &[Address]) -> io::Result<Endp
         }
     }
     Ok(result)
+}
+
+struct GossipProtocolHandler {
+    shared: Arc<SharedForGossip>,
+}
+
+impl GossipProtocolHandler {
+    async fn run(&self, connection: Connection, link: Link) {
+        let remote = NodeId::from_bytes(*connection.remote_id());
+
+        // For gossip, we only allow one bidirectional stream per connection,
+        // as multiple streams do not meaningfully map to the gossip protocol.
+        connection.set_max_concurrent_bi_streams(1u8.into());
+
+        // Gossip streams are always bidirectional, so we do not allow
+        // any unidirectional stream.
+        connection.set_max_concurrent_uni_streams(0u8.into());
+
+        if remote == self.shared.local {
+            connection.close(0u32.into(), b"self connection");
+            return;
+        }
+
+        let preferred = if self.shared.local > remote {
+            Link::Outbound
+        } else {
+            Link::Inbound
+        };
+
+        let streams = match link {
+            Link::Outbound => connection.open_bi().await,
+            Link::Inbound => connection.accept_bi().await,
+        };
+
+        let (mut send, mut recv) = match streams {
+            Ok(streams) => streams,
+            Err(err) => {
+                log::debug!(target: "gossip", "Failed to open gossip stream with {remote}: {err}");
+                return;
+            }
+        };
+
+        let job = self.shared.jobs.fetch_add(1, Ordering::Relaxed);
+
+        let (tx, mut rx) = mpsc::tokio::channel(32);
+        {
+            let mut peers = self.shared.peers.lock().await;
+            if let Some(existing) = peers.get(&remote) {
+                let new_wins = link == preferred && existing.link != preferred;
+                if !new_wins {
+                    connection.close(0u32.into(), b"duplicate gossip connection");
+                    return;
+                }
+                existing
+                    .connection
+                    .close(0u32.into(), b"superseded gossip connection");
+            }
+            peers.insert(
+                remote,
+                GossipPeer {
+                    job,
+                    link,
+                    connection: connection.clone(),
+                    sender: tx,
+                },
+            );
+        }
+        let addr = Address::Iroh;
+
+        let _ = self
+            .shared
+            .controller
+            .send(ServiceInput::Connected(remote, addr, link));
+
+        let mut reason = DisconnectReason::connection();
+        let mut shutdown = self.shared.shutdown.clone();
+
+        let receive = async {
+            loop {
+                match wire::read_message(&mut recv).await {
+                    Ok((message, _bytes)) => {
+                        match self
+                            .shared
+                            .controller
+                            .send(ServiceInput::Message(remote, message))
+                        {
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::warn!(target: "gossip", "Unable to send gossip message from {remote} to service: {err}");
+                                return None;
+                            }
+                        }
+                    }
+                    Err(err) => return Some(err),
+                }
+            }
+        };
+
+        let transmit = async {
+            while let Some(messages) = rx.recv().await {
+                for message in messages {
+                    crate::wire::write_message(&mut send, &message).await?;
+                }
+            }
+            Ok::<_, crate::wire::Error>(())
+        };
+
+        tokio::pin!(receive);
+        tokio::pin!(transmit);
+
+        tokio::select! {
+            _ = shutdown.changed() => {
+                connection.close(0u32.into(), b"node shutting down");
+            }
+            result = &mut receive => {
+                if let Some(err) = result
+                    && connection.close_reason().is_none()
+                {
+                    log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
+                    reason = DisconnectReason::Session(session::Error::Misbehavior);
+                    connection.close(0u32.into(), b"invalid gossip");
+                }
+            }
+            result = &mut transmit => {
+                if let Err(err) = result {
+                    log::warn!(target: "gossip", "Unable to send gossip to {remote}: {err}");
+                    connection.close(0u32.into(), b"unable to encode gossip");
+                }
+            }
+            _ = connection.closed() => {}
+        }
+
+        let removed = {
+            let mut peers = self.shared.peers.lock().await;
+            if peers.get(&remote).is_some_and(|peer| peer.job == job) {
+                peers.remove(&remote);
+                true
+            } else {
+                false
+            }
+        };
+
+        if removed {
+            let _ = self
+                .shared
+                .controller
+                .send(ServiceInput::Disconnected(remote, link, reason));
+        }
+    }
+}
+
+impl std::fmt::Debug for GossipProtocolHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GossipProtocolHandler").finish()
+    }
+}
+
+impl iroh::protocol::ProtocolHandler for GossipProtocolHandler {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        self.run(connection, Link::Inbound).await;
+        Ok(())
+    }
+}
+
+struct GitProtocolHandler {
+    shared: Arc<SharedForWorker>,
+}
+
+impl GitProtocolHandler {
+    async fn run(&self, connection: Connection) {
+        let remote = NodeId::from_bytes(*connection.remote_id());
+        let Ok((send, recv)) = connection.accept_bi().await else {
+            return;
+        };
+
+        let fetch = FetchRequest::Responder {
+            remote,
+            emitter: self.shared.emitter.clone(),
+        };
+        if let Err(error) = run_git_worker(
+            self.shared.clone(),
+            send,
+            recv,
+            fetch,
+            service::FETCH_TIMEOUT,
+            FetchPackSizeLimit::default(),
+        )
+        .await
+        {
+            log::debug!(target: "worker", "Incoming Git connection from {remote} failed: {error}");
+        }
+    }
+}
+
+impl std::fmt::Debug for GitProtocolHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GitProtocolHandler").finish()
+    }
+}
+
+impl iroh::protocol::ProtocolHandler for GitProtocolHandler {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        self.run(connection).await;
+        Ok(())
+    }
 }
