@@ -662,7 +662,9 @@ async fn dispatch(
                 }
             });
         }
-        Io::Wakeup(_) => {}
+        Io::Wakeup(_) => {
+            // TODO: Handle wakeup.
+        }
     }
 }
 
