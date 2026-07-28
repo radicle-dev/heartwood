@@ -4678,7 +4678,6 @@ version = "0.21.1"
 dependencies = [
  "backtrace",
  "bytes",
- "crossbeam-channel",
  "dhat",
  "fastrand",
  "getrandom 0.4.3",

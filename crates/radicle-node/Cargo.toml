@@ -21,7 +21,6 @@ tor = ["radicle/tor", "radicle-protocol/tor"]
 [dependencies]
 backtrace = { workspace = true, optional = true }
 bytes = { workspace = true }
-crossbeam-channel = "0.5.6"
 dhat = { version = "0.3.3", optional = true }
 fastrand = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
