@@ -29,6 +29,8 @@ pub enum ConnectError {
     Agent(#[from] AgentError),
     #[error("Unable to read environment variable '{var}': {source}")]
     EnvVar { var: String, source: VarError },
+    #[error("Environment variable '{var}' is set to the empty string.")]
+    EnvVarEmpty { var: String },
 }
 
 impl ConnectError {
@@ -72,7 +74,10 @@ impl Agent {
         const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
 
         let path = match std::env::var(SSH_AUTH_SOCK) {
-            Ok(path) => Ok(PathBuf::from(path)),
+            Ok(path) if !path.is_empty() => Ok(PathBuf::from(path)),
+            Ok(_) => Err(ConnectError::EnvVarEmpty {
+                var: SSH_AUTH_SOCK.to_string(),
+            }),
             #[cfg(windows)]
             Err(VarError::NotPresent) => {
                 // Windows exposes the SSH Agent on a default named pipe.
