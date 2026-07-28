@@ -56,9 +56,6 @@ mod mpsc {
     pub(super) use tokio::sync::mpsc as tokio;
 }
 
-/// Maximum pending worker tasks allowed.
-pub const MAX_PENDING_TASKS: usize = 1024;
-
 /// How long shutdown waits for network tasks to finish before aborting them.
 const NETWORK_TASK_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(3);
 
