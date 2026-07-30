@@ -2,6 +2,7 @@ pub mod fingerprint;
 pub mod runtime;
 
 mod control;
+mod iroh;
 mod wire;
 mod worker;
 
