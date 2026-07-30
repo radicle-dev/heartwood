@@ -11,7 +11,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["backtrace", "i2p", "systemd", "structured-logger", "socket2", "tor"]
+default = ["backtrace", "i2p", "iroh-mdns-address-lookup", "systemd", "structured-logger", "socket2", "tor"]
 dhat-heap = ["dep:dhat"]
 i2p = ["radicle/i2p", "radicle-protocol/i2p"]
 systemd = ["dep:radicle-systemd"]
@@ -27,6 +27,7 @@ getrandom = { workspace = true, features = ["std"] }
 gix-packetline = { workspace = true, features = ["blocking-io"] }
 indexmap = { workspace = true }
 iroh = { version = "1", default-features = false, features = ["tls-ring"] }
+iroh-mdns-address-lookup = { version = "0.4", optional = true }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
 qcheck = { workspace = true, optional = true }
@@ -46,6 +47,7 @@ tempfile = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "signal", "net", "io-util", "time", "macros", "sync"] }
 tokio-util = { version = "0.7", features = ["io", "io-util"] }
 thiserror = { workspace = true, default-features = true }
+url = { version = "2" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 radicle-systemd = { workspace = true, optional = true }

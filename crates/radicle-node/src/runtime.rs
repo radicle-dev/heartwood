@@ -320,7 +320,7 @@ impl Runtime {
         let mut builder = if self.config.network == node::config::Network::Test {
             Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled)
         } else {
-            Endpoint::builder(presets::N0)
+            Endpoint::builder(crate::iroh::presets::Radicle)
         };
 
         builder = builder.secret_key(iroh::SecretKey::from(self.secret_key.as_bytes()));
