@@ -1840,6 +1840,21 @@ where
                             if ann.node == *remote {
                                 continue;
                             }
+                            // Only send a `RefsAnnouncement` for repositories that are visible to
+                            // the peer. If we do not have the repository, we can not know whether
+                            // it should be visible to the peer or not, so we default to `false`.
+                            if let AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }) =
+                                &ann.message
+                                && !self
+                                    .storage
+                                    .get(*rid)
+                                    .ok()
+                                    .flatten()
+                                    .map(|doc| doc.is_visible_to(&(*remote).into()))
+                                    .unwrap_or(false)
+                            {
+                                continue;
+                            }
                             // Only send messages if we're a relay, or it's our own messages.
                             if relay || ann.node == local {
                                 self.outbox.write(peer, ann.into());
