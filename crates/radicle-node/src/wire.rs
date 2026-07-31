@@ -6,11 +6,6 @@ use radicle_protocol::service::Message;
 use radicle_protocol::wire::{self};
 use radicle_varint::BufMutExt;
 
-/// ALPN used by long-lived gossip connections.
-pub const GOSSIP_ALPN: &[u8] = b"radicle/gossip/1";
-/// ALPN used by independent Git fetch connections.
-pub const GIT_ALPN: &[u8] = b"radicle/git/1";
-
 /// Gossip codec failure.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
