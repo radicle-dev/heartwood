@@ -19,12 +19,14 @@ use crate::service::{Link, NodeId, Timestamp};
 use crate::wire;
 use crate::wire::Encode as _;
 
+const BLOAT: usize = (2 ^ 20) / (65 * (2 ^ 10));
+
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
 /// Maximum number of repository remotes that can be included in a [`RefsAnnouncement`] message.
-pub const REF_REMOTE_LIMIT: usize = 1024;
+pub const REF_REMOTE_LIMIT: usize = 1024 * BLOAT;
 /// Maximum number of inventory which can be announced to other nodes.
-pub const INVENTORY_LIMIT: usize = 2973;
+pub const INVENTORY_LIMIT: usize = 2973 * BLOAT;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Subscribe {
