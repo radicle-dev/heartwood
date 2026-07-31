@@ -15,7 +15,6 @@ use std::os::unix::net::UnixListener;
 use uds_windows::UnixListener;
 
 use crate::control;
-use crate::wire::{self, GIT_ALPN, GOSSIP_ALPN};
 use crate::worker::TaskResult;
 use crate::worker::{self, Worker};
 use handle::Handle;
@@ -61,6 +60,9 @@ const NETWORK_TASK_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(
 
 /// How long shutdown waits for iroh to drain and acknowledge connections.
 const IROH_SHUTDOWN_TIMEOUT: time::Duration = time::Duration::from_secs(3);
+
+const ALPN_GOSSIP: &[u8] = b"radicle/gossip/1";
+const ALPN_GIT: &[u8] = b"radicle/git/1";
 
 /// A command delivered to the synchronous service actor.
 pub(crate) enum ServiceInput {
@@ -405,13 +407,13 @@ impl Runtime {
 
         let router = Router::builder(endpoint.clone())
             .accept(
-                GOSSIP_ALPN,
+                ALPN_GOSSIP,
                 GossipProtocolHandler {
                     shared: gossip.clone(),
                 },
             )
             .accept(
-                GIT_ALPN,
+                ALPN_GIT,
                 GitProtocolHandler {
                     shared: worker.clone(),
                 },
@@ -636,7 +638,7 @@ async fn dispatch(
 
                 let endpoint_addr = endpoint_addr(id, &[addr]).await;
 
-                match shared.endpoint.connect(endpoint_addr, GOSSIP_ALPN).await {
+                match shared.endpoint.connect(endpoint_addr, ALPN_GOSSIP).await {
                     Ok(connection) => {
                         GossipProtocolHandler { shared }
                             .run(connection, Link::Outbound)
@@ -736,7 +738,7 @@ async fn run_outgoing_git(
 
     let addr = endpoint_addr(id, &addresses).await;
 
-    let connection = tokio::time::timeout(config.timeout(), endpoint.connect(addr, GIT_ALPN))
+    let connection = tokio::time::timeout(config.timeout(), endpoint.connect(addr, ALPN_GIT))
         .await
         .map_err(|_| "Git dial timed out".to_owned())?
         .map_err(|e| e.to_string())?;
@@ -924,7 +926,7 @@ impl GossipProtocolHandler {
 
         let receive = async {
             loop {
-                match wire::read_message(&mut recv).await {
+                match crate::wire::read_message(&mut recv).await {
                     Ok((message, _bytes)) => {
                         match self
                             .shared
