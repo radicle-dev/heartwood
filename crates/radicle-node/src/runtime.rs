@@ -331,7 +331,50 @@ impl Runtime {
                     .bind_addr(*addr)
                     .map_err(|e| Error::Iroh(e.to_string()))?;
             }
+            for address in &self.config.external_addresses {
+                match address {
+                    Address::Ipv4 { host, port } => {
+                        builder = builder.external_addr(net::SocketAddr::V4(
+                            net::SocketAddrV4::new(*host, *port),
+                        ));
+                    }
+                    Address::Ipv6 { host, port, .. } => {
+                        builder = builder.external_addr(net::SocketAddr::V6(
+                            net::SocketAddrV6::new(*host, *port, 0, 0),
+                        ));
+                    }
+                    Address::Dns { host, port } => {
+                        match tokio::net::lookup_host((host.as_str(), *port)).await {
+                            Ok(addrs) => {
+                                for addr in addrs {
+                                    builder = builder.external_addr(addr);
+                                }
+                            }
+                            Err(err) => {
+                                log::debug!(target: "node", "Unable to resolve external address {host}:{port}: {err}");
+                            }
+                        }
+                    }
+                    #[cfg(feature = "tor")]
+                    address @ Address::Tor { .. } => {
+                        log::debug!(target: "node", "External address '{address}' ignored.");
+                    }
+                    #[cfg(feature = "i2p")]
+                    address @ Address::I2p { .. } => {
+                        log::debug!(target: "node", "External address '{address}' ignored.");
+                    }
+                    Address::Iroh => {
+                        // This is implicit, no need to set an external address.
+                    }
+                    address => {
+                        log::warn!(target: "node", "Unsupported external address '{address}' ignored.");
+                    }
+                }
+            }
+        } else if !self.config.external_addresses.is_empty() {
+            log::debug!(target: "node", "Configured to listen, but no external addresses were provided.");
         }
+
         let endpoint = builder
             .bind()
             .await
