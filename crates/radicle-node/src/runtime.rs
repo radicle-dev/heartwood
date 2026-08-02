@@ -22,7 +22,7 @@ use iroh::endpoint::{
     ConnectError, ConnectWithOptsError, Connection, RecvStream, SendStream, presets,
 };
 use iroh::protocol::{AcceptError, Router};
-use iroh::{Endpoint, EndpointAddr, RelayMode};
+use iroh::{Endpoint, RelayMode};
 use localtime::LocalTime;
 use protocol::service;
 use protocol::service::DisconnectReason;
@@ -319,12 +319,20 @@ impl Runtime {
             ControlSocket::Received(listener) => (listener, None),
         };
 
+        let address_discovery = crate::iroh::address_discovery::AddressDiscovery::new(
+            &self.db,
+            self.config.network,
+            &self.emitter,
+        )
+        .await?;
+
         let mut builder = if self.config.network == node::config::Network::Test {
             Endpoint::builder(presets::Minimal).relay_mode(RelayMode::Disabled)
         } else {
             Endpoint::builder(crate::iroh::presets::Radicle)
         };
 
+        builder = builder.address_lookup(address_discovery.lookup());
         builder = builder.secret_key(iroh::SecretKey::from(self.secret_key.as_bytes()));
         if !self.listen.is_empty() {
             builder = builder.clear_ip_transports();
@@ -447,6 +455,7 @@ impl Runtime {
                     }
                 }
                 _ = poll.tick() => {
+                    address_discovery.update().await;
                     while let Ok(signal) = self.signals.try_recv() {
                         match signal {
                             Signal::Terminate | Signal::Interrupt => {
@@ -636,9 +645,7 @@ async fn dispatch(
                     }
                 };
 
-                let endpoint_addr = endpoint_addr(id, &[addr]).await;
-
-                match shared.endpoint.connect(endpoint_addr, ALPN_GOSSIP).await {
+                match shared.endpoint.connect(id, ALPN_GOSSIP).await {
                     Ok(connection) => {
                         GossipProtocolHandler { shared }
                             .run(connection, Link::Outbound)
@@ -682,7 +689,7 @@ async fn dispatch(
         Io::Fetch {
             rid,
             remote,
-            addresses,
+            addresses: _,
             refs_at,
             reader_limit,
             config,
@@ -692,7 +699,6 @@ async fn dispatch(
                     worker.clone(),
                     rid,
                     remote,
-                    addresses,
                     refs_at,
                     reader_limit,
                     config,
@@ -718,7 +724,6 @@ async fn run_outgoing_git(
     shared: Arc<SharedForWorker>,
     rid: radicle::identity::RepoId,
     remote: NodeId,
-    addresses: Vec<Address>,
     refs_at: Option<Vec<radicle::storage::refs::RefsAt>>,
     reader_limit: node::config::FetchPackSizeLimit,
     config: radicle_protocol::fetcher::FetchConfig,
@@ -736,9 +741,7 @@ async fn run_outgoing_git(
         }
     };
 
-    let addr = endpoint_addr(id, &addresses).await;
-
-    let connection = tokio::time::timeout(config.timeout(), endpoint.connect(addr, ALPN_GIT))
+    let connection = tokio::time::timeout(config.timeout(), endpoint.connect(id, ALPN_GIT))
         .await
         .map_err(|_| "Git dial timed out".to_owned())?
         .map_err(|e| e.to_string())?;
@@ -797,56 +800,6 @@ async fn run_git_worker(
         .map_err(|e| e.to_string())?;
 
     Ok(())
-}
-
-async fn endpoint_addr(remote: NodeId, addresses: &[Address]) -> io::Result<EndpointAddr> {
-    let id = iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote))
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let mut result = EndpointAddr::new(id);
-    for address in addresses {
-        match address {
-            Address::Ipv4 { host, port } => {
-                result =
-                    result.with_ip_addr(net::SocketAddr::V4(net::SocketAddrV4::new(*host, *port)));
-            }
-            Address::Ipv6 { host, port, .. } => {
-                result = result.with_ip_addr(net::SocketAddr::V6(net::SocketAddrV6::new(
-                    *host, *port, 0, 0,
-                )));
-            }
-            Address::Dns { host, port } => {
-                match tokio::net::lookup_host((host.as_str(), *port)).await {
-                    Ok(addrs) => {
-                        for addr in addrs {
-                            result = result.with_ip_addr(addr);
-                        }
-                    }
-                    Err(err) => {
-                        log::debug!(target: "node", "Unable to resolve direct address {host}:{port}: {err}");
-                    }
-                }
-            }
-            #[cfg(feature = "tor")]
-            address @ Address::Tor { .. } => {
-                // TODO: In the future, create a custom transport address
-                // (via `iroh::TransportAddr::Custom`) that can be used to dial
-                // Tor addresses.
-                log::warn!(target: "node", "Tor transport is not yet supported. Ignoring address '{address}'.");
-            }
-            #[cfg(feature = "i2p")]
-            address @ Address::I2p { .. } => {
-                // TODO: In the future, create a custom transport address
-                // (via `iroh::TransportAddr::Custom`) that can be used to dial
-                // I2P addresses.
-                log::warn!(target: "node", "I2P transport is not yet supported. Ignoring address '{address}'.");
-            }
-            Address::Iroh => {}
-            address => {
-                log::warn!(target: "node", "Ignoring unsupported address '{address}'.");
-            }
-        }
-    }
-    Ok(result)
 }
 
 struct GossipProtocolHandler {
