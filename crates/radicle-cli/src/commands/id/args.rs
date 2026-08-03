@@ -241,6 +241,12 @@ pub(super) enum Command {
         #[arg(value_name = "REVISION_ID")]
         revision: Rev,
     },
+
+    /// Re-cache the identity
+    Cache {
+        #[arg(long)]
+        storage: bool,
+    },
 }
 
 #[cfg(test)]

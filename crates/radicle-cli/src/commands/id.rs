@@ -9,7 +9,7 @@ use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::doc::update;
 use radicle::identity::{Doc, Identity, RawDoc, doc};
 use radicle::node::NodeId;
-use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadRepository as _, ReadStorage as _, WriteRepository};
 use radicle::{Profile, cob, crypto};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
@@ -303,6 +303,19 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
             print(revision, previous, &repo, &profile)?;
         }
+        Command::Cache { storage: false } => {
+            set_identity_head(&repo)?;
+        }
+        Command::Cache { storage: true } => {
+            for info in profile.storage.repositories()? {
+                if let Err(err) = set_identity_head(&profile.storage.repository(info.rid)?) {
+                    term::error(format!(
+                        "Failed to cache identity for repository {}: {err}",
+                        info.rid
+                    ));
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -512,6 +525,12 @@ fn update(
     } else {
         Err(anyhow!("you must provide a revision title and description"))
     }
+}
+
+fn set_identity_head(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
+    repo.set_identity_head()?;
+    term::success!("Successfully cached identity of repository {}", repo.id());
+    Ok(())
 }
 
 fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {

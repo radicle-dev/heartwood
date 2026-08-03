@@ -68,6 +68,14 @@ We will note that we found an inconsistency where the concurrent operations
 which is ordered first. Further analysis of the ordering of pairs of actions is
 required, but is left to future work.
 
+We scanned the network for cases where these changes in evaluation also lead
+to changes in the identity document. There are some cases, but this happens
+rarely: Out of several thousand repositories, only around fifteen showed
+differences.
+
+In case your repository is affected, you might need to run `rad id cache`. This
+re-evaluates the identity COB and updates the `refs/rad/id` reference.
+
 ## Improvements
 
 - `rad patch list` includes a `Labels` column, showing any assigned labels to
