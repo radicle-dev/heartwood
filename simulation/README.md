@@ -85,7 +85,7 @@ values: {
 			nodeIdSeed:    "bootstrap-0" // Deterministically generates the NID above
 			radicleConfig: #BaseBootstrapSeedConfig
 		}
-		
+
 		// A peer node that connects to the bootstrap node
 		"seed-v1-8-0": {
 			role:          "seed"
