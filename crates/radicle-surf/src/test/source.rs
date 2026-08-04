@@ -200,7 +200,9 @@ fn commit_branches() {
 
     assert_eq!(branches.len(), 11);
 
-    let refnames: Vec<_> = branches.iter().map(|b| b.refname().to_string()).collect();
+    let mut refnames: Vec<_> = branches.iter().map(|b| b.refname().to_string()).collect();
+    refnames.sort();
+
     assert_eq!(
         refnames,
         vec![
