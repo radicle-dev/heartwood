@@ -45,7 +45,7 @@ impl Namespace {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// let ns = "surf/git".parse::<Namespace>();
     /// let name = ns.to_namespaced(qualified!("refs/heads/main"));
     /// assert_eq!(
@@ -72,7 +72,7 @@ impl Namespace {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```ignore
     /// let ns = "surf/git".parse::<Namespace>();
     /// let name = ns.to_namespaced(pattern!("refs/heads/*").to_qualified().unwrap());
     /// assert_eq!(

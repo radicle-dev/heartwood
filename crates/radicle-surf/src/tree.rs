@@ -74,7 +74,7 @@ impl Tree {
 impl Serialize for Tree {
     /// Sample output:
     /// (for `<entry_1>` and `<entry_2>` sample output, see [`Entry`])
-    /// ```
+    /// ```ignore
     /// {
     ///   "entries": [
     ///     { <entry_1> },
