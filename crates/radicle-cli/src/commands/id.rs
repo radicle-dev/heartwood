@@ -241,26 +241,27 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     identity::State::Redacted(_) => continue,
                 }
                 .into();
-                let id = term::format::oid(r.id).into();
+                let id = if args.verbose {
+                    term::label(r.id.to_string())
+                } else {
+                    term::format::oid(r.id).into()
+                };
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
                     term::format::Author::new(r.author.public_key(), &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
                 let parent = r
                     .parent
-                    .map(term::format::oid)
-                    .unwrap_or_else(|| term::Paint::new("none".to_string()));
+                    .map(|p| {
+                        if args.verbose {
+                            term::label(p.to_string())
+                        } else {
+                            term::format::oid(p).into()
+                        }
+                    })
+                    .unwrap_or_else(|| term::Paint::new("none".to_string()).into());
 
-                revisions.push([
-                    icon,
-                    id,
-                    title,
-                    alias,
-                    author,
-                    state,
-                    timestamp,
-                    parent.into(),
-                ]);
+                revisions.push([icon, id, title, alias, author, state, timestamp, parent]);
             }
             revisions.print();
 

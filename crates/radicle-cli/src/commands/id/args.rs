@@ -111,6 +111,11 @@ pub struct Args {
     #[arg(long, short)]
     #[arg(global = true)]
     pub(super) quiet: bool,
+
+    /// Print full OIDs instead of abbreviated ones
+    #[arg(long, short)]
+    #[arg(global = true)]
+    pub(super) verbose: bool,
 }
 
 impl Args {
