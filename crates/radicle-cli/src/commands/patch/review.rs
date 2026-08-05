@@ -1,9 +1,6 @@
-mod builder;
-
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 
 use radicle::cob::patch::{PatchId, RevisionId, Verdict};
-use radicle::git;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 
@@ -20,28 +17,13 @@ Markdown supported.
 -->
 "#;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub(super) struct ReviewOptions {
-    pub(super) by_hunk: bool,
-    pub(super) unified: usize,
-    pub(super) hunk: Option<usize>,
     pub(super) verdict: Option<Verdict>,
-}
-
-impl Default for ReviewOptions {
-    fn default() -> Self {
-        Self {
-            by_hunk: false,
-            unified: 3,
-            hunk: None,
-            verdict: None,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Operation {
-    Delete,
     Review(ReviewOptions),
 }
 
@@ -65,44 +47,15 @@ pub fn run(
     repository: &Repository,
 ) -> anyhow::Result<()> {
     let signer = term::signer(profile)?;
-    let _project = repository.identity_doc().context(format!(
-        "couldn't load repository {} from local state",
-        repository.id
-    ))?;
     let mut patches = term::cob::patches_mut(profile, repository, &signer)?;
     let mut patch = patches
         .get_mut(&patch_id)
         .context(format!("couldn't find patch {patch_id} locally"))?;
 
-    let (revision_id, revision) = match revision_id {
-        Some(id) => (
-            id,
-            patch
-                .revision(&id)
-                .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
-        ),
-        None => patch.latest(),
-    };
+    let revision_id = revision_id.unwrap_or_else(|| patch.latest().0);
 
     let patch_id_pretty = term::format::tertiary(term::format::cob(&patch_id));
     match options.op {
-        Operation::Review(ReviewOptions {
-            by_hunk,
-            unified,
-            hunk,
-            verdict,
-        }) if by_hunk => {
-            crate::warning::obsolete("rad patch review --patch");
-            let mut opts = git::raw::DiffOptions::new();
-            opts.patience(true)
-                .minimal(true)
-                .context_lines(unified as u32);
-
-            builder::ReviewBuilder::new(patch_id, repository)
-                .hunk(hunk)
-                .verdict(verdict)
-                .run(revision, &mut opts, &signer)?;
-        }
         Operation::Review(ReviewOptions { verdict, .. }) => {
             let message = options.message.get(REVIEW_HELP_MSG)?;
             let message = message.replace(REVIEW_HELP_MSG.trim(), "");
@@ -130,17 +83,6 @@ pub fn run(
                 }
                 None => {
                     term::success!("Patch {} reviewed", patch_id_pretty);
-                }
-            }
-        }
-        Operation::Delete => {
-            crate::warning::obsolete("rad patch review --delete");
-            let name = git::refs::storage::draft::review(profile.id(), &patch_id);
-
-            match repository.backend.find_reference(&name) {
-                Ok(mut r) => r.delete()?,
-                Err(e) => {
-                    anyhow::bail!("Couldn't delete review reference '{name}': {e}");
                 }
             }
         }

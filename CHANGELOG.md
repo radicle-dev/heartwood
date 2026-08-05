@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `rad config set`
     - `rad config unset`
   were removed.
+- Hunk-based code review and the associated obsolete commands were removed.
 
 ## 1.11.0 - TODO
 
