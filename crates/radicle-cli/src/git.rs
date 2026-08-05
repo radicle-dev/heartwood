@@ -9,7 +9,6 @@ use std::io;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::str::FromStr;
 
 use anyhow::Context as _;
@@ -19,7 +18,6 @@ use thiserror::Error;
 use radicle::crypto::ssh;
 use radicle::git;
 use radicle::git::raw::{ErrorExt as _, Repository};
-use radicle::git::{VERSION_REQUIRED, Version};
 use radicle::prelude::{NodeId, RepoId};
 use radicle::storage::git::transport;
 
@@ -118,14 +116,6 @@ impl<'a> Deref for Remote<'a> {
 impl DerefMut for Remote<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
-    }
-}
-
-/// Get the git repository in the current directory.
-pub fn repository() -> Result<Repository, anyhow::Error> {
-    match Repository::open(".") {
-        Ok(repo) => Ok(repo),
-        Err(err) => Err(err).context("the current working directory is not a git repository"),
     }
 }
 
@@ -280,49 +270,6 @@ pub fn rad_remote(repo: &Repository) -> anyhow::Result<(git::raw::Remote<'_>, Re
     }
 }
 
-pub fn remove_remote(repo: &Repository, rid: &RepoId) -> anyhow::Result<()> {
-    // N.b. ensure that we are removing the remote for the correct RID
-    match radicle::rad::remote(repo) {
-        Ok((_, rid_)) => {
-            if rid_ != *rid {
-                return Err(radicle::rad::RemoteError::RidMismatch {
-                    found: rid_,
-                    expected: *rid,
-                }
-                .into());
-            }
-        }
-        Err(radicle::rad::RemoteError::NotFound(_)) => return Ok(()),
-        Err(err) => return Err(err).context("could not read git remote configuration"),
-    };
-
-    match radicle::rad::remove_remote(repo) {
-        Ok(()) => Ok(()),
-        Err(err) => Err(err).context("could not read git remote configuration"),
-    }
-}
-
-/// Set up an upstream tracking branch for the given remote and branch.
-/// Creates the tracking branch if it does not exist.
-///
-/// > scooby/master...rad/scooby/heads/master
-///
-pub fn set_tracking(repo: &Repository, remote: &NodeId, branch: &str) -> anyhow::Result<String> {
-    // The tracking branch name, eg. 'scooby/master'
-    let branch_name = format!("{remote}/{branch}");
-    // The remote branch being tracked, eg. 'rad/scooby/heads/master'
-    let remote_branch_name = format!("rad/{remote}/heads/{branch}");
-    // The target reference this branch should be set to.
-    let target = format!("refs/remotes/{remote_branch_name}");
-    let reference = repo.find_reference(&target)?;
-    let commit = reference.peel_to_commit()?;
-
-    repo.branch(&branch_name, &commit, true)?
-        .set_upstream(Some(&remote_branch_name))?;
-
-    Ok(branch_name)
-}
-
 /// Get the name of the remote of the given branch, if any.
 pub fn branch_remote(repo: &Repository, branch: &str) -> anyhow::Result<String> {
     let cfg = repo.config()?;
@@ -331,57 +278,6 @@ pub fn branch_remote(repo: &Repository, branch: &str) -> anyhow::Result<String> 
     Ok(remote)
 }
 
-/// Check that the system's git version is supported. Returns an error otherwise.
-pub fn check_version() -> Result<Version, anyhow::Error> {
-    let git_version = git::version()?;
-
-    if git_version < VERSION_REQUIRED {
-        anyhow::bail!("a minimum git version of {} is required", VERSION_REQUIRED);
-    }
-    Ok(git_version)
-}
-
-pub fn add_tag(
-    repo: &Repository,
-    message: &str,
-    patch_tag_name: &str,
-) -> anyhow::Result<git::raw::Oid> {
-    let head = repo.head()?;
-    let commit = head.peel(git::raw::ObjectType::Commit).unwrap();
-    let oid = repo.tag(patch_tag_name, &commit, &repo.signature()?, message, false)?;
-
-    Ok(oid)
-}
-
 fn write_gitsigner(mut w: impl io::Write, signer: &NodeId) -> io::Result<()> {
     writeln!(w, "{} {}", signer, ssh::fmt::key(signer))
-}
-
-/// From a commit hash, return the signer's fingerprint, if any.
-pub fn commit_ssh_fingerprint(path: &Path, sha1: &str) -> Result<Option<String>, io::Error> {
-    use std::io::BufRead;
-    use std::io::BufReader;
-
-    let output = Command::new("git")
-        .current_dir(path) // We need to place the command execution in the git dir
-        .args(["show", sha1, "--pretty=%GF", "--raw"])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr)));
-    }
-
-    let string = BufReader::new(output.stdout.as_slice())
-        .lines()
-        .next()
-        .transpose()?;
-
-    // We only return a fingerprint if it's not an empty string
-    if let Some(s) = string
-        && !s.is_empty()
-    {
-        return Ok(Some(s));
-    }
-
-    Ok(None)
 }
