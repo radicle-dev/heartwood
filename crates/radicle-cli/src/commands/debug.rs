@@ -60,6 +60,7 @@ fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
         arch: std::env::consts::ARCH,
         env,
         warnings: collect_warnings(profile),
+        hardened_bsd: hardened_bsd(),
     };
 
     term::println(serde_json::to_string_pretty(&debug).unwrap());
@@ -71,6 +72,21 @@ fn os_release() -> Option<HashMap<String, String>> {
     get_os_release()
         .ok()
         .map(|map| map.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
+#[cfg(target_os = "freebsd")]
+fn hardened_bsd() -> Option<String> {
+    let mut cmd = Command::new("sysctl");
+    cmd.args(["sysctl", "--values", "hardening.version"]);
+    cmd.output()
+        .ok()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(not(target_os = "freebsd"))]
+#[inline]
+const fn hardened_bsd() -> Option<String> {
+    None
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +106,8 @@ struct DebugInfo {
     os_release: Option<HashMap<String, String>>,
     arch: &'static str,
     env: BTreeMap<String, String>,
+
+    hardened_bsd: Option<String>,
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
     warnings: Vec<String>,
