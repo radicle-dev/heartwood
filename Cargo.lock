@@ -2857,6 +2857,7 @@ dependencies = [
  "radicle-node",
  "radicle-surf",
  "radicle-term",
+ "rs-release",
  "schemars",
  "serde",
  "serde_json",
@@ -3332,6 +3333,12 @@ dependencies = [
  "hmac",
  "subtle",
 ]
+
+[[package]]
+name = "rs-release"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33046892e4d999dc17e3790cb23ade37b8308f4bd2f3b05ed51bc5351762c94b"
 
 [[package]]
 name = "rsa"
