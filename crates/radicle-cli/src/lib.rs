@@ -3,7 +3,7 @@
 // Use `terminal::io::println` or `terminal::io::print` instead.
 #![deny(clippy::print_stdout)]
 pub mod commands;
-pub mod git;
+pub(crate) mod git;
 pub mod node;
 pub mod project;
 pub mod terminal;

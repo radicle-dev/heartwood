@@ -91,7 +91,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
 }
 
 /// Set up a remote and tracking branch for each given remote.
-pub fn setup_remotes(
+pub(crate) fn setup_remotes(
     setup: project::SetupRemote,
     remotes: &[NodeId],
     profile: &Profile,
@@ -107,7 +107,7 @@ pub fn setup_remotes(
 }
 
 /// Set up a remote and tracking branch for the given remote.
-pub fn setup_remote(
+pub(crate) fn setup_remote(
     setup: &project::SetupRemote,
     remote_id: &NodeId,
     remote_name: Option<git::fmt::RefString>,

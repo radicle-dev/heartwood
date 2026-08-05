@@ -5,7 +5,7 @@ use radicle::git::fmt::RefStr;
 use radicle::node::NodeId;
 
 /// Set up a repository remote and tracking branch.
-pub struct SetupRemote<'a> {
+pub(crate) struct SetupRemote<'a> {
     /// The repository id.
     pub rid: RepoId,
     /// Whether or not to set up a remote tracking branch.
