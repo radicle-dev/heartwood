@@ -11,6 +11,7 @@ use crate::commands::sync;
 use crate::node::SyncSettings;
 use crate::project::SetupRemote;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     rid: RepoId,
     nid: &PublicKey,
