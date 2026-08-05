@@ -5,7 +5,7 @@
 pub mod commands;
 pub(crate) mod git;
 pub mod node;
-pub mod project;
+pub(crate) mod project;
 pub mod terminal;
 
 mod common_args;
