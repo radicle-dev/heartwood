@@ -5,7 +5,6 @@
 pub mod commands;
 pub mod git;
 pub mod node;
-pub mod pager;
 pub mod project;
 pub mod terminal;
 
