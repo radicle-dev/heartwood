@@ -548,43 +548,13 @@ impl From<&ListStateArgs> for Option<&Status> {
 
 #[derive(Debug, Parser)]
 pub(super) struct ReviewArgs {
-    /// Review by patch hunks
-    ///
-    /// This operation is obsolete
-    #[arg(long, short, group = "by-hunk", conflicts_with = "delete")]
-    patch: bool,
-
-    /// Generate diffs with <N> lines of context
-    ///
-    /// This operation is obsolete
-    #[arg(
-        long,
-        short = 'U',
-        value_name = "N",
-        requires = "by-hunk",
-        default_value_t = 3
-    )]
-    unified: usize,
-
-    /// Only review a specific hunk
-    ///
-    /// This operation is obsolete
-    #[arg(long, value_name = "INDEX", requires = "by-hunk")]
-    hunk: Option<usize>,
-
     /// Accept a patch revision
-    #[arg(long, conflicts_with = "reject", conflicts_with = "delete")]
+    #[arg(long, conflicts_with = "reject")]
     accept: bool,
 
     /// Reject a patch revision
-    #[arg(long, conflicts_with = "delete")]
+    #[arg(long, conflicts_with = "accept")]
     reject: bool,
-
-    /// Delete a review draft
-    ///
-    /// This operation is obsolete
-    #[arg(long, short)]
-    delete: bool,
 
     #[clap(flatten)]
     message_args: MessageArgs,
@@ -599,57 +569,22 @@ pub enum OperationError {
 
 impl ReviewArgs {
     fn as_operation(&self, message: &Message) -> Result<review::Operation, OperationError> {
-        let Self {
-            patch,
-            accept,
-            reject,
-            delete,
-            ..
-        } = self;
-
-        if *patch {
-            let verdict = if *accept {
-                Some(Verdict::Accept)
-            } else if *reject {
-                Some(Verdict::Reject)
-            } else {
-                None
-            };
-            return Ok(review::Operation::Review(review::ReviewOptions {
-                by_hunk: true,
-                unified: self.unified,
-                hunk: self.hunk,
-                verdict,
-            }));
-        }
-
-        if *delete {
-            return Ok(review::Operation::Delete);
-        }
+        let Self { accept, reject, .. } = self;
 
         if *accept {
             return Ok(review::Operation::Review(review::ReviewOptions {
-                by_hunk: false,
-                unified: 3,
-                hunk: None,
                 verdict: Some(Verdict::Accept),
             }));
         }
 
         if *reject {
             return Ok(review::Operation::Review(review::ReviewOptions {
-                by_hunk: false,
-                unified: 3,
-                hunk: None,
                 verdict: Some(Verdict::Reject),
             }));
         }
 
         if matches!(message, Message::Edit | Message::Text(_)) {
             return Ok(review::Operation::Review(review::ReviewOptions {
-                by_hunk: false,
-                unified: self.unified,
-                hunk: self.hunk,
                 verdict: None,
             }));
         }
