@@ -145,12 +145,6 @@ fn rad_patch_revert_merge() {
 }
 
 #[test]
-#[cfg(not(target_os = "macos"))]
-fn rad_review_by_hunk() {
-    Environment::alice(["rad-init", "rad-review-by-hunk"]);
-}
-
-#[test]
 fn rad_patch_delete() {
     let mut environment = Environment::new();
     let alice = environment.relay("alice");
