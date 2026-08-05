@@ -38,7 +38,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         );
     }
     let verbose = args.verbose;
-    let debug = args.verbose;
 
     match args.command {
         Some(Command::Status { repo, sort_by }) => {
@@ -62,7 +61,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     display_fetch_result(&result, verbose)
                 }
                 if matches!(direction, SyncDirection::Announce | SyncDirection::Both) {
-                    announce_refs(rid, settings, &mut node, &profile, verbose, debug)?;
+                    announce_refs(rid, settings, &mut node, &profile, verbose)?;
                 }
             }
             SyncMode::Inventory => {
@@ -189,7 +188,6 @@ fn announce_refs(
     node: &mut Node,
     profile: &Profile,
     verbose: bool,
-    debug: bool,
 ) -> anyhow::Result<()> {
     let Ok(repo) = profile.storage.repository(rid) else {
         return Err(anyhow!(
@@ -207,16 +205,7 @@ fn announce_refs(
         }
     }
 
-    let result = crate::node::announce(
-        &repo,
-        settings,
-        SyncReporting {
-            debug,
-            ..SyncReporting::default()
-        },
-        node,
-        profile,
-    )?;
+    let result = crate::node::announce(&repo, settings, SyncReporting::default(), node, profile)?;
     if let Some(result) = result {
         print_announcer_result(&result, verbose)
     }
