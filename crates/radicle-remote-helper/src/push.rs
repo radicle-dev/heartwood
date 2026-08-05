@@ -476,7 +476,7 @@ pub(super) fn run(
                 // refs will be announced eventually, when the node restarts.
                 if node.is_running() {
                     // Nb. allow this to fail. The push to local storage was still successful.
-                    node.sync(stored, ok.into_values().flatten().collect(), opts, profile)
+                    node.sync(stored, ok.into_values().flatten().collect(), profile)
                         .ok();
                 } else if hints {
                     hint("offline push, your node is not running");

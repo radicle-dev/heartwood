@@ -53,7 +53,6 @@ pub(super) trait NodeSession {
         &mut self,
         repo: &storage::git::Repository,
         updated: Vec<ExplorerResource>,
-        opts: crate::Options,
         profile: &Profile,
     ) -> Result<(), SyncError>;
 }
@@ -79,7 +78,6 @@ impl NodeSession for RealNodeSession {
         &mut self,
         repo: &storage::git::Repository,
         updated: Vec<ExplorerResource>,
-        opts: crate::Options,
         profile: &Profile,
     ) -> Result<(), SyncError> {
         let progress = if io::stderr().is_terminal() {
@@ -94,7 +92,6 @@ impl NodeSession for RealNodeSession {
             SyncReporting {
                 progress,
                 completion: term::PaintTarget::Stderr,
-                debug: opts.sync_debug,
             },
             &mut self.node,
             profile,
