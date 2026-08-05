@@ -354,6 +354,7 @@ fn mk_issue_row(
     ]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn open(
     title: Option<Title>,
     description: Option<String>,
