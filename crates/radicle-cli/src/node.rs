@@ -111,8 +111,6 @@ pub struct SyncReporting {
     pub progress: term::PaintTarget,
     /// Completion messages.
     pub completion: term::PaintTarget,
-    /// Debug output.
-    pub debug: bool,
 }
 
 impl Default for SyncReporting {
@@ -120,7 +118,6 @@ impl Default for SyncReporting {
         Self {
             progress: term::PaintTarget::Stderr,
             completion: term::PaintTarget::Stdout,
-            debug: false,
         }
     }
 }
