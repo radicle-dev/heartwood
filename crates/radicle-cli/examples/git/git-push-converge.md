@@ -5,7 +5,7 @@ First we add our new delegates, Bob & Eve, to our repo, while also setting the
 `threshold` to `3`:
 
 ``` ~alice
-$ rad id update --title "Add Bob & Eve" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --threshold 3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -q
+$ rad id -q --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Add Bob & Eve" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --threshold 3
 3143236b2e40338f5574ec04e935a5ab80a6868a
 ```
 

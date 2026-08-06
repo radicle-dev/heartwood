@@ -18,7 +18,7 @@ She allows Bob to view the repository. And when she syncs, one seed (Bob) gets
 the refs.
 
 ``` ~alice
-$ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id -q update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ...
 $ rad sync --announce --timeout 3s
 ✓ Synced with 1 seed(s)

@@ -12,7 +12,7 @@ $ rad issue list
 We can now assign ourselves to the open issue.
 
 ```
-$ rad issue assign d87dcfe --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad issue --no-announce assign d87dcfe --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 It will now also show up in the list of issues assigned to us.
@@ -29,7 +29,7 @@ $ rad issue list --assigned me
 If we now fix this issue, we can close it.
 
 ```
-$ rad issue state --solved d87dcfe --no-announce
+$ rad issue --no-announce state --solved d87dcfe
 ✓ Issue d87dcfe is now solved
 ```
 

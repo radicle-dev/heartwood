@@ -4,7 +4,7 @@ canonical head.
 First we add a second delegate, Bob, to our repo:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --description "" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji -q
+$ rad id -q --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Add Bob" --description "" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 c036c0d89ce26aef3ad7da402157dba16b5163b4
 ```
 

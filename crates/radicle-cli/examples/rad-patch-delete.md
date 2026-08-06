@@ -32,7 +32,7 @@ $ rad patch comment 6c61ef1 -m "I think we should use MIT"
 ```
 
 ``` ~alice
-$ rad patch show 6c61ef1 -v
+$ rad patch show -v 6c61ef1
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define LICENSE for project                                                                                                                                 │
 │ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                                                                   │
@@ -84,7 +84,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 $ rad patch review 6c61ef1 --accept -m "LGTM!"
 ✓ Patch 6c61ef1 accepted
 ✓ Synced with 2 seed(s)
-$ rad patch show 6c61ef1 -v
+$ rad patch show -v 6c61ef1
 ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title    Define LICENSE for project                                                                                                                                                                             │
 │ Patch    6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                                                                                                               │
@@ -110,7 +110,7 @@ $ rad patch delete 6c61ef1
 ```
 
 ``` ~alice
-$ rad patch show 6c61ef1 -v
+$ rad patch show -v 6c61ef1
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Define LICENSE for project                                                                                                                                 │
 │ Patch     6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b                                                                                                                   │
@@ -139,6 +139,6 @@ $ rad patch delete 6c61ef1
 ```
 
 ``` ~seed (fails)
-$ rad patch show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji 6c61ef1 -v
+$ rad patch --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji show -v 6c61ef1
 ✗ Error: Patch `6c61ef1716ad8a5c11e04dd7a3fec51e01fba70b` not found
 ```

@@ -3,7 +3,7 @@
 First, we update the identity document to add a canonical reference rule for a new `accepted` branch.
 
 ```
-$ rad id update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": "delegates" } }' -q
+$ rad id -q update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": "delegates" } }'
 [..]
 ```
 

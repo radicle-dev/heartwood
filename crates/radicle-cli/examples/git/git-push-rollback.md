@@ -4,7 +4,7 @@ First we add a second delegate, Bob, to our repo. We also change the threshold
 to 2:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --threshold 2 -q
+$ rad id -q --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2
 069e7d58faa9a7473d27f5510d676af33282796f
 ```
 

@@ -5,7 +5,7 @@ options. Both options can be specified multiple times in the same command line c
 Here we will add Bob and Eve's DIDs to the `allow`list:
 
 ```
-$ rad id update --title "Allow Bob & Eve" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --allow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z -q
+$ rad id -q update --title "Allow Bob & Eve" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --allow did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 ...
 $ rad inspect --identity
 {
@@ -66,7 +66,7 @@ Allowing or disallowing the same peer twice will result in a message saying that
 the document is already up to date:
 
 ```
-$ rad id update --title "Allow Bob" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id -q update --title "Allow Bob" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ...
 ```
 ```
@@ -86,7 +86,7 @@ $ rad id update --visibility public --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJR
 Let's change the repository to `public`:
 
 ```
-$ rad id update --title "IPO" --visibility public -q
+$ rad id -q update --title "IPO" --visibility public
 ...
 ```
 

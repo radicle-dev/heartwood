@@ -4,7 +4,7 @@ using the 'issue' subcommand.
 Let's say the new car you are designing with your peers has a problem with its flux capacitor.
 
 ```
-$ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
+$ rad issue --no-announce open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply"
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
@@ -51,8 +51,8 @@ Let's assign ourselves to this one, this is to ensure work is not
 duplicated. While we're at it, let's add a label.
 
 ```
-$ rad issue assign d87dcfe --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
-$ rad issue label d87dcfe --add good-first-issue --no-announce
+$ rad issue --no-announce assign d87dcfe --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
+$ rad issue --no-announce label d87dcfe --add good-first-issue
 ```
 
 It will now show in the list of issues assigned to us, along with the new label.
@@ -69,7 +69,7 @@ $ rad issue list --assigned
 Note: this can always be undone with the `unassign` subcommand.
 
 ```
-$ rad issue assign d87dcfe --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad issue --no-announce assign d87dcfe --delete did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 ```
 
 Great, now we have communicated to the world about our car's defect.
@@ -78,9 +78,9 @@ But wait! We've found an important detail about the car's power requirements.
 It will help whoever works on a fix.
 
 ```
-$ rad issue comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --message 'The flux capacitor needs 1.21 Gigawatts' -q --no-announce
+$ rad issue -q --no-announce comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --message 'The flux capacitor needs 1.21 Gigawatts'
 2193e871916d18ddd0416b5198cb08c5dc7416b7
-$ rad issue comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --reply-to 2193e871916d18ddd0416b5198cb08c5dc7416b7 --message 'More power!' -q --no-announce
+$ rad issue -q --no-announce comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --reply-to 2193e871916d18ddd0416b5198cb08c5dc7416b7 --message 'More power!'
 880fdcd94b36e412fc906b510f41008700d65424
 ```
 

@@ -65,7 +65,7 @@ $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-$ rad id accept 62e2cb60c6df9ad9908b6697b5d126760a855484 -q
+$ rad id -q accept 62e2cb60c6df9ad9908b6697b5d126760a855484
 ```
 
 As usual, alice works on "master".
