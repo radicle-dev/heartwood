@@ -56,7 +56,7 @@ $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ rad id accept 37a1aad231100cd206c49aed79e405ea2da9204b -q
+$ rad id -q accept 37a1aad231100cd206c49aed79e405ea2da9204b
 ```
 
 Bob immediately pushes a branch that matches the rule, thus populating and

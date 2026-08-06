@@ -4,7 +4,7 @@ operations of a COB.
 To demonstrate, we will first create an issue and interact with it:
 
 ```
-$ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
+$ rad issue --no-announce open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply"
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
@@ -13,13 +13,13 @@ $ rad issue open --title "flux capacitor underpowered" --description "Flux capac
 │                                                         │
 │ Flux capacitor power requirements exceed current supply │
 ╰─────────────────────────────────────────────────────────╯
-$ rad issue react d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --to d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --emoji ✨ --no-announce
-$ rad issue comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --message "Max power!" --no-announce
+$ rad issue --no-announce react d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --to d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --emoji ✨
+$ rad issue --no-announce comment d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --message "Max power!"
 ╭─────────────────────────╮
 │ alice (you) now 3c849c9 │
 │ Max power!              │
 ╰─────────────────────────╯
-$ rad issue assign d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-announce
+$ rad issue --no-announce assign d87dcfe8c2b3200e78b128d9b959cfdf7063fefe --add did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ```
 
 Now, let's see the list of operations using `rad cob log`:

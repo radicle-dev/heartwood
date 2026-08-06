@@ -3,7 +3,7 @@ without having pushed the canonical default branch. For example, Bob can create
 an issue in the repository:
 
 ``` ~bob
-$ rad issue open --title "Add Bob as a delegate" --description "We agreed to add me as a delegate, so I am creating an issue to track that work" --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
+$ rad issue --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji open --title "Add Bob as a delegate" --description "We agreed to add me as a delegate, so I am creating an issue to track that work"
 ╭──────────────────────────────────────────────────────────────╮
 │ Title   Add Bob as a delegate                                │
 │ Issue   f12d512c51d30429f7916db038ae0360e2e938c2             │
@@ -45,6 +45,6 @@ Despite not having the canonical branch, Alice should still be able to add Bob
 as a delegate, since a threshold of 1 can still be reached:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id -q update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 7be665f9fccba97abb21b2fa85a6fd3181c72858
 ```

@@ -91,7 +91,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqV
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 --message 'I cannot wait to get back to the 90s!' -q
+$ rad patch -q comment e4934b6d9dbe01ce3c7fbb5b77a80d5f1dacdc46 --message 'I cannot wait to get back to the 90s!'
 8c66f87afadc7c7c857f8bb92973c25f64e75776
 ✓ Synced with 1 seed(s)
 ```

@@ -4,7 +4,7 @@ nodes to be synchronized with those changes.
 For instance let's create an issue and sync it with the network:
 
 ```
-$ rad issue open --title "Test `rad sync`" --description "Check that the command works" -q --no-announce
+$ rad issue -q --no-announce open --title "Test `rad sync`" --description "Check that the command works"
 ```
 
 If we check the sync status, we see that our peers are out of sync, and our
@@ -85,7 +85,7 @@ And the `--replicas` flag to sync with a number of nodes. First we'll
 create a new issue so that we have something to announce:
 
 ```
-$ rad issue open --title "Test `rad sync --replicas`" --description "Check that the replicas works" -q --no-announce
+$ rad issue -q --no-announce open --title "Test `rad sync --replicas`" --description "Check that the replicas works"
 ```
 
 ```

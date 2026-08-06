@@ -30,7 +30,7 @@ to the default branch, she must set the `threshold` to `2` when adding
 Bob as a delegate:
 
 ``` ~alice (fails)
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+$ rad id -q --no-confirm update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✗ Error: failed to verify delegates for rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ✗ Error: a threshold of 2 delegates cannot be met, found 1 delegate(s) and the following delegates are missing [did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk]
 ✗ Hint: run `rad follow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk` to follow this missing peer
@@ -54,7 +54,7 @@ $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..
 ✓ Fetched repository from 2 seed(s)
 ✓ Synced with 1 node(s)
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+$ rad id -q --no-confirm update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 069e7d58faa9a7473d27f5510d676af33282796f
 $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkuPZ…xEuaPUp@[..]..
@@ -104,7 +104,7 @@ $ git push rad master
 Bob then adds Eve as a delegate:
 
 ``` ~bob
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm -q
+$ rad id -q --no-confirm update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3
 $ rad sync
 ✓ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from z6MkvVv…Z1Ct4tD@[..]..

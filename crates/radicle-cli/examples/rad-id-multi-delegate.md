@@ -1,5 +1,5 @@
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+$ rad id -q --no-confirm --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Add Bob" --description "" --threshold 2 --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 069e7d58faa9a7473d27f5510d676af33282796f
 $ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
@@ -33,7 +33,7 @@ z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z [..] parent
 $ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z --no-confirm
+$ rad id --no-confirm --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Add Eve" --description "" --delegate did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z
 ✓ Identity revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
@@ -76,7 +76,7 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 2 potential s
 $ rad inspect --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --delegates
 did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi (alice)
 did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk (bob)
-$ rad id accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --no-confirm
+$ rad id --no-confirm --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji accept 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3
 ✓ Revision 3cd3c7f9900de0fcb19705856a7cc339a38fb0b3 accepted
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Add Eve                                                       │
@@ -97,7 +97,7 @@ did:key:z6Mkux1aUQD2voWWukVb5nNUR7thrHveQG4pDQua8nVhib7Z (eve)
 ```
 
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Make private" --description "" --visibility private --no-confirm -q
+$ rad id -q --no-confirm --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Make private" --description "" --visibility private
 e6bf10593b78384eb2b281cbb18a605668a6d1f7
 ```
 
@@ -189,7 +189,7 @@ $ rad id show e6bf10593b78384eb2b281cbb18a605668a6d1f7
 
 Finally, Alice can also propose to remove Bob:
 ``` ~alice
-$ rad id update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --title "Remove Bob" --description "" --rescind did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm
+$ rad id --no-confirm --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji update --title "Remove Bob" --description "" --rescind did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 ✓ Identity revision 8ba242a80bc1181f41f9ea7a19286038c7948994 created
 ╭────────────────────────────────────────────────────────────────────────╮
 │ Title    Remove Bob                                                    │

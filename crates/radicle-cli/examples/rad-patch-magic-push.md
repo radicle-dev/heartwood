@@ -3,7 +3,7 @@
 First, we update the identity document to add a canonical reference rule for a new `accepted` branch, allowing delegates to merge into it.
 
 ```
-$ rad id update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": "delegates" } }' -q
+$ rad id -q update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": "delegates" } }'
 [..]
 ```
 
@@ -187,7 +187,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 This will create a third feature branch and verify that pushing to `refs/for/refs/heads/accepted` successfully opens a patch.
 
 ```
-$ rad patch show c846bb5 -v
+$ rad patch show -v c846bb5
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Title     Initialize accepted branch                                                                                                                                 │
 │ Patch     c846bb5f8298802e8de589174549d78c1d9aa00f                                                                                                                   │

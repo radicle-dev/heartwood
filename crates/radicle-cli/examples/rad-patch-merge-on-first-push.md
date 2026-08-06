@@ -4,7 +4,7 @@ pushed to their default branch.
 Here we start off with Alice adding Bob as a delegate:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
+$ rad id -q update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 7be665f9fccba97abb21b2fa85a6fd3181c72858
 ```
 

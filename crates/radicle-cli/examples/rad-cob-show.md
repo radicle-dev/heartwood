@@ -6,7 +6,7 @@ with other software components easier.
 First create an issue.
 
 ```
-$ rad issue open --title "spice harvester broken" --description "Fremen have attacked, maybe we went too far?" --no-announce
+$ rad issue --no-announce open --title "spice harvester broken" --description "Fremen have attacked, maybe we went too far?"
 ╭──────────────────────────────────────────────────╮
 │ Title   spice harvester broken                   │
 │ Issue   9de644864342d7a505eb8d58d1ef20e5bb05de2e │
@@ -78,7 +78,7 @@ $ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch
 Finally let's update the issue and see the output of `rad cob show` also changes.
 
 ```
-$ rad issue label 9de6448 --add bug --no-announce
+$ rad issue --no-announce label 9de6448 --add bug
 $ rad cob show --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object 9de644864342d7a505eb8d58d1ef20e5bb05de2e
 {"assignees":[],"title":"spice harvester broken","state":{"status":"open"},"labels":["bug"],"thread":{"comments":{"9de644864342d7a505eb8d58d1ef20e5bb05de2e":{"author":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","reactions":[],"resolved":false,"body":"Fremen have attacked, maybe we went too far?","edits":[{"author":"z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi","timestamp":1671125284000,"body":"Fremen have attacked, maybe we went too far?","embeds":[]}]}},"timeline":["9de644864342d7a505eb8d58d1ef20e5bb05de2e"]}}
 ```
