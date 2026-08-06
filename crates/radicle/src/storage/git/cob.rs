@@ -108,6 +108,35 @@ impl cob::object::Storage for Repository {
         Ok(refs.into())
     }
 
+    fn objects_by_prefix(
+        &self,
+        typename: &cob::TypeName,
+        object_id_prefix: &str,
+    ) -> Result<BTreeMap<ObjectId, Objects>, Self::ObjectsError> {
+        let glob = format!("refs/namespaces/*/refs/cobs/{typename}/{object_id_prefix}*");
+        let references = self.backend.references_glob(&glob)?;
+        let mut objects_map: BTreeMap<ObjectId, Objects> = BTreeMap::new();
+
+        for reference in references {
+            let reference = reference.map_err(Self::ObjectsError::from)?;
+            let Ok(name) = reference.name() else {
+                continue;
+            };
+
+            if let Ok(name) = RefStr::try_from_str(name)
+                && let Some((_, object_id)) = cob::object::parse_refstr(&name) {
+                    let obj_ref = cob::object::Reference::try_from(reference)
+                        .map_err(Self::ObjectsError::from)?;
+                    objects_map
+                        .entry(object_id)
+                        .and_modify(|objs: &mut Objects| objs.push(obj_ref.clone()))
+                        .or_insert_with(|| Objects::new(obj_ref));
+                }
+        }
+
+        Ok(objects_map)
+    }
+
     fn types(
         &self,
         typename: &cob::TypeName,
@@ -419,6 +448,45 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
         }
 
         Ok(objs)
+    }
+
+    fn objects_by_prefix(
+        &self,
+        typename: &cob::TypeName,
+        object_id_prefix: &str,
+    ) -> Result<BTreeMap<ObjectId, Objects>, Self::ObjectsError> {
+        let signed_glob = format!("refs/namespaces/*/refs/cobs/{typename}/{object_id_prefix}*");
+        let draft_glob = format!(
+            "refs/namespaces/{}/refs/drafts/cobs/{typename}/{object_id_prefix}*",
+            self.remote
+        );
+        let mut objects = BTreeMap::new();
+
+        for reference in self
+            .repo
+            .raw()
+            .references_glob(&signed_glob)?
+            .chain(self.repo.raw().references_glob(&draft_glob)?)
+        {
+            let reference = reference.map_err(Self::ObjectsError::from)?;
+            let Some(object_id) = reference
+                .name()
+                .ok()
+                .and_then(|name| name.rsplit('/').next())
+                .and_then(|id| id.parse::<ObjectId>().ok())
+            else {
+                continue;
+            };
+            let object_ref =
+                cob::object::Reference::try_from(reference).map_err(Self::ObjectsError::from)?;
+
+            objects
+                .entry(object_id)
+                .and_modify(|refs: &mut Objects| refs.push(object_ref.clone()))
+                .or_insert_with(|| Objects::new(object_ref));
+        }
+
+        Ok(objects)
     }
 
     fn types(

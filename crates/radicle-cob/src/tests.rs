@@ -99,13 +99,28 @@ mod git {
         )
         .unwrap();
 
-        let mut expected = list(&storage, &typename).unwrap();
+        let mut expected = list(&storage, &typename, None).unwrap();
         expected.sort_by(|x, y| x.id().cmp(y.id()));
 
         let mut actual = vec![issue_1, issue_2];
-        actual.sort_by(|x, y| x.id().cmp(y.id()));
 
-        assert_eq!(actual, expected);
+        {
+            actual.sort_by(|x, y| x.id().cmp(y.id()));
+            assert_eq!(actual, expected);
+        }
+
+        {
+            let prefix = &actual[0].id().to_string()[..8];
+            let prefixed = list::<NonEmpty<Entry>, _>(&storage, &typename, Some(prefix)).unwrap();
+            let expected = actual
+                .iter()
+                .filter(|cob| cob.id().to_string().starts_with(prefix))
+                .map(|cob| *cob.id())
+                .collect::<Vec<_>>();
+            let actual = prefixed.iter().map(|cob| *cob.id()).collect::<Vec<_>>();
+
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]

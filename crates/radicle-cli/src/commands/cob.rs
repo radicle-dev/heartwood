@@ -98,6 +98,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let cobs = radicle_cob::list::<NonEmpty<cob::Entry>, _>(
                 &repo,
                 FilteredTypeName::from(type_name).as_ref(),
+                None,
             )?;
             for cob in cobs {
                 term::println(cob.id);

@@ -142,6 +142,32 @@ impl object::Storage for Storage {
         Ok(remotes.into())
     }
 
+    fn objects_by_prefix(
+        &self,
+        typename: &crate::TypeName,
+        object_id_prefix: &str,
+    ) -> Result<BTreeMap<ObjectId, object::Objects>, Self::ObjectsError> {
+        let glob = format!("refs/rad/*/cobs/{typename}/{object_id_prefix}*");
+        let mut objects = BTreeMap::new();
+        for r in self.raw.references_glob(&glob)? {
+            let r = r?;
+            let Some(object_id) = r
+                .name()
+                .ok()
+                .and_then(|name| name.rsplit('/').next())
+                .and_then(|id| id.parse::<ObjectId>().ok())
+            else {
+                continue;
+            };
+            let reference = Reference::try_from(r)?;
+            objects
+                .entry(object_id)
+                .and_modify(|objs: &mut object::Objects| objs.push(reference.clone()))
+                .or_insert_with(|| object::Objects::new(reference));
+        }
+        Ok(objects)
+    }
+
     fn types(
         &self,
         typename: &crate::TypeName,

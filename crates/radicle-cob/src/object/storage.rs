@@ -74,6 +74,14 @@ pub trait Storage {
         object_id: &ObjectId,
     ) -> Result<Objects, Self::ObjectsError>;
 
+    /// Get all references to objects of a given type with an object ID
+    /// that starts with a given prefix.
+    fn objects_by_prefix(
+        &self,
+        typename: &TypeName,
+        object_id_prefix: &str,
+    ) -> Result<BTreeMap<ObjectId, Objects>, Self::ObjectsError>;
+
     /// Get all references to objects of a given type within a particular
     /// identity
     fn types(&self, typename: &TypeName) -> Result<BTreeMap<ObjectId, Objects>, Self::TypesError>;

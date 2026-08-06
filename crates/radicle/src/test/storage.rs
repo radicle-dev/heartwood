@@ -413,6 +413,42 @@ impl radicle_cob::object::Storage for MockRepository {
         todo!()
     }
 
+    fn objects_by_prefix(
+        &self,
+        typename: &radicle_cob::TypeName,
+        object_id_prefix: &str,
+    ) -> Result<
+        std::collections::BTreeMap<radicle_cob::ObjectId, radicle_cob::object::Objects>,
+        Self::ObjectsError,
+    > {
+        let mut objects = std::collections::BTreeMap::new();
+
+        for refs in self.remotes.values() {
+            for (name, target) in refs.refs().clone() {
+                let Some((ref_typename, object_id)) = radicle_cob::object::parse_refstr(&name)
+                else {
+                    continue;
+                };
+                if ref_typename != *typename || !object_id.to_string().starts_with(object_id_prefix)
+                {
+                    continue;
+                }
+                let reference = radicle_cob::object::Reference {
+                    name,
+                    target: radicle_cob::object::Commit { id: target },
+                };
+                objects
+                    .entry(object_id)
+                    .and_modify(|refs: &mut radicle_cob::object::Objects| {
+                        refs.push(reference.clone())
+                    })
+                    .or_insert_with(|| radicle_cob::object::Objects::new(reference));
+            }
+        }
+
+        Ok(objects)
+    }
+
     fn types(
         &self,
         _typename: &radicle_cob::TypeName,

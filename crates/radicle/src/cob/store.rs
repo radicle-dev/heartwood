@@ -394,7 +394,7 @@ where
         impl ExactSizeIterator<Item = Result<(ObjectId, T), Error>> + use<'a, T, Repo, Access>,
         Error,
     > {
-        let raw = cob::list::<T, _>(self.repo, self.scope.type_name)?;
+        let raw = cob::list::<T, _>(self.repo, self.scope.type_name, None)?;
 
         Ok(raw.into_iter().map(|o| Ok((*o.id(), o.object))))
     }
@@ -406,7 +406,7 @@ where
 
     /// Return objects count.
     pub fn count(&self) -> Result<usize, Error> {
-        let raw = cob::list::<T, _>(self.repo, self.scope.type_name)?;
+        let raw = cob::list::<T, _>(self.repo, self.scope.type_name, None)?;
 
         Ok(raw.len())
     }

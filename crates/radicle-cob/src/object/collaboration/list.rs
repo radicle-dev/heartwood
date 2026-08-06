@@ -14,6 +14,7 @@ use super::error;
 pub fn list<T, S>(
     storage: &S,
     typename: &TypeName,
+    prefix: Option<&str>,
 ) -> Result<Vec<CollaborativeObject<T>>, error::Retrieve>
 where
     T: Evaluate<S>,
@@ -25,9 +26,14 @@ where
             Signature = crypto::Signature,
         >,
 {
-    let references = storage
-        .types(typename)
-        .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
+    let references = match prefix {
+        None => storage
+            .types(typename)
+            .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?,
+        Some(prefix) => storage
+            .objects_by_prefix(typename, prefix)
+            .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?,
+    };
     log::trace!(target: "cob", "Loaded {} references", references.len());
     let mut result = Vec::new();
     for (oid, tip_refs) in references {
