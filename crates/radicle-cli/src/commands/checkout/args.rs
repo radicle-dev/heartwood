@@ -1,6 +1,8 @@
 use clap::Parser;
 use radicle::prelude::{Did, RepoId};
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Checkout a repository into the local directory";
 const LONG_ABOUT: &str = r#"
 Creates a working copy from a repository in local storage.
@@ -11,6 +13,7 @@ Creates a working copy from a repository in local storage.
 pub struct Args {
     /// Repository ID of the repository to checkout
     #[arg(value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: RepoId,
 
     /// The DID of the remote peer to checkout

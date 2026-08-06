@@ -7,6 +7,8 @@ use radicle::git;
 use radicle::git::fmt::RefString;
 use radicle::prelude::{NodeId, RepoId};
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Wait for some state to be updated";
 
 const LONG_ABOUT: &str = r#"
@@ -22,6 +24,7 @@ fn parse_refstr(refstr: &str) -> Result<RefString, git::fmt::Error> {
 pub struct Args {
     /// The repository to watch, defaults to `rad .`
     #[arg(long)]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 
     /// The fully-qualified Git reference (branch, tag, etc.) to watch

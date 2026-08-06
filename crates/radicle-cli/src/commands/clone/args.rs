@@ -8,6 +8,7 @@ use radicle::node::policy::Scope;
 use radicle::prelude::*;
 use radicle::storage::refs;
 
+use crate::commands::completion::repo_id;
 use crate::common_args::{
     ABOUT_FETCH_SIGNED_REFERENCES_FEATURE_LEVEL_MINIMUM, SignedReferencesFeatureLevel,
     SignedReferencesFeatureLevelParser,
@@ -69,6 +70,7 @@ pub struct Args {
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, rad://z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(value_name = "RID", value_parser = parse_rid)]
+    #[arg(add = repo_id())]
     pub(super) repo: RepoId,
 
     /// The target directory for the repository to be cloned into

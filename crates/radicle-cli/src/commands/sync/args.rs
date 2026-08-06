@@ -9,6 +9,7 @@ use radicle::{
     storage::refs,
 };
 
+use crate::commands::completion::repo_id;
 use crate::common_args::{
     ABOUT_FETCH_SIGNED_REFERENCES_FEATURE_LEVEL_MINIMUM, SignedReferencesFeatureLevel,
     SignedReferencesFeatureLevelParser,
@@ -108,6 +109,7 @@ pub(super) struct SyncArgs {
 
     /// The repository to perform the synchronizing for [default: cwd]
     #[arg(value_name = "RID")]
+    #[arg(add = repo_id())]
     repo: Option<RepoId>,
 
     /// Synchronize with a specific number of seeds
@@ -180,6 +182,7 @@ pub(super) enum Command {
     Status {
         /// The repository to display the status for [default: cwd]
         #[arg(value_name = "RID")]
+        #[arg(add = repo_id())]
         repo: Option<RepoId>,
         /// Sort the table by column
         #[arg(long, value_name = "FIELD", value_enum, default_value_t)]

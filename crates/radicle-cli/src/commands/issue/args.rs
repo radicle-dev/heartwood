@@ -8,7 +8,11 @@ use radicle::{
     issue::{CloseReason, State},
 };
 
-use crate::{git::Rev, terminal::patch::Message};
+use crate::{
+    commands::completion::{issue_comment_id, issue_id, repo_id},
+    git::Rev,
+    terminal::patch::Message,
+};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Assigned {
@@ -43,6 +47,7 @@ pub struct Args {
     #[arg(value_name = "RID")]
     #[arg(long, short)]
     #[clap(global = true)]
+    #[arg(add = repo_id())]
     pub(crate) repo: Option<RepoId>,
 
     /// Enable verbose output
@@ -56,12 +61,24 @@ pub struct Args {
     pub(crate) empty: EmptyArgs,
 }
 
+impl Args {
+    /// Return the issue ID supplied to a command that operates on comments.
+    pub(crate) fn issue_id(&self) -> Option<&Rev> {
+        match self.command.as_ref()? {
+            Command::Comment(args) => Some(&args.id),
+            Command::React { id, .. } => Some(id),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
     /// Add or delete assignees from an issue
     Assign {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
 
         /// Add an assignee (may be specified multiple times, takes precedence over `--delete`)
@@ -80,6 +97,7 @@ pub(crate) enum Command {
     Cache {
         /// Optionally choose an issue to re-cache
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Option<Rev>,
 
         /// Operate on storage
@@ -93,6 +111,7 @@ pub(crate) enum Command {
     Edit {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
 
         /// The new title to set
@@ -107,12 +126,14 @@ pub(crate) enum Command {
     Delete {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
     },
     /// Add or delete labels from an issue
     Label {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
 
         /// Add a label (may be specified multiple times, takes precedence over `--delete`)
@@ -152,6 +173,7 @@ pub(crate) enum Command {
     React {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
 
         /// The emoji reaction
@@ -162,18 +184,21 @@ pub(crate) enum Command {
         /// Optionally react to a comment
         #[arg(long = "to")]
         #[arg(value_name = "COMMENT_ID")]
+        #[arg(add = issue_comment_id())]
         comment_id: Option<Rev>,
     },
     /// Show a specific issue
     Show {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
     },
     /// Transition the state of an issue
     State {
         /// ID of the issue
         #[arg(value_name = "ISSUE_ID")]
+        #[arg(add = issue_id())]
         id: Rev,
 
         /// The desired target state
@@ -305,6 +330,7 @@ impl From<EmptyArgs> for ListArgs {
 pub(crate) struct CommentArgs {
     /// ID of the issue
     #[arg(value_name = "ISSUE_ID")]
+    #[arg(add = issue_id())]
     id: Rev,
 
     /// The body of the comment
@@ -316,11 +342,13 @@ pub(crate) struct CommentArgs {
     /// will be in reply to the issue itself
     #[arg(long, value_name = "COMMENT_ID")]
     #[arg(conflicts_with = "edit")]
+    #[arg(add = issue_comment_id())]
     reply_to: Option<Rev>,
 
     /// Edit a comment by specifying its ID
     #[arg(long, value_name = "COMMENT_ID")]
     #[arg(conflicts_with = "reply_to")]
+    #[arg(add = issue_comment_id())]
     edit: Option<Rev>,
 }
 
@@ -457,6 +485,58 @@ impl From<CommentArgs> for CommentAction {
                 to_edit,
             },
             (None, None) => Self::Comment { id, message },
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use clap::CommandFactory as _;
+    use clap_complete::ArgValueCompleter;
+
+    use super::Args;
+
+    #[test]
+    fn issue_ids_have_dynamic_completion() {
+        let command = Args::command();
+
+        for name in [
+            "assign", "cache", "comment", "delete", "edit", "label", "react", "show", "state",
+        ] {
+            let command = command.find_subcommand(name).unwrap();
+            let id = command
+                .get_arguments()
+                .find(|arg| arg.get_id() == "id")
+                .unwrap();
+
+            assert!(
+                id.get::<ArgValueCompleter>().is_some(),
+                "issue ID for `{name}` has no dynamic completer"
+            );
+        }
+    }
+
+    #[test]
+    fn issue_comment_ids_have_dynamic_completion() {
+        let command = Args::command();
+        let react = command.find_subcommand("react").unwrap();
+        let comment = command.find_subcommand("comment").unwrap();
+
+        for arg in [
+            react
+                .get_arguments()
+                .find(|arg| arg.get_id() == "comment_id")
+                .unwrap(),
+            comment
+                .get_arguments()
+                .find(|arg| arg.get_id() == "reply_to")
+                .unwrap(),
+            comment
+                .get_arguments()
+                .find(|arg| arg.get_id() == "edit")
+                .unwrap(),
+        ] {
+            assert!(arg.get::<ArgValueCompleter>().is_some());
         }
     }
 }

@@ -1,5 +1,7 @@
 use radicle::identity::RepoId;
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Publish a repository to the network";
 
 const LONG_ABOUT: &str = r#"
@@ -21,6 +23,7 @@ pub struct Args {
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 }
 

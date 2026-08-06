@@ -2,6 +2,8 @@ use clap::Parser;
 
 use radicle::prelude::RepoId;
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Remove all remotes from a repository";
 
 const LONG_ABOUT: &str = r#"
@@ -17,6 +19,7 @@ followed and/or the follow scope is "all".
 pub struct Args {
     /// Operate on the given repository
     #[arg(value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: RepoId,
 
     /// Do not ask for confirmation before removal

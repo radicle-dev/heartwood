@@ -8,7 +8,7 @@ use radicle::{
 };
 use radicle_term::Interactive;
 
-use crate::terminal::args::ScopeParser;
+use crate::{commands::completion::repo_id, terminal::args::ScopeParser};
 
 const ABOUT: &str = "Initialize a Radicle repository";
 
@@ -44,6 +44,7 @@ pub struct Args {
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(long, value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) existing: Option<RepoId>,
     /// Set up the upstream of the default branch
     #[arg(short = 'u', long)]

@@ -4,6 +4,7 @@ pub mod checkout;
 pub mod clean;
 pub mod clone;
 pub mod cob;
+pub(crate) mod completion;
 pub mod config;
 pub mod debug;
 pub mod diff;

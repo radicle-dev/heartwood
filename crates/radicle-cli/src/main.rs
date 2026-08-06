@@ -99,10 +99,10 @@ enum Command {
         json: bool,
     },
 
-    /// Print static completion information for a given shell
+    /// Print static and dynamic completion information for a given shell
     #[command(hide = true)]
     Completion {
-        /// The type of shell to output a static completion script for.
+        /// The type of shell to output a completion script for.
         shell: clap_complete::Shell,
     },
 
@@ -111,6 +111,8 @@ enum Command {
 }
 
 fn main() {
+    clap_complete::CompleteEnv::with_factory(CliArgs::command).complete();
+
     human_panic::setup_panic!(human_panic::Metadata::new(
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION")
@@ -287,20 +289,26 @@ fn run_command(command: Command, ctx: impl term::Context) -> Result<(), anyhow::
         Command::Watch(args) => watch::run(args, ctx),
         Command::Version { json } => write_version(json),
         Command::Completion { shell } => {
-            print_completion(shell, &mut CliArgs::command());
+            print_completion(shell, &mut CliArgs::command(), &mut io::stdout())?;
             Ok(())
         }
         Command::External(args) => ExternalCommand::new(args).run(),
     }
 }
 
-fn print_completion<G: clap_complete::Generator>(generator: G, cmd: &mut clap::Command) {
-    clap_complete::generate(
-        generator,
-        cmd,
-        cmd.get_name().to_string(),
-        &mut io::stdout(),
-    );
+fn print_completion(
+    shell: clap_complete::Shell,
+    cmd: &mut clap::Command,
+    buf: &mut dyn Write,
+) -> io::Result<()> {
+    clap_complete::generate(shell, cmd, cmd.get_name().to_string(), &mut *buf);
+
+    let shells = clap_complete::env::Shells::builtins();
+    let shell = shells
+        .completer(&shell.to_string())
+        .expect("all statically supported shells support dynamic completion");
+
+    shell.write_registration("COMPLETE", NAME, NAME, NAME, buf)
 }
 
 struct ExternalCommand {
@@ -360,6 +368,38 @@ impl ExternalCommand {
                     Err(err.into())
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use clap::ValueEnum as _;
+
+    use clap::CommandFactory as _;
+
+    use super::{CliArgs, print_completion};
+
+    #[test]
+    fn completion_command_generates_static_scripts_and_dynamic_hooks() {
+        for shell in clap_complete::Shell::value_variants() {
+            let mut static_script = Vec::new();
+            let mut command = CliArgs::command();
+            let name = command.get_name().to_owned();
+            clap_complete::generate(*shell, &mut command, name, &mut static_script);
+            let mut buf = Vec::new();
+
+            print_completion(*shell, &mut CliArgs::command(), &mut buf).unwrap();
+
+            let script = String::from_utf8(buf).unwrap();
+            assert!(
+                script.as_bytes().starts_with(&static_script),
+                "script for {shell} does not start with static completion data"
+            );
+            assert!(
+                script.contains("COMPLETE"),
+                "script for {shell} has no dynamic completion hook"
+            );
         }
     }
 }

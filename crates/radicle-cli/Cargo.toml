@@ -23,7 +23,7 @@ tor = ["radicle/tor"]
 anyhow = "1"
 chrono = { workspace = true, features = ["clock", "std"] }
 clap = { version = "4.5.44", features = ["derive"] }
-clap_complete = "4.5"
+clap_complete = { version = "4.5", features = ["unstable-dynamic"] }
 dunce = { workspace = true }
 getrandom = "0.4.3"
 human-panic.workspace = true

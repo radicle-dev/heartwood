@@ -3,6 +3,8 @@ use std::{fmt::Display, str::FromStr};
 use clap::{Parser, Subcommand, ValueEnum};
 use radicle::{node::notifications::NotificationId, prelude::RepoId};
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Manage your Radicle notifications";
 
 const LONG_ABOUT: &str = r#"
@@ -68,6 +70,7 @@ pub(super) struct EmptyArgs {
     /// Operate on a given repository [default: cwd]
     #[arg(value_name = "RID")]
     #[arg(long, hide = true)]
+    #[arg(add = repo_id())]
     repo: Option<RepoId>,
 
     /// Operate on all repositories
@@ -91,6 +94,7 @@ pub(super) struct ListArgs {
 
     /// Operate on a given repository [default: cwd]
     #[arg(long, value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 
     /// Operate on all repositories
@@ -137,6 +141,7 @@ impl From<EmptyArgs> for ListArgs {
 pub(super) struct ClearArgs {
     /// Operate on a given repository [default: cwd]
     #[arg(long, value_name = "RID")]
+    #[arg(add = repo_id())]
     repo: Option<RepoId>,
 
     /// Operate on all repositories

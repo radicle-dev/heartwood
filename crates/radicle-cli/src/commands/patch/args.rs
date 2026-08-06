@@ -10,6 +10,7 @@ use radicle::patch::Verdict;
 use radicle::prelude::Did;
 use radicle::prelude::RepoId;
 
+use crate::commands::completion::{patch_id, repo_id};
 use crate::commands::patch::checkout;
 use crate::commands::patch::review;
 
@@ -38,6 +39,7 @@ pub struct Args {
 
     /// Operate on the given repository [default: cwd]
     #[arg(long, global = true, value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 
     /// Verbose output
@@ -68,6 +70,7 @@ pub(super) enum Command {
     Show {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Show the diff of the changes in the patch
@@ -85,6 +88,7 @@ pub(super) enum Command {
     Diff {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// The revision to diff
@@ -100,6 +104,7 @@ pub(super) enum Command {
     Archive {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Unarchive a patch
@@ -114,6 +119,7 @@ pub(super) enum Command {
     Update {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Provide a Git revision as the base commit
@@ -133,6 +139,7 @@ pub(super) enum Command {
     Checkout {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Checkout the given revision of the patch
@@ -147,6 +154,7 @@ pub(super) enum Command {
     Review {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// The particular revision to review
@@ -163,6 +171,7 @@ pub(super) enum Command {
     Resolve {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// The review id which the comment is under
@@ -187,6 +196,7 @@ pub(super) enum Command {
     Delete {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
     },
 
@@ -202,6 +212,7 @@ pub(super) enum Command {
     React {
         /// ID of the patch or patch revision
         #[arg(value_name = "PATCH_ID|REVISION_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// The reaction being used
@@ -217,6 +228,7 @@ pub(super) enum Command {
     Assign {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         #[clap(flatten)]
@@ -227,6 +239,7 @@ pub(super) enum Command {
     Label {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         #[clap(flatten)]
@@ -238,6 +251,7 @@ pub(super) enum Command {
     Ready {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Convert a patch back to a draft
@@ -249,6 +263,7 @@ pub(super) enum Command {
     Edit {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// ID of the patch revision
@@ -263,6 +278,7 @@ pub(super) enum Command {
     Set {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Rev,
 
         /// Provide the git remote to use as the upstream
@@ -277,6 +293,7 @@ pub(super) enum Command {
     Cache {
         /// ID of the patch
         #[arg(value_name = "PATCH_ID")]
+        #[arg(add = patch_id())]
         id: Option<Rev>,
 
         /// Re-cache all patches in storage, as opposed to the current repository
@@ -770,4 +787,33 @@ pub(super) struct LabelArgs {
 
 fn parse_refstr(refstr: &str) -> Result<RefString, git::fmt::Error> {
     RefString::try_from(refstr)
+}
+
+#[cfg(test)]
+mod test {
+    use clap::CommandFactory as _;
+    use clap_complete::ArgValueCompleter;
+
+    use super::Args;
+
+    #[test]
+    fn patch_ids_have_dynamic_completion() {
+        let command = Args::command();
+
+        for name in [
+            "archive", "assign", "cache", "checkout", "delete", "diff", "edit", "label", "react",
+            "ready", "resolve", "review", "set", "show", "update",
+        ] {
+            let command = command.find_subcommand(name).unwrap();
+            let id = command
+                .get_arguments()
+                .find(|arg| arg.get_id() == "id")
+                .unwrap();
+
+            assert!(
+                id.get::<ArgValueCompleter>().is_some(),
+                "patch ID for `{name}` has no dynamic completer"
+            );
+        }
+    }
 }

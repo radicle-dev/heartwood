@@ -12,6 +12,7 @@ use radicle::git;
 use radicle::prelude::*;
 use radicle::storage;
 
+use crate::commands::completion::repo_id;
 use crate::git::Rev;
 
 #[derive(Parser, Debug)]
@@ -30,6 +31,7 @@ pub(super) enum Command {
     List {
         /// Repository ID of the repository to operate on
         #[arg(long, short, value_name = "RID")]
+        #[arg(add = repo_id())]
         repo: RepoId,
 
         /// Typename of the object(s) to list
@@ -41,6 +43,7 @@ pub(super) enum Command {
     Log {
         /// Repository ID of the repository to operate on
         #[arg(long, short, value_name = "RID")]
+        #[arg(add = repo_id())]
         repo: RepoId,
 
         /// Typename of the object(s) to show
@@ -71,6 +74,7 @@ pub(super) enum Command {
     Show {
         /// Repository ID of the repository to operate on
         #[arg(long, short, value_name = "RID")]
+        #[arg(add = repo_id())]
         repo: RepoId,
 
         /// Typename of the object(s) to show
@@ -113,6 +117,7 @@ pub(super) struct Operation {
 pub(super) struct Create {
     /// Repository ID of the repository to operate on
     #[arg(long, short, value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: RepoId,
 
     /// Typename of the object to create
@@ -127,6 +132,7 @@ pub(super) struct Create {
 pub(super) struct Update {
     /// Repository ID of the repository to operate on
     #[arg(long, short)]
+    #[arg(add = repo_id())]
     pub(super) repo: RepoId,
 
     /// Typename of the object to update

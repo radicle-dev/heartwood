@@ -124,14 +124,15 @@ impl cob::object::Storage for Repository {
             };
 
             if let Ok(name) = RefStr::try_from_str(name)
-                && let Some((_, object_id)) = cob::object::parse_refstr(&name) {
-                    let obj_ref = cob::object::Reference::try_from(reference)
-                        .map_err(Self::ObjectsError::from)?;
-                    objects_map
-                        .entry(object_id)
-                        .and_modify(|objs: &mut Objects| objs.push(obj_ref.clone()))
-                        .or_insert_with(|| Objects::new(obj_ref));
-                }
+                && let Some((_, object_id)) = cob::object::parse_refstr(&name)
+            {
+                let obj_ref = cob::object::Reference::try_from(reference)
+                    .map_err(Self::ObjectsError::from)?;
+                objects_map
+                    .entry(object_id)
+                    .and_modify(|objs: &mut Objects| objs.push(obj_ref.clone()))
+                    .or_insert_with(|| Objects::new(obj_ref));
+            }
         }
 
         Ok(objects_map)

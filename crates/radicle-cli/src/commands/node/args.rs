@@ -11,6 +11,8 @@ use radicle::crypto::{PublicKey, PublicKeyError};
 use radicle::node::{Address, NodeId, PeerAddr, PeerAddrParseError};
 use radicle::prelude::RepoId;
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Control and query the Radicle Node";
 
 #[derive(Parser, Debug)]
@@ -148,6 +150,7 @@ pub(super) enum Command {
 
         /// Show the routing table entries for the given RID
         #[arg(long = "rid", value_name = "RID")]
+        #[arg(add = repo_id())]
         repo: Option<RepoId>,
 
         /// Show the routing table entries for the given NID

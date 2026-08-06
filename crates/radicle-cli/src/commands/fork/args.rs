@@ -1,5 +1,7 @@
 use radicle::identity::RepoId;
 
+use crate::commands::completion::repo_id;
+
 const ABOUT: &str = "Create a fork of a repository
 
 This command is deprecated and will be removed.
@@ -19,6 +21,7 @@ pub struct Args {
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(value_name = "RID")]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 }
 

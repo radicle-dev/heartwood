@@ -13,6 +13,7 @@ use radicle::identity::doc::update::EditVisibility;
 use radicle::identity::doc::update::PayloadUpsert;
 use radicle::prelude::{Did, RepoId};
 
+use crate::commands::completion::{identity_revision_id, repo_id};
 use crate::git::Rev;
 
 use crate::terminal::Interactive;
@@ -100,6 +101,7 @@ pub struct Args {
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
     #[arg(long)]
     #[arg(value_name = "RID", global = true)]
+    #[arg(add = repo_id())]
     pub(super) repo: Option<RepoId>,
 
     /// Do not ask for confirmation
@@ -135,6 +137,7 @@ pub(super) enum Command {
     Accept {
         /// Proposed revision to accept
         #[arg(value_name = "REVISION_ID")]
+        #[arg(add = identity_revision_id())]
         revision: Rev,
     },
 
@@ -143,6 +146,7 @@ pub(super) enum Command {
     Reject {
         /// Proposed revision to reject
         #[arg(value_name = "REVISION_ID")]
+        #[arg(add = identity_revision_id())]
         revision: Rev,
     },
 
@@ -151,6 +155,7 @@ pub(super) enum Command {
     Edit {
         /// Proposed revision to edit
         #[arg(value_name = "REVISION_ID")]
+        #[arg(add = identity_revision_id())]
         revision: Rev,
 
         /// Title of the edit
@@ -231,6 +236,7 @@ pub(super) enum Command {
     Show {
         /// Proposed revision to show
         #[arg(value_name = "REVISION_ID")]
+        #[arg(add = identity_revision_id())]
         revision: Rev,
     },
 
@@ -239,6 +245,7 @@ pub(super) enum Command {
     Redact {
         /// Proposed revision to redact
         #[arg(value_name = "REVISION_ID")]
+        #[arg(add = identity_revision_id())]
         revision: Rev,
     },
 
@@ -252,8 +259,27 @@ pub(super) enum Command {
 #[cfg(test)]
 mod test {
     use super::{Args, parse_many_upserts};
-    use clap::Parser;
     use clap::error::ErrorKind;
+    use clap::{CommandFactory as _, Parser};
+    use clap_complete::ArgValueCompleter;
+
+    #[test]
+    fn identity_revision_ids_have_dynamic_completion() {
+        let command = Args::command();
+
+        for name in ["accept", "edit", "redact", "reject", "show"] {
+            let command = command.find_subcommand(name).unwrap();
+            let revision = command
+                .get_arguments()
+                .find(|arg| arg.get_id() == "revision")
+                .unwrap();
+
+            assert!(
+                revision.get::<ArgValueCompleter>().is_some(),
+                "identity revision ID for `{name}` has no dynamic completer"
+            );
+        }
+    }
 
     #[test]
     fn should_parse_single_payload() {

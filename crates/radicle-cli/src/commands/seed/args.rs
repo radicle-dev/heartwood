@@ -6,6 +6,7 @@ use nonempty::NonEmpty;
 use radicle::node::policy::Scope;
 use radicle::prelude::*;
 
+use crate::commands::completion::repo_id;
 use crate::node::SyncSettings;
 use crate::terminal;
 
@@ -28,6 +29,7 @@ plus any remote that is explicitly followed via `rad follow <nid>`.
 #[command(about = ABOUT, long_about = LONG_ABOUT, disable_version_flag = true)]
 pub struct Args {
     #[arg(value_name = "RID", num_args = 1..)]
+    #[arg(add = repo_id())]
     pub(super) rids: Option<Vec<RepoId>>,
 
     /// Fetch repository after updating seeding policy
