@@ -71,7 +71,7 @@ $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-$ rad id accept b7597e3eeaba64467db4417602518169b76b43d5 -q
+$ rad id -q accept b7597e3eeaba64467db4417602518169b76b43d5
 ```
 
 As usual, alice works on "master".

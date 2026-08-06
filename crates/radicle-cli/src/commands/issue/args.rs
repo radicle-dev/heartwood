@@ -25,27 +25,23 @@ pub struct Args {
 
     /// Do not print anything
     #[arg(short, long)]
-    #[clap(global = true)]
     pub(crate) quiet: bool,
 
     /// Do not announce issue changes to the network
     #[arg(long)]
     #[arg(value_name = "no-announce")]
-    #[clap(global = true)]
     pub(crate) no_announce: bool,
 
     /// Show only the issue header, hiding the comments
     #[arg(long)]
-    #[clap(global = true)]
     pub(crate) header: bool,
 
     /// Operate on the given repository (default: cwd)
-    #[arg(long, value_name = "RID", global = true)]
+    #[arg(long, value_name = "RID")]
     pub(crate) repo: Option<RepoId>,
 
     /// Enable verbose output
     #[arg(long, short)]
-    #[clap(global = true)]
     pub(crate) verbose: bool,
 
     /// Arguments for the empty subcommand.

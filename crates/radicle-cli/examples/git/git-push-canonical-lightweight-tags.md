@@ -148,9 +148,9 @@ Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential s
 ✓ Target met: 1 seed(s)
 ✓ Remote bob added
 ✓ Remote-tracking branch bob/master created for z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
-$ rad id update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --no-confirm -q
+$ rad id -q --no-confirm update --title "Add Bob" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
 27ab0d77a95581c59ca9d30e679ceb06a9f758db
-$ rad id update --title "Update canonical reference rules" --payload xyz.radicle.crefs rules '{ "refs/tags/*": { "threshold": 2, "allow": "delegates" }, "refs/tags/qa/*": { "threshold": 1, "allow": "delegates" } }' -q
+$ rad id -q update --title "Update canonical reference rules" --payload xyz.radicle.crefs rules '{ "refs/tags/*": { "threshold": 2, "allow": "delegates" }, "refs/tags/qa/*": { "threshold": 1, "allow": "delegates" } }'
 dace164ba43fa51802697ec28d0b1965a9d7808b
 ```
 
@@ -163,7 +163,7 @@ $ rad sync -f
 Fetching rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji from the network, found 1 potential seed(s).
 ✓ Target met: 1 seed(s)
 🌱 Fetched from z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-$ rad id accept dace164ba43fa51802697ec28d0b1965a9d7808b -q
+$ rad id -q accept dace164ba43fa51802697ec28d0b1965a9d7808b
 ```
 
 When Bob creates a new tag and pushes it, we see that there's a warning that

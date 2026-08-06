@@ -3,7 +3,7 @@ Handle arbitrary COBs.
 First create an issue.
 
 ```
-$ rad issue open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply" --no-announce
+$ rad issue --no-announce open --title "flux capacitor underpowered" --description "Flux capacitor power requirements exceed current supply"
 ╭─────────────────────────────────────────────────────────╮
 │ Title   flux capacitor underpowered                     │
 │ Issue   d87dcfe8c2b3200e78b128d9b959cfdf7063fefe        │
@@ -108,7 +108,7 @@ date     Thu, 15 Dec 2022 17:28:04 +0000
 Finally let's updated the issue and see the `parent` header:
 
 ```
-$ rad issue label d87dcfe --add bug --no-announce
+$ rad issue --no-announce label d87dcfe --add bug
 $ rad cob log --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.issue --object d87dcfe8c2b3200e78b128d9b959cfdf7063fefe
 commit   abec0a9f3c945594c4e78d24d8ec679e56b22b79
 resource 0656c217f917c3e06234771e9ecae53aba5e173e

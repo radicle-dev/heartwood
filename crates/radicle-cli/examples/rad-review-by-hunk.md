@@ -70,7 +70,7 @@ Finally, we do a review of the patch by hunk. The output of this command should
 match `git diff master -W100% -U5 --patience`:
 
 ```
-$ rad patch review --patch -U5 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch -U5 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭──────────────────────╮
 │ .gitignore ❲deleted❳ │
 ├──────────────────────┤
@@ -117,7 +117,7 @@ $ rad patch review --patch -U5 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-ann
 Now let's accept these hunks one by one..
 
 ```
-$ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭──────────────────────╮
 │ .gitignore ❲deleted❳ │
@@ -128,7 +128,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 ✓ Updated brain to a5fccf0e977225ff13c3f74c43faf4cb679bf835
 ```
 ```
-$ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭──────────────────────────────────────────────────────────╮
 │ DISCLAIMER.txt ❲created❳                                 │
@@ -139,7 +139,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 ✓ Updated brain to 2cdb82ea726e64d3b52847c7699d0d4759198f5c
 ```
 ```
-$ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭─────────────────────────────╮
 │ MENU.txt                    │
@@ -155,7 +155,7 @@ $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a4
 ✓ Updated brain to d4aecbb859a802a3215def0b538358bf63593953
 ```
 ```
-$ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭───────────────────────────────────────╮
 │ MENU.txt                              │
@@ -172,7 +172,7 @@ $ rad patch review --patch --accept -U3 --hunk 1 7a2ac7e2841cc1e7394f99f107555a4
 ```
 
 ```
-$ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ╭────────────────────────────────────────────────────╮
 │ INSTRUCTIONS.txt -> notes/INSTRUCTIONS.txt ❲moved❳ │
@@ -181,7 +181,7 @@ $ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1
 ```
 
 ```
-$ rad patch review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23 --no-announce
+$ rad patch --no-announce review --patch --accept --hunk 1 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ Loaded existing review ([..]) for patch 7a2ac7e2841cc1e7394f99f107555a499b1d3f23
 ✓ All hunks have been reviewed
 ```

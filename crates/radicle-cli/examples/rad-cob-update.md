@@ -64,7 +64,7 @@ We can change the title and description of the patch itself by using a
 multi-line message (using two `--message` options here):
 
 ```
-$ rad patch edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE" --no-announce
+$ rad patch --no-announce edit 89f7afb --message "Add Metadata" --message "Add README & LICENSE"
 $ rad patch show 89f7afb
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add Metadata                                   │

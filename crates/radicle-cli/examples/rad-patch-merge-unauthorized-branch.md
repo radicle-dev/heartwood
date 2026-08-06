@@ -3,7 +3,7 @@
 First, we update the identity document to add a canonical reference rule for a new `accepted` branch, but we only allow Alice to merge into it.
 
 ``` ~alice
-$ rad id update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"] } }' -q
+$ rad id -q update --title "Add accepted branch" --payload xyz.radicle.crefs rules '{ "refs/heads/accepted": { "threshold": 1, "allow": ["did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi"] } }'
 [..]
 ```
 

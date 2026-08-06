@@ -48,7 +48,7 @@ Now, instead of using `git push` to update the patch, as we normally would,
 we run:
 
 ```
-$ rad patch update b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 -m "Updated patch" --no-announce
+$ rad patch --no-announce update b6a23eb08656de0ef1fcc0b5fe8820841e5cb2e5 -m "Updated patch"
 ea7def3857f62f404606d7cd6490cd0de4eaebd1
 ```
 

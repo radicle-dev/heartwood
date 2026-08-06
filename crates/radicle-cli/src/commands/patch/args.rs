@@ -25,23 +25,23 @@ pub struct Args {
     pub(super) command: Option<Command>,
 
     /// Quiet output
-    #[arg(short, long, global = true)]
+    #[arg(short, long)]
     pub(super) quiet: bool,
 
     /// Announce changes made to the network
-    #[arg(long, global = true, conflicts_with = "no_announce")]
+    #[arg(long, conflicts_with = "no_announce")]
     announce: bool,
 
     /// Do not announce changes made to the network
-    #[arg(long, global = true, conflicts_with = "announce")]
+    #[arg(long, conflicts_with = "announce")]
     no_announce: bool,
 
     /// Operate on the given repository [default: cwd]
-    #[arg(long, value_name = "RID", global = true)]
+    #[arg(long, value_name = "RID")]
     pub(super) repo: Option<RepoId>,
 
     /// Verbose output
-    #[arg(long, short, global = true)]
+    #[arg(long, short)]
     pub(super) verbose: bool,
 
     /// Arguments for the empty subcommand.

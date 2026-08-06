@@ -95,8 +95,8 @@ We can also label patches as well as assign DIDs to the patch to help
 organise your workflow:
 
 ```
-$ rad patch label aa45913 --add fun --no-announce
-$ rad patch assign aa45913 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi --no-announce
+$ rad patch --no-announce label aa45913 --add fun
+$ rad patch --no-announce assign aa45913 --add did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 $ rad patch show aa45913
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                      │
@@ -142,19 +142,19 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 And let's leave a quick comment for our team:
 
 ```
-$ rad patch comment aa45913 --message 'I cannot wait to get back to the 90s!' --no-announce
+$ rad patch --no-announce comment aa45913 --message 'I cannot wait to get back to the 90s!'
 ╭───────────────────────────────────────╮
 │ alice (you) now 686ec1c               │
 │ I cannot wait to get back to the 90s! │
 ╰───────────────────────────────────────╯
-$ rad patch comment aa45913 --message 'My favorite decade!' --reply-to 686ec1c -q --no-announce
+$ rad patch -q --no-announce comment aa45913 --message 'My favorite decade!' --reply-to 686ec1c
 f4336e42daf76342f787d574b5ee779d89d05c7a
 ```
 
 If we realize we made a mistake in the comment, we can go back and edit it:
 
 ```
-$ rad patch comment aa45913 --edit 686ec1c --message 'I cannot wait to get back to the 80s!' --no-announce
+$ rad patch --no-announce comment aa45913 --edit 686ec1c --message 'I cannot wait to get back to the 80s!'
 ╭───────────────────────────────────────╮
 │ alice (you) now 686ec1c               │
 │ I cannot wait to get back to the 80s! │
@@ -164,7 +164,7 @@ $ rad patch comment aa45913 --edit 686ec1c --message 'I cannot wait to get back 
 And if we really made a mistake, then we can redact the comment entirely:
 
 ```
-$ rad patch comment aa45913 --redact f4336e4 --no-announce
+$ rad patch --no-announce comment aa45913 --redact f4336e4
 ✓ Redacted comment f4336e42daf76342f787d574b5ee779d89d05c7a
 ```
 
@@ -179,7 +179,7 @@ $ rad patch checkout aa45913
 We can also add a review verdict as such:
 
 ```
-$ rad patch review aa45913 --accept --no-message --no-announce
+$ rad patch --no-announce review aa45913 --accept --no-message
 ✓ Patch aa45913 accepted
 ```
 
@@ -219,7 +219,7 @@ $ rad patch list
 If you make a mistake on the patch description, you can always change it!
 
 ```
-$ rad patch edit aa45913 --message "Define power requirements" --message "Add requirements file" --no-announce
+$ rad patch --no-announce edit aa45913 --message "Define power requirements" --message "Add requirements file"
 $ rad patch show aa45913
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Define power requirements                      │

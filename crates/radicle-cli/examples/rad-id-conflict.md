@@ -1,7 +1,7 @@
 First let's add Bob as a delegate, and sync the changes to Bob:
 
 ``` ~alice
-$ rad id update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2 -q
+$ rad id -q update --title "Add Bob" --description "Add Bob as a delegate" --delegate did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk --threshold 2
 0ca42d376bd566631083c8913cf86bec722da392
 ```
 ``` ~bob
@@ -16,11 +16,11 @@ One thing that can happen is that two delegates propose a revision at the same
 time:
 
 ``` ~alice
-$ rad id update --title "Edit project name" --description "" --payload "xyz.radicle.project" "name" '"heart"' -q
+$ rad id -q update --title "Edit project name" --description "" --payload "xyz.radicle.project" "name" '"heart"'
 12d7300d1bbba84e4e5760c8c61999bf5fefb81a
 ```
 ``` ~bob
-$ rad id update --title "Edit project name" --description "" --payload "xyz.radicle.project" "name" '"wood"' -q
+$ rad id -q update --title "Edit project name" --description "" --payload "xyz.radicle.project" "name" '"wood"'
 89b2623e7f2ddf5748661b15b9975ab0b4ee17ab
 ```
 
@@ -92,8 +92,8 @@ decides to go with Bob's proposal, so she redacts her own first and then
 accepts his:
 
 ``` ~alice
-$ rad id redact 12d7300 -q
-$ rad id accept 89b2623 -q
+$ rad id -q redact 12d7300
+$ rad id -q accept 89b2623
 $ rad id list
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                                                      Status     Created   Parent  │

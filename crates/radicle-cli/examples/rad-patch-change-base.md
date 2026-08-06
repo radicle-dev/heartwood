@@ -67,7 +67,7 @@ commit `3e674d1` as part of this patch, so we create a new revision
 with a new `base`:
 
 ```
-$ rad patch update 183d343 -b 3e674d1 -m "Whoops, forgot to set the base" --no-announce
+$ rad patch --no-announce update 183d343 -b 3e674d1 -m "Whoops, forgot to set the base"
 ebe76f9c2148eb595d7a745f82275786bf3458c3
 ```
 

@@ -96,22 +96,19 @@ pub struct Args {
     /// Specify the repository to operate on. Defaults to the current repository
     ///
     /// [example values: rad:z3Tr6bC7ctEg2EHmLvknUr29mEDLH, z3Tr6bC7ctEg2EHmLvknUr29mEDLH]
-    #[arg(long, value_name = "RID", global = true)]
+    #[arg(long, value_name = "RID")]
     pub(super) repo: Option<RepoId>,
 
     /// Do not ask for confirmation
     #[arg(long)]
-    #[arg(global = true)]
     no_confirm: bool,
 
     /// Suppress output
     #[arg(long, short)]
-    #[arg(global = true)]
     pub(super) quiet: bool,
 
     /// Print full OIDs instead of abbreviated ones
     #[arg(long, short)]
-    #[arg(global = true)]
     pub(super) verbose: bool,
 }
 
