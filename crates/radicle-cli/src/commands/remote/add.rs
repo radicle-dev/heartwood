@@ -27,7 +27,7 @@ pub fn run(
         if !profile.policies()?.is_following(nid)? {
             let alias = name.as_ref().and_then(|n| Alias::from_str(n.as_str()).ok());
 
-            follow::follow(*nid, alias, &mut node, profile)?;
+            follow::follow(Did::from(*nid), alias, &mut node, profile)?;
             sync::fetch(
                 rid,
                 SyncSettings::default().with_profile(profile),

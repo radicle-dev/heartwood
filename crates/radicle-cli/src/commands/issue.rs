@@ -244,8 +244,8 @@ where
     }
 
     let assignee = match assigned {
-        Some(Assigned::Me) => Some(*profile.id()),
-        Some(Assigned::Peer(id)) => Some((*id).into()),
+        Some(Assigned::Me) => Some(Did::from(*profile.id())),
+        Some(Assigned::Peer(id)) => Some(*id),
         None => None,
     };
 
@@ -262,7 +262,7 @@ where
             };
 
             if let Some(a) = assignee
-                && !issue.assignees().any(|v| v == &Did::from(a))
+                && !issue.assignees().any(|v| *v == a)
             {
                 return None;
             }
@@ -301,7 +301,7 @@ where
         let assigned: String = issue
             .assignees()
             .map(|did| {
-                let (alias, _) = Author::new(did.as_key(), profile, verbose).labels();
+                let (alias, _) = Author::new(*did, profile, verbose).labels();
 
                 alias.content().to_owned()
             })
@@ -312,7 +312,7 @@ where
         labels.sort();
 
         let author = issue.author().id;
-        let (alias, did) = Author::new(&author, profile, verbose).labels();
+        let (alias, did) = Author::new(author, profile, verbose).labels();
 
         mk_issue_row(id, issue, assigned, labels, alias, did)
     }));

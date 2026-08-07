@@ -652,7 +652,7 @@ impl<'a> ReviewBuilder<'a> {
             return Ok(());
         }
 
-        let review = if let Some(r) = revision.review_by(signer.public_key()) {
+        let review = if let Some(r) = revision.review_by(&Did::from(*signer.public_key())) {
             r.id()
         } else {
             patch.review(

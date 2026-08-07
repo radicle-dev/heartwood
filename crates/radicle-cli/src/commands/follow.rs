@@ -1,5 +1,6 @@
 mod args;
 
+use radicle::identity::DidResolver;
 use radicle::node::{Alias, AliasStore, Handle, NodeId, policy};
 use radicle::{Node, prelude::*};
 use radicle_term::{Element as _, Paint, Table};
@@ -14,7 +15,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let mut node = radicle::Node::new(profile.socket_from_env());
 
     match Operation::from(args) {
-        Operation::Follow { nid, alias, .. } => follow(nid, alias, &mut node, &profile)?,
+        Operation::Follow { target, alias, .. } => follow(target, alias, &mut node, &profile)?,
         Operation::List { alias, .. } => following(&profile, alias)?,
     }
 
@@ -22,6 +23,32 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 }
 
 pub fn follow(
+    target: Did,
+    alias: Option<Alias>,
+    node: &mut Node,
+    profile: &Profile,
+) -> Result<(), anyhow::Error> {
+    let nids = match target {
+        Did::Key(nid) => vec![nid],
+        Did::Plc(_) => {
+            let resolved = profile.did_resolver().resolve(&target)?;
+            if resolved.keys.is_empty() {
+                anyhow::bail!(
+                    "no Ed25519 verifying keys for {target}; cache the DID document first"
+                );
+            }
+            resolved.keys
+        }
+    };
+
+    for nid in nids {
+        follow_nid(nid, alias.clone(), node, profile)?;
+    }
+
+    Ok(())
+}
+
+fn follow_nid(
     nid: NodeId,
     alias: Option<Alias>,
     node: &mut Node,
@@ -98,14 +125,15 @@ fn push_policies(
                 ]);
             }
             Err(err) => {
-                term::error(format!("Failed to read a follow policy: {err}"));
+                term::error(format!("error reading follow policy: {err}"));
             }
         }
     }
 }
 
-fn fallback_alias(nid: &PublicKey, aliases: &impl AliasStore) -> String {
+fn fallback_alias(nid: &NodeId, aliases: &impl AliasStore) -> String {
     aliases
         .alias(nid)
-        .map_or("n/a".to_string(), |alias| alias.to_string())
+        .map(|a| a.to_string())
+        .unwrap_or_default()
 }

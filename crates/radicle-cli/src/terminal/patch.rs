@@ -368,7 +368,7 @@ pub fn show(
     let ahead_behind =
         common::ahead_behind(stored.raw(), revision.head(), patch.target().head(stored)?)?;
     let author = patch.author();
-    let author = term::format::Author::new(author.id(), profile, verbose);
+    let author = term::format::Author::new(*author.id(), profile, verbose);
     let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
 
     let doc = stored.identity_doc()?;

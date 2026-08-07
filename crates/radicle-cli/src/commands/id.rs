@@ -7,7 +7,7 @@ use anyhow::{Context, anyhow};
 use radicle::cob::Title;
 use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::doc::update;
-use radicle::identity::{Doc, Identity, RawDoc, doc};
+use radicle::identity::{DidResolver, Doc, Identity, RawDoc, doc};
 use radicle::node::NodeId;
 use radicle::storage::{ReadRepository as _, ReadStorage as _, WriteRepository};
 use radicle::{Profile, cob, crypto};
@@ -137,7 +137,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     }
                 };
                 let threshold = proposal.threshold;
-                let proposal = match update::delegates(proposal, delegates, rescind, &repo)? {
+                let proposal = match update::delegates(proposal, delegates.clone(), rescind, &repo)?
+                {
                     Ok(proposal) => proposal,
                     Err(errs) => {
                         term::error(format!("failed to verify delegates for {rid}"));
@@ -150,6 +151,20 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                         anyhow::bail!("fatal: refusing to update identity document");
                     }
                 };
+
+                // Pin verifying keys for any new `did:plc` delegates.
+                let mut proposal = proposal;
+                for did in &delegates {
+                    if did.is_plc() {
+                        let keys = profile.did_resolver().resolve(did)?.keys;
+                        if keys.is_empty() {
+                            anyhow::bail!(
+                                "no Ed25519 keys for {did}; cache the DID document before adding as delegate"
+                            );
+                        }
+                        proposal.pin_did(*did, keys)?;
+                    }
+                }
 
                 // TODO(erikli): whenever `clap` starts supporting custom value parsers
                 // for a series of values, we can parse into `Payload` implicitly.
@@ -248,7 +263,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 };
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
-                    term::format::Author::new(r.author.public_key(), &profile, true).labels();
+                    term::format::Author::new(r.author.id, &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
                 let parent = r
                     .parent
@@ -431,7 +446,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
     let mut signatures = term::Table::<4, _>::default();
 
     for id in accepted {
-        let author = term::format::Author::new(&id, profile, true);
+        let author = term::format::Author::new(id, profile, true);
         signatures.push([
             term::PREFIX_SUCCESS.into(),
             id.to_string().into(),
@@ -440,7 +455,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         ]);
     }
     for id in rejected {
-        let author = term::format::Author::new(&id, profile, true);
+        let author = term::format::Author::new(id, profile, true);
         signatures.push([
             term::PREFIX_ERROR.into(),
             id.to_string().into(),
@@ -449,7 +464,7 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         ]);
     }
     for id in unknown {
-        let author = term::format::Author::new(id, profile, true);
+        let author = term::format::Author::new(*id, profile, true);
         signatures.push([
             term::format::dim("?").into(),
             id.to_string().into(),
@@ -545,8 +560,7 @@ fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {
 fn on_apply_err(e: &identity::ApplyError, profile: &Profile) -> anyhow::Error {
     match e {
         e @ identity::ApplyError::NonDelegateUnauthorized { author, .. } => {
-            let nid = NodeId::from(*author);
-            let labels = Author::new(&nid, profile, false).labels();
+            let labels = Author::new(*author, profile, false).labels();
 
             Error::with_hint(
                 anyhow!(e.to_string()),

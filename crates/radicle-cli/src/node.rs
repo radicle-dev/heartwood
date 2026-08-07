@@ -216,7 +216,7 @@ where
 
     match node.announce(
         rid,
-        [profile.did().into()],
+        [*profile.id()],
         settings.timeout,
         announcer,
         |node, progress| {

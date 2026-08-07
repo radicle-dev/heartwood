@@ -9,6 +9,9 @@ pub struct Args {
     /// Show your DID
     #[arg(long)]
     pub(super) did: bool,
+    /// Show your linked ATProto PLC DID, if any
+    #[arg(long)]
+    pub(super) plc: bool,
     /// Show your Node alias
     #[arg(long)]
     pub(super) alias: bool,

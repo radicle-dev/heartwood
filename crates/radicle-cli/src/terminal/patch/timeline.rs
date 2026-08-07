@@ -44,11 +44,11 @@ pub fn timeline<'a>(
 /// We do not distinguish between revisions created by the original author and
 /// others, and also not between the initial revision and others. This tends to
 /// confuse more than it helps.
-struct RevisionEntry<'a> {
+struct RevisionEntry {
     /// Whether this entry is about the initial [`Revision`] of the patch.
     is_initial: bool,
     /// The [`Author`] that created the [`Revision`].
-    author: Author<'a>,
+    author: Author,
     /// When the [`Revision`] was created.
     timestamp: cob::Timestamp,
     /// The id of the [`Revision`].
@@ -58,14 +58,14 @@ struct RevisionEntry<'a> {
     /// The head commit of the [`Revision`].
     head: git::Oid,
     /// All [`Update`]s that occurred on the [`Revision`].
-    updates: Vec<Update<'a>>,
+    updates: Vec<Update>,
 }
 
-impl<'a> RevisionEntry<'a> {
+impl RevisionEntry {
     fn from_revision(
-        patch: &'a Patch,
+        patch: &Patch,
         id: RevisionId,
-        revision: &'a Revision,
+        revision: &Revision,
         profile: &Profile,
         verbose: bool,
     ) -> Self {
@@ -83,7 +83,7 @@ impl<'a> RevisionEntry<'a> {
                 Some((
                     merge.timestamp,
                     Update::Merged {
-                        author: Author::new(nid, profile, verbose),
+                        author: Author::new(*nid, profile, verbose),
                         merge: if merge.commit != revision.head() {
                             Some(merge.clone())
                         } else {
@@ -99,7 +99,7 @@ impl<'a> RevisionEntry<'a> {
 
         RevisionEntry {
             is_initial: patch.root().0 == id,
-            author: Author::new(&revision.author().id, profile, verbose),
+            author: Author::new(revision.author().id, profile, verbose),
             timestamp: revision.timestamp(),
             id,
             base: *revision.base(),
@@ -110,9 +110,9 @@ impl<'a> RevisionEntry<'a> {
 
     fn into_lines(
         self,
-        profile: &'a Profile,
+        profile: &Profile,
         verbose: bool,
-    ) -> impl Iterator<Item = term::Line> + 'a {
+    ) -> impl Iterator<Item = term::Line> + '_ {
         use term::{format::*, *};
 
         let id: Label = if verbose {
@@ -155,18 +155,18 @@ impl<'a> RevisionEntry<'a> {
 }
 
 /// An update in the [`Patch`]'s timeline.
-enum Update<'a> {
+enum Update {
     /// A revision of the patch was reviewed.
     Reviewed { review: Review },
     /// A revision of the patch was merged.
     Merged {
-        author: Author<'a>,
+        author: Author,
         /// If the merge is none, this means that it was a fast-forward merge.
         merge: Option<Merge>,
     },
 }
 
-impl Update<'_> {
+impl Update {
     fn into_line(self, profile: &Profile, verbose: bool) -> term::Line {
         use term::{format::*, *};
 
@@ -182,7 +182,7 @@ impl Update<'_> {
 
                 Line::spaced([symbol.into(), verb.into(), dim(by).into()])
                     .space()
-                    .extend(Author::new(&review.author().id.into(), profile, verbose).line())
+                    .extend(Author::new(review.author().id, profile, verbose).line())
                     .space()
                     .item(dim(timestamp(review.timestamp())))
             }

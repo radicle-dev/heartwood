@@ -77,7 +77,10 @@ pub fn did(val: &OsString) -> anyhow::Result<Did> {
         if crypto::PublicKey::from_str(&val).is_ok() {
             return Err(anyhow!("expected DID, did you mean 'did:key:{val}'?"));
         } else {
-            return Err(anyhow!("invalid DID '{}', expected 'did:key'", val));
+            return Err(anyhow!(
+                "invalid DID '{}', expected 'did:key:…' or 'did:plc:…'",
+                val
+            ));
         }
     };
     Ok(peer)

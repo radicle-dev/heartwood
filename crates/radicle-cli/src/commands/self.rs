@@ -15,6 +15,13 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
     if args.did {
         term::println(profile.did());
+    } else if args.plc {
+        match profile.plc() {
+            Some(plc) => term::println(plc),
+            None => anyhow::bail!(
+                "no PLC DID linked; run `rad auth --link-plc did:plc:…` after caching the document"
+            ),
+        }
     } else if args.alias {
         term::println(profile.config.alias());
     } else if args.home {
@@ -53,6 +60,13 @@ fn all(profile: &Profile) -> anyhow::Result<()> {
         term::format::style("DID").into(),
         term::format::tertiary(did).into(),
     ]);
+
+    if let Some(plc) = profile.plc() {
+        table.push([
+            term::format::style("PLC").into(),
+            term::format::tertiary(plc).into(),
+        ]);
+    }
 
     let socket = profile.socket_from_env();
     let node = if Node::new(&socket).is_running() {

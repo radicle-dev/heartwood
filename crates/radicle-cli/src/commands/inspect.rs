@@ -131,7 +131,9 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             let (_, doc) = repo(rid, storage)?;
             let aliases = profile.aliases();
             for did in doc.delegates().iter() {
-                if let Some(alias) = aliases.alias(did) {
+                if let Some(key) = did.as_key()
+                    && let Some(alias) = aliases.alias(key)
+                {
                     term::println(format_args!(
                         "{} {}",
                         term::format::tertiary(&did),

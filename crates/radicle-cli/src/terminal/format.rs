@@ -94,8 +94,16 @@ pub fn cob(id: &ObjectId) -> Paint<String> {
 /// Format a DID.
 #[must_use]
 pub fn did(did: &Did) -> Paint<String> {
-    let nid = did.as_key().to_human();
-    Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
+    match did {
+        Did::Key(key) => {
+            let nid = key.to_human();
+            Paint::new(format!("{}…{}", &nid[..7], &nid[nid.len() - 7..]))
+        }
+        Did::Plc(id) => {
+            let s = id.encode();
+            Paint::new(format!("{}…{}", &s[..12], &s[s.len() - 6..]))
+        }
+    }
 }
 
 /// Format a Visibility.
@@ -242,23 +250,30 @@ impl fmt::Display for Identity<'_> {
     }
 }
 
-/// This enum renders (nid, alias) in terminal depending on user variant.
-pub struct Author<'a> {
-    nid: &'a NodeId,
+/// This enum renders (did, alias) in terminal depending on user variant.
+pub struct Author {
+    did: Did,
     alias: Option<Alias>,
     you: bool,
     verbose: bool,
 }
 
-impl<'a> Author<'a> {
+impl Author {
     #[must_use]
-    pub fn new(nid: &'a NodeId, profile: &Profile, verbose: bool) -> Author<'a> {
-        let alias = profile.alias(nid);
+    pub fn new(id: impl Into<Did>, profile: &Profile, verbose: bool) -> Author {
+        let did = id.into();
+        let (alias, you) = match did.as_key() {
+            Some(nid) => (profile.alias(nid), nid == profile.id()),
+            None => (
+                None,
+                profile.plc().is_some_and(|plc| Did::from(plc) == did),
+            ),
+        };
 
         Self {
-            nid,
+            did,
             alias,
-            you: nid == profile.id(),
+            you,
             verbose,
         }
     }
@@ -277,6 +292,26 @@ impl<'a> Author<'a> {
         }
     }
 
+    fn display_id(&self) -> Paint<String> {
+        match self.did {
+            Did::Key(key) => {
+                if self.verbose {
+                    term::format::node_id_human(&key)
+                } else {
+                    term::format::node_id_human_compact(&key)
+                }
+            }
+            Did::Plc(id) => {
+                let s = id.encode();
+                if self.verbose {
+                    Paint::new(s)
+                } else {
+                    Paint::new(format!("{}…{}", &s[..12], &s[s.len() - 6..]))
+                }
+            }
+        }
+    }
+
     /// Get the labels of the `Author`. The labels can take the following forms:
     ///
     ///   * `(<alias>, (you))` -- the `Author` is the local peer and has an alias
@@ -285,11 +320,7 @@ impl<'a> Author<'a> {
     ///   * `(<blank>, <did>)` -- the `Author` is another peer and has no alias
     #[must_use]
     pub fn labels(self) -> (term::Label, term::Label) {
-        let node_id = if self.verbose {
-            term::format::node_id_human(self.nid)
-        } else {
-            term::format::node_id_human_compact(self.nid)
-        };
+        let node_id = self.display_id();
 
         let alias = match self.alias.as_ref() {
             Some(alias) => term::format::primary(alias).into(),

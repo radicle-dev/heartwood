@@ -15,8 +15,37 @@ pub use args::Args;
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     match ctx.profile() {
-        Ok(profile) => authenticate(args, &profile),
-        Err(_) => init(args),
+        Ok(profile) => {
+            if let Some(plc) = args.link_plc {
+                return link_plc(&profile, plc);
+            }
+            authenticate(args, &profile)
+        }
+        Err(_) => {
+            if args.link_plc.is_some() {
+                anyhow::bail!("initialize a profile with `rad auth` before linking a PLC DID");
+            }
+            init(args)
+        }
+    }
+}
+
+fn link_plc(profile: &Profile, plc: radicle::identity::PlcId) -> anyhow::Result<()> {
+    let spinner = term::spinner(format!("Linking device to {plc}…"));
+    match profile.link_plc(plc) {
+        Ok(()) => {
+            spinner.finish();
+            term::success!(
+                "Linked {}. Device DID remains {}.",
+                term::format::highlight(plc),
+                term::format::tertiary(profile.did())
+            );
+            Ok(())
+        }
+        Err(e) => {
+            spinner.failed();
+            Err(e.into())
+        }
     }
 }
 

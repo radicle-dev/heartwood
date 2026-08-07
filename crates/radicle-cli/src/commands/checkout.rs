@@ -24,7 +24,12 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
 fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
     let storage = &profile.storage;
-    let remote = args.remote.unwrap_or(profile.did());
+    let remote = match args.remote {
+        Some(did) => *did
+            .as_key()
+            .ok_or_else(|| anyhow!("checkout remote must be a did:key, got {did}"))?,
+        None => *profile.id(),
+    };
     let doc = storage
         .repository(args.repo)?
         .identity_doc()
@@ -58,7 +63,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
         .delegates()
         .clone()
         .into_iter()
-        .map(|did| *did)
+        .filter_map(|did| did.as_key().copied())
         .filter(|id| id != profile.id())
         .collect::<Vec<_>>();
 

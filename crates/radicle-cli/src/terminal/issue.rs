@@ -52,7 +52,7 @@ pub fn show(
         .collect();
     let author = issue.author();
     let did = author.id();
-    let author = Author::new(did, profile, verbose);
+    let author = Author::new(*did, profile, verbose);
 
     let mut attrs = Table::<2, term::Line>::new(TableOptions {
         spacing: 2,

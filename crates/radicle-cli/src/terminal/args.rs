@@ -73,11 +73,28 @@ pub(crate) struct NodeIdParseError {
 }
 
 pub(crate) fn parse_nid(value: &str) -> Result<NodeId, NodeIdParseError> {
-    value.parse::<Did>().map(NodeId::from).or_else(|did| {
-        value
-            .parse::<NodeId>()
-            .map_err(|nid| NodeIdParseError { nid, did })
-    })
+    value
+        .parse::<Did>()
+        .and_then(NodeId::try_from)
+        .or_else(|did| {
+            value
+                .parse::<NodeId>()
+                .map_err(|nid| NodeIdParseError { nid, did })
+        })
+}
+
+/// Parse a `did:key`, `did:plc`, or bare Node ID into a [`Did`].
+pub(crate) fn parse_did_or_nid(value: &str) -> Result<Did, NodeIdParseError> {
+    if let Ok(did) = value.parse::<Did>() {
+        return Ok(did);
+    }
+    value
+        .parse::<NodeId>()
+        .map(Did::from)
+        .map_err(|nid| NodeIdParseError {
+            nid,
+            did: radicle::identity::did::DidError::Did(value.to_owned()),
+        })
 }
 
 #[derive(Clone, Debug)]
