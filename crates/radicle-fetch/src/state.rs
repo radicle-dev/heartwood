@@ -395,14 +395,14 @@ impl FetchState {
             .canonical()?
             .ok_or(error::Protocol::MissingRadId)?;
 
-        let is_delegate = anchor.is_delegate(&Did::from(handle.local()));
+        let is_delegate = anchor.is_delegate(&Did::from(handle.local()))
+            || anchor.is_delegate_key(handle.local());
         // TODO: not sure we should allow to block *any* peer from the
         // delegate set. We could end up ignoring delegates.
         let delegates = anchor
-            .delegates()
-            .iter()
+            .delegate_keys()
+            .into_iter()
             .filter(|id| !handle.is_blocked(id))
-            .map(|did| PublicKey::from(*did))
             .collect::<BTreeSet<_>>();
 
         log::trace!("Identity delegates {delegates:?}");
