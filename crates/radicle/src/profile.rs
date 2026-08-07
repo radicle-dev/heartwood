@@ -321,6 +321,70 @@ impl Profile {
         Did::from(self.public_key)
     }
 
+    /// Path to the optional ATProto PLC binding file.
+    pub fn plc_link_path(&self) -> PathBuf {
+        self.home.path().join("plc.link")
+    }
+
+    /// Local PLC DID cache directory helper.
+    pub fn plc_cache(&self) -> crate::identity::PlcCache {
+        crate::identity::PlcCache::new(self.home.path())
+    }
+
+    /// Linked ATProto PLC DID, if configured.
+    pub fn plc(&self) -> Option<crate::identity::PlcId> {
+        let path = self.plc_link_path();
+        let Ok(body) = fs::read_to_string(path) else {
+            return None;
+        };
+        #[derive(serde::Deserialize)]
+        struct Link {
+            did: String,
+        }
+        let link: Link = serde_json::from_str(&body).ok()?;
+        crate::identity::PlcId::decode(&link.did).ok()
+    }
+
+    /// Link this device key to a `did:plc`, verifying the local Ed25519 key is
+    /// listed as `#atproto` or `#radicle` in the DID document (from cache or
+    /// fetch when the `plc` feature is enabled).
+    pub fn link_plc(&self, id: crate::identity::PlcId) -> Result<(), Error> {
+        let cache = self.plc_cache();
+        #[cfg(feature = "plc")]
+        let doc = cache.fetch(&id).map_err(|e| {
+            Error::Io(io::Error::other(format!("failed to resolve {id}: {e}")))
+        })?;
+        #[cfg(not(feature = "plc"))]
+        let doc = cache.resolve(&id, false).map_err(|e| {
+            Error::Io(io::Error::other(format!(
+                "failed to resolve {id} from cache: {e}"
+            )))
+        })?;
+        let keys = doc.ed25519_keys().map_err(|e| {
+            Error::Io(io::Error::other(format!("DID document for {id}: {e}")))
+        })?;
+        if !keys.iter().any(|k| k == &self.public_key) {
+            return Err(Error::Io(io::Error::other(format!(
+                "local device key is not an Ed25519 #atproto/#radicle key for {id}"
+            ))));
+        }
+        let body = serde_json::json!({ "did": id.encode() });
+        fs::write(
+            self.plc_link_path(),
+            serde_json::to_string_pretty(&body).map_err(|e| Error::Io(io::Error::other(e)))?,
+        )?;
+        Ok(())
+    }
+
+    /// Hybrid DID resolver using the local PLC cache and optional PLC binding.
+    pub fn did_resolver(&self) -> crate::identity::HybridResolver {
+        let mut resolver = crate::identity::HybridResolver::new(self.plc_cache());
+        if let Some(plc) = self.plc() {
+            resolver = resolver.with_binding(self.public_key, Did::Plc(plc));
+        }
+        resolver
+    }
+
     pub fn signer(&self) -> Result<Signer, SignerError> {
         /// Where to obtain the signer from.
         enum Source {

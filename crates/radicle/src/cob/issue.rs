@@ -290,7 +290,7 @@ impl Issue {
         self.thread
             .comments()
             .next()
-            .map(|(_, c)| Author::new(c.author()))
+            .map(|(_, c)| Author::new(*c.author()))
             .expect("Issue::author: at least one comment is present")
     }
 
@@ -338,11 +338,11 @@ impl Issue {
         actor: &ActorId,
         doc: &Doc,
     ) -> Result<Authorization, Error> {
-        if doc.is_delegate(&actor.into()) {
+        if doc.is_delegate(actor) || actor.as_key().is_some_and(|k| doc.is_delegate_key(k)) {
             // A delegate is authorized to do all actions.
             return Ok(Authorization::Allow);
         }
-        let author: ActorId = *self.author().id().as_key();
+        let author = *self.author().id();
         let outcome = match action {
             // Only delegate can assign someone to an issue.
             Action::Assign { assignees } => {
@@ -1255,7 +1255,7 @@ mod test {
         let reactions = issue.comment(&comment).unwrap().reactions();
         let authors = reactions.get(&reaction).unwrap();
 
-        assert_eq!(*authors.first().unwrap(), node.signer.public_key());
+        assert_eq!(**authors.first().unwrap(), Did::from(*node.signer.public_key()));
 
         // TODO: Test multiple reactions from same author and different authors
     }
@@ -1340,7 +1340,7 @@ mod test {
     #[test]
     fn test_issue_comment() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
-        let author = node.signer.public_key();
+        let author = Did::from(*node.signer.public_key());
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
             .create(
@@ -1366,11 +1366,11 @@ mod test {
         let (_, c2) = &issue.comments().nth(2).unwrap();
 
         assert_eq!(c0.body(), "Blah blah blah.");
-        assert_eq!(c0.author(), author);
+        assert_eq!(*c0.author(), author);
         assert_eq!(c1.body(), "Ho ho ho.");
-        assert_eq!(c1.author(), author);
+        assert_eq!(*c1.author(), author);
         assert_eq!(c2.body(), "Ha ha ha.");
-        assert_eq!(c2.author(), author);
+        assert_eq!(*c2.author(), author);
     }
 
     #[test]

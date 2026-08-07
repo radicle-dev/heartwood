@@ -214,7 +214,11 @@ impl FindObjects for git::raw::Repository {
         let mut missing_refs = BTreeSet::new();
         let mut missing_objects = BTreeMap::new();
         for did in dids {
-            let name = &refname.with_namespace(did.as_key().into());
+            let name = &refname.with_namespace(
+                did.as_key()
+                    .expect("canonical rules only reference did:key namespaces")
+                    .into(),
+            );
             let reference = match self.find_reference(name.as_str()) {
                 Ok(reference) => reference,
                 Err(e) if e.is_not_found() => {

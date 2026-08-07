@@ -13,6 +13,8 @@ bstr = ["radicle-git-ref-format/bstr"]
 default = []
 gix = ["radicle-oid/gix"]
 i2p = ["cyphernet/i2p"]
+## Enable HTTP fetch from plc.directory for the PLC DID cache.
+plc = ["dep:ureq"]
 test = ["tempfile", "qcheck", "radicle-crypto/test", "radicle-cob/test"]
 qcheck = [
   "radicle-core/qcheck",
@@ -30,6 +32,7 @@ tor = ["cyphernet/tor"]
 
 [dependencies]
 base64 = "0.21.3"
+ureq = { version = "2.9", optional = true, default-features = false, features = ["tls"] }
 bytesize = { version = "2", features = ["serde"] }
 cyphernet = { workspace = true, features = ["dns", "p2p-ed25519"] }
 dunce = { workspace = true }

@@ -143,7 +143,8 @@ impl Author {
         &self.id
     }
 
-    pub fn public_key(&self) -> &PublicKey {
+    /// Device key when this author is a `did:key`.
+    pub fn public_key(&self) -> Option<&PublicKey> {
         self.id.as_key()
     }
 }
@@ -156,6 +157,12 @@ impl Display for Author {
 
 impl From<PublicKey> for Author {
     fn from(value: PublicKey) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<Did> for Author {
+    fn from(value: Did) -> Self {
         Self::new(value)
     }
 }

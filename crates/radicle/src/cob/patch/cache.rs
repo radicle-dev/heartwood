@@ -753,7 +753,7 @@ mod tests {
             resolves,
         );
         let comment = Comment::new(
-            *author,
+            author,
             "#1 comment".to_string(),
             None,
             None,

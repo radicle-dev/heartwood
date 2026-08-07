@@ -161,7 +161,8 @@ pub trait SignerOpExt: crypto::Signer {
         let oid =
             crate::git::raw::Oid::hash_object(crate::git::raw::ObjectType::Blob, &data).unwrap();
         let id = oid.into();
-        let author = self.did().into();
+        let author = self.did();
+        let signing_key = *self.verifying_key().public_key();
         let actions = NonEmpty::from_vec(actions).unwrap();
         let manifest = Manifest::new(T::type_name().clone(), Version::default());
         let parents = vec![];
@@ -171,6 +172,7 @@ pub trait SignerOpExt: crypto::Signer {
             id,
             actions,
             author,
+            signing_key,
             parents,
             related,
             timestamp,

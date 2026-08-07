@@ -4,17 +4,23 @@ use serde::Serialize;
 use thiserror::Error;
 
 use radicle_cob::history::{Entry, EntryId};
-use radicle_crypto::PublicKey;
 
 use crate::cob;
 use crate::cob::Timestamp;
+use crate::crypto;
 use crate::git;
 use crate::identity;
 use crate::identity::DocAt;
+use crate::identity::Did;
+use crate::identity::plc::{DidResolver, KeyOnlyResolver};
 use crate::storage::ReadRepository;
 
 /// The author of an [`Op`].
-pub type ActorId = PublicKey;
+///
+/// Logical identity: a device [`Did::Key`] or an ATProto [`Did::Plc`]. COB
+/// signatures still embed the device Ed25519 key; authorship is attributed via
+/// a [`DidResolver`] when loading entries.
+pub type ActorId = Did;
 
 /// Error decoding an operation from an entry.
 #[derive(Error, Debug)]
@@ -58,8 +64,10 @@ pub struct Op<A> {
     pub id: EntryId,
     /// The action carried out by this operation.
     pub actions: NonEmpty<A>,
-    /// The author of the operation.
+    /// The logical author of the operation (`did:key` or `did:plc`).
     pub author: ActorId,
+    /// Device Ed25519 key that signed the underlying change entry.
+    pub signing_key: crypto::PublicKey,
     /// Timestamp of this operation.
     pub timestamp: Timestamp,
     /// Parent operations.
@@ -89,6 +97,7 @@ impl<A> Op<A> {
         id: EntryId,
         actions: impl Into<NonEmpty<A>>,
         author: ActorId,
+        signing_key: crypto::PublicKey,
         timestamp: impl Into<Timestamp>,
         identity: Option<git::Oid>,
         manifest: Manifest,
@@ -97,6 +106,7 @@ impl<A> Op<A> {
             id,
             actions: actions.into(),
             author,
+            signing_key,
             timestamp: timestamp.into(),
             parents: vec![],
             related: vec![],
@@ -158,12 +168,21 @@ impl<A> Op<A> {
 
 impl From<Entry> for Op<Vec<u8>> {
     fn from(entry: Entry) -> Self {
+        Self::from_entry(&entry, &KeyOnlyResolver)
+    }
+}
+
+impl Op<Vec<u8>> {
+    /// Build an op from a change entry, attributing authorship via `resolver`.
+    pub fn from_entry(entry: &Entry, resolver: &impl DidResolver) -> Self {
+        let signing_key = *entry.author();
         Self {
             id: *entry.id(),
             actions: entry.contents().clone(),
-            author: *entry.author(),
-            parents: entry.parents,
-            related: entry.related,
+            author: resolver.actor_for_key(&signing_key),
+            signing_key,
+            parents: entry.parents.clone(),
+            related: entry.related.clone(),
             timestamp: Timestamp::from_secs(entry.timestamp),
             identity: entry.resource,
             manifest: entry.manifest.clone(),
@@ -178,6 +197,19 @@ where
     type Error = OpEncodingError;
 
     fn try_from(entry: &'a Entry) -> Result<Self, Self::Error> {
+        Self::try_from_entry(entry, &KeyOnlyResolver)
+    }
+}
+
+impl<A> Op<A>
+where
+    for<'de> A: serde::Deserialize<'de>,
+{
+    /// Load and decode an op, attributing authorship via `resolver`.
+    pub fn try_from_entry(
+        entry: &Entry,
+        resolver: &impl DidResolver,
+    ) -> Result<Self, OpEncodingError> {
         let id = *entry.id();
         let identity = entry.resource().copied();
         let actions: Vec<_> = entry
@@ -190,18 +222,18 @@ where
         // SAFETY: Entry is guaranteed to have at least one operation.
         #[allow(clippy::unwrap_used)]
         let actions = NonEmpty::from_vec(actions).unwrap();
-        let op = Op {
+        let signing_key = *entry.author();
+        Ok(Op {
             id,
             actions,
-            author: *entry.author(),
+            author: resolver.actor_for_key(&signing_key),
+            signing_key,
             timestamp: Timestamp::from_secs(entry.timestamp),
             parents: entry.parents.to_owned(),
             related: entry.related.to_owned(),
             identity,
             manifest,
-        };
-
-        Ok(op)
+        })
     }
 }
 

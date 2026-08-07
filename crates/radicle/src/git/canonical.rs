@@ -497,7 +497,15 @@ impl Missing {
     fn found<'a>(&mut self, did: &Did, refname: &Qualified<'a>) {
         self.objects.remove(did);
         self.refs
-            .remove(&refname.with_namespace((did.as_key()).into()).to_owned());
+            .remove(
+                &refname
+                    .with_namespace(
+                        (did.as_key()
+                            .expect("canonical rules only reference did:key namespaces"))
+                        .into(),
+                    )
+                    .to_owned(),
+            );
     }
 }
 

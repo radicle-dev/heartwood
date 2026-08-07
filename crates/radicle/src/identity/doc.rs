@@ -25,6 +25,7 @@ use crate::git::fmt::Qualified;
 use crate::git::fmt::RefString;
 use crate::git::raw::ErrorExt as _;
 use crate::identity::crefs;
+use crate::identity::plc::{DidPayload, PinnedVerification};
 use crate::identity::{Did, project::Project};
 use crate::storage;
 use crate::storage::{ReadRepository, RepositoryError};
@@ -244,6 +245,15 @@ impl PayloadId {
                 .expect("PayloadId::canonical_refs: type name is valid"),
         )
     }
+
+    /// Pinned DID verification material (`did:plc` keys for offline authz).
+    pub fn did() -> Self {
+        Self(
+            // SAFETY: We know this is valid.
+            TypeName::from_str("xyz.radicle.did")
+                .expect("PayloadId::did: type name is valid"),
+        )
+    }
 }
 
 #[derive(Debug, Error)]
@@ -273,6 +283,29 @@ impl Payload {
 
     pub fn into_inner(self) -> serde_json::Value {
         self.value
+    }
+}
+
+impl RawDoc {
+    /// Set or replace the `xyz.radicle.did` pin payload.
+    pub fn set_did_payload(&mut self, pins: DidPayload) -> Result<(), PayloadError> {
+        let value = serde_json::to_value(pins)?;
+        self.payload.insert(PayloadId::did(), Payload::from(value));
+        Ok(())
+    }
+
+    /// Pin verifying keys for `did` in the `xyz.radicle.did` payload.
+    pub fn pin_did(
+        &mut self,
+        did: Did,
+        keys: impl IntoIterator<Item = PublicKey>,
+    ) -> Result<(), PayloadError> {
+        let mut pins = match self.payload.get(&PayloadId::did()) {
+            Some(payload) => serde_json::from_value((**payload).clone())?,
+            None => DidPayload::default(),
+        };
+        pins.insert(did, PinnedVerification::from_keys(keys));
+        self.set_did_payload(pins)
     }
 }
 
@@ -941,12 +974,94 @@ impl Doc {
         self.delegates.contains(did)
     }
 
+    /// Whether the device `key` may act as a repository delegate.
+    ///
+    /// For `did:key` delegates this is equality. For `did:plc` delegates the key
+    /// must appear in the pinned verifying keys under `xyz.radicle.did`.
+    pub fn is_delegate_key(&self, key: &PublicKey) -> bool {
+        let key_did = Did::from(key);
+        if self.is_delegate(&key_did) {
+            return true;
+        }
+        let Ok(Some(pins)) = self.did_payload() else {
+            return false;
+        };
+        self.delegates.iter().any(|did| {
+            did.is_plc()
+                && pins
+                    .keys_for(did)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|keys| keys.iter().any(|k| k == key))
+        })
+    }
+
+    /// Load the optional `xyz.radicle.did` pin payload.
+    pub fn did_payload(&self) -> Result<Option<DidPayload>, PayloadError> {
+        match self.payload.get(&PayloadId::did()) {
+            None => Ok(None),
+            Some(payload) => {
+                let pins: DidPayload = serde_json::from_value((**payload).clone())?;
+                Ok(Some(pins))
+            }
+        }
+    }
+
+    /// Device [`PublicKey`]s that currently represent delegates for transport
+    /// purposes (namespaces, private-network allow sets).
+    ///
+    /// `did:key` delegates contribute themselves. `did:plc` delegates contribute
+    /// their pinned Ed25519 keys when present.
+    pub fn delegate_keys(&self) -> Vec<PublicKey> {
+        let pins = self.did_payload().ok().flatten().unwrap_or_default();
+        let mut keys = Vec::new();
+        for did in self.delegates.iter() {
+            match did {
+                Did::Key(key) => keys.push(*key),
+                Did::Plc(_) => {
+                    if let Ok(Some(ks)) = pins.keys_for(did) {
+                        keys.extend(ks);
+                    }
+                }
+            }
+        }
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
     /// Check whether this document and the associated repository is visible to
     /// the given peer.
     pub fn is_visible_to(&self, did: &Did) -> bool {
         match &self.visibility {
             Visibility::Public => true,
             Visibility::Private { allow } => allow.contains(did) || self.is_delegate(did),
+        }
+    }
+
+    /// Whether the repository is visible to the device `key`.
+    pub fn is_visible_to_key(&self, key: &PublicKey) -> bool {
+        if self.is_visible_to(&Did::from(key)) {
+            return true;
+        }
+        match &self.visibility {
+            Visibility::Public => true,
+            Visibility::Private { allow } => {
+                if self.is_delegate_key(key) {
+                    return true;
+                }
+                let Ok(Some(pins)) = self.did_payload() else {
+                    return false;
+                };
+                allow.iter().any(|did| {
+                    did.is_plc()
+                        && pins
+                            .keys_for(did)
+                            .ok()
+                            .flatten()
+                            .is_some_and(|keys| keys.iter().any(|k| k == key))
+                })
+            }
         }
     }
 
@@ -960,7 +1075,7 @@ impl Doc {
     ) -> Result<(), PublicKey> {
         use crypto::signature::Verifier as _;
 
-        if !self.is_delegate(&key.into()) {
+        if !self.is_delegate_key(key) {
             return Err(*key);
         }
 
@@ -1135,7 +1250,31 @@ mod test {
     use crate::test::fixtures;
 
     use super::*;
+    use crate::identity::plc::PlcId;
     use qcheck_macros::quickcheck;
+
+    #[test]
+    fn test_plc_delegate_pin_and_visibility() {
+        let key = *SigningKey::mock(42).public_key();
+        let plc = PlcId::decode("did:plc:ewvi7nxzyoun6grtyetllrat").unwrap();
+        let did = Did::Plc(plc);
+        let mut raw = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![Did::from(key)],
+            1,
+            Visibility::Private {
+                allow: BTreeSet::from([did]),
+            },
+        );
+        raw.pin_did(did, [key]).unwrap();
+        let doc = raw.verified().unwrap();
+
+        assert!(doc.is_visible_to(&did));
+        assert!(doc.is_visible_to_key(&key));
+        assert!(doc.is_delegate_key(&key));
+        assert_eq!(doc.delegate_keys(), vec![key]);
+        assert!(doc.did_payload().unwrap().unwrap().get(&did).is_some());
+    }
 
     #[test]
     fn test_duplicate_dids() {

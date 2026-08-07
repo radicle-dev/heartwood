@@ -430,22 +430,26 @@ impl store::Cob for Identity {
         assert_eq!(root.commit, op.id);
 
         let founder = root.delegates().first();
-        if founder.as_key() != &op.author {
+        if founder != &op.author {
             return Err(ApplyError::Init("delegate does not match committer"));
         }
         // Verify signature against root document. Since there is no previous document,
         // we verify it against itself.
+        let founder_key = founder
+            .as_key()
+            .ok_or(ApplyError::Init("root delegate must be did:key"))?;
         if root
-            .verify_signature(founder, &signature, root.blob)
+            .verify_signature(founder_key, &signature, root.blob)
             .is_err()
         {
-            return Err(ApplyError::InvalidSignature(**founder, root.blob));
+            return Err(ApplyError::InvalidSignature(*founder_key, root.blob));
         }
         let revision = Revision::new(
             root.commit,
             title,
             description,
             op.author.into(),
+            op.signing_key,
             root.blob,
             root.doc,
             State::Accepted,
@@ -466,7 +470,7 @@ impl store::Cob for Identity {
         let concurrent = concurrent.into_iter().collect::<Vec<_>>();
 
         for action in op.actions {
-            match self.action(action, id, op.author, op.timestamp, repo) {
+            match self.action(action, id, op.author, op.signing_key, op.timestamp, repo) {
                 Ok(()) => {}
                 // This particular error is returned when there is a mismatch between the expected
                 // and the actual state of a revision, which can happen concurrently. Therefore
@@ -497,10 +501,11 @@ impl Identity {
         action: Action,
         id: EntryId,
         author: ActorId,
+        signing_key: PublicKey,
         timestamp: Timestamp,
         repo: &R,
     ) -> Result<(), ApplyError> {
-        let did = author.into();
+        let did = author;
 
         match action {
             action @ (Action::RevisionAccept { revision: id, .. }
@@ -526,7 +531,7 @@ impl Identity {
                             .revision(&parent_id)
                             .ok_or(ApplyError::Missing(parent_id))?;
 
-                        if !parent.is_delegate(&did) {
+                        if !parent.is_delegate(&did) && !parent.doc.is_delegate_key(&signing_key) {
                             return Err(ApplyError::non_delegate_unauthorized(did, &action));
                         }
 
@@ -550,15 +555,15 @@ impl Identity {
                                 }
 
                                 parent
-                                    .verify_signature(&author, &signature, revision.blob)
+                                    .verify_signature(&signing_key, &signature, revision.blob)
                                     .map_err(|_source| {
-                                        ApplyError::InvalidSignature(author, revision.blob)
+                                        ApplyError::InvalidSignature(signing_key, revision.blob)
                                     })?;
 
                                 if self
                                     .revision_mut(&id)?
                                     .verdicts
-                                    .insert(author, Verdict::Accept(signature))
+                                    .insert(signing_key, Verdict::Accept(signature))
                                     .is_some()
                                 {
                                     return Err(ApplyError::DuplicateVerdict);
@@ -571,7 +576,11 @@ impl Identity {
                                     parent.delegates().len() - parent.majority();
 
                                 let revision = self.revision_mut(&id)?;
-                                if revision.verdicts.insert(author, Verdict::Reject).is_some() {
+                                if revision
+                                    .verdicts
+                                    .insert(signing_key, Verdict::Reject)
+                                    .is_some()
+                                {
                                     return Err(ApplyError::DuplicateVerdict);
                                 }
 
@@ -595,11 +604,11 @@ impl Identity {
                     log::debug!("Cannot edit revision {id} because it is not active.",);
                     return Err(ApplyError::UnexpectedState);
                 }
-                if revision.author.public_key() != &author {
+                if revision.author.id() != &author {
                     log::debug!(
                         "{} cannot edit revision created by {}.",
                         author,
-                        revision.author.public_key()
+                        revision.author.id()
                     );
                     // Since the author never changes, we can safely mark this as invalid.
                     return Err(ApplyError::NotAuthorized);
@@ -611,10 +620,10 @@ impl Identity {
             Action::RevisionRedact { revision: id } => {
                 let revision = self.revision_mut(&id)?;
 
-                if revision.author.public_key() != &author {
+                if revision.author.id() != &author {
                     log::debug!(
                         "{author} cannot redact revision created by {}.",
-                        revision.author.public_key()
+                        revision.author.id()
                     );
                     // Since the author never changes, we can safely mark this as invalid.
                     return Err(ApplyError::NotAuthorized);
@@ -645,9 +654,9 @@ impl Identity {
                 let parent_id = parent_id.ok_or(ApplyError::MissingParent)?;
                 let parent = self.revision(&parent_id).ok_or(ApplyError::MissingParent)?;
 
-                if !parent.is_delegate(&did) {
+                if !parent.is_delegate(&did) && !parent.doc.is_delegate_key(&signing_key) {
                     return Err(ApplyError::NonDelegateUnauthorized {
-                        author: author.into(),
+                        author,
                         action: "create a revision".to_string(),
                     });
                 }
@@ -658,8 +667,11 @@ impl Identity {
                 }
 
                 // Verify signature over new blob, using trusted delegates.
-                if parent.verify_signature(&author, &signature, blob).is_err() {
-                    return Err(ApplyError::InvalidSignature(author, blob));
+                if parent
+                    .verify_signature(&signing_key, &signature, blob)
+                    .is_err()
+                {
+                    return Err(ApplyError::InvalidSignature(signing_key, blob));
                 }
 
                 // If the parent is already rejected or redacted, this revision is dead on arrival.
@@ -708,6 +720,7 @@ impl Identity {
                     title,
                     description,
                     author.into(),
+                    signing_key,
                     blob,
                     doc,
                     state,
@@ -724,7 +737,7 @@ impl Identity {
                         "Stripping implicit accept from revision {id} by {did}: \
                          already accepted the active revision {revision_id}.",
                     );
-                    self.revision_mut(&id)?.verdicts.remove(&author);
+                    self.revision_mut(&id)?.verdicts.remove(&signing_key);
                 }
 
                 if state == State::Active {
@@ -1078,6 +1091,7 @@ impl Revision {
         title: cob::Title,
         description: String,
         author: Author,
+        signing_key: PublicKey,
         blob: Oid,
         doc: Doc,
         state: State,
@@ -1085,7 +1099,7 @@ impl Revision {
         parent: Option<RevisionId>,
         timestamp: Timestamp,
     ) -> Self {
-        let verdicts = HashMap::from_iter([(*author.public_key(), Verdict::Accept(signature))]);
+        let verdicts = HashMap::from_iter([(signing_key, Verdict::Accept(signature))]);
 
         Self {
             id,

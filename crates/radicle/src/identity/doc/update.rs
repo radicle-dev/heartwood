@@ -5,6 +5,7 @@ use std::{collections::BTreeSet, str::FromStr};
 use serde_json as json;
 
 use crate::{
+    crypto,
     git,
     prelude::Did,
     storage::{self, ReadRepository, RepositoryError, refs},
@@ -253,24 +254,41 @@ fn verify_delegates(
     proposal: &RawDoc,
     repo: &storage::git::Repository,
 ) -> Result<Option<Vec<error::DelegateVerification>>, RepositoryError> {
+    use crate::identity::plc::DidPayload;
+
     let dids = &proposal.delegates;
     let threshold = proposal.threshold;
     let (canonical, _) = repo.canonical_head()?;
     let mut missing = Vec::with_capacity(dids.len());
+    let pins: DidPayload = proposal
+        .payload
+        .get(&super::PayloadId::did())
+        .and_then(|payload| serde_json::from_value((**payload).clone()).ok())
+        .unwrap_or_default();
 
     for did in dids {
-        match refs::SignedRefs::load((*did).into(), repo)
-            .map_err(|err| storage::Error::Refs(storage::refs::Error::Read(err)))?
-        {
-            None => {
-                missing.push(error::DelegateVerification::MissingDelegate { did: *did });
-            }
-            Some(sigrefs) => {
-                if sigrefs.get(&canonical).is_none() {
-                    missing.push(error::DelegateVerification::MissingDefaultBranch {
-                        branch: canonical.to_ref_string(),
-                        did: *did,
-                    });
+        let nids: Vec<crypto::PublicKey> = match did.as_key() {
+            Some(key) => vec![*key],
+            None => pins.keys_for(did).ok().flatten().unwrap_or_default(),
+        };
+        if nids.is_empty() {
+            missing.push(error::DelegateVerification::MissingDelegate { did: *did });
+            continue;
+        }
+        for nid in nids {
+            match refs::SignedRefs::load(nid, repo)
+                .map_err(|err| storage::Error::Refs(storage::refs::Error::Read(err)))?
+            {
+                None => {
+                    missing.push(error::DelegateVerification::MissingDelegate { did: *did });
+                }
+                Some(sigrefs) => {
+                    if sigrefs.get(&canonical).is_none() {
+                        missing.push(error::DelegateVerification::MissingDefaultBranch {
+                            branch: canonical.to_ref_string(),
+                            did: *did,
+                        });
+                    }
                 }
             }
         }

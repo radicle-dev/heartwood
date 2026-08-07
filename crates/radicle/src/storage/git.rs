@@ -478,7 +478,11 @@ impl Repository {
         let delegates = self
             .delegates()?
             .into_iter()
-            .map(|did| *did)
+            .filter_map(|did| did.as_key().copied())
+            .chain({
+                let doc = self.identity_doc()?;
+                doc.delegate_keys()
+            })
             .collect::<BTreeSet<_>>();
         let mut deleted = Vec::new();
         for id in self.remote_ids()? {
