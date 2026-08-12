@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.1 - 2026-08-12
+
+## Improvements
+
+- `rad debug` now prints the contents of `/etc/os-release` to help identifying
+  the operating system.
+- `rad debug` now detects HardenedBSD.
+- Signature verification was tightened to use [`ed25519_dalek::VerifyingKey::verify_strict`]
+  (https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html#method.verify_strict),
+  refer to the documentation of the function.
+
+## Fixes
+
+- Nodes would leak repository identifiers of private repositories to peers for
+  which the private repository should not be visible. This was fixed.
+- A regression regarding generation of ephemeral keys for communication between
+  nodes was fixed.
+
 ## 1.10.0 - 2026-08-05
 
 ## Repository Identity Evaluation
