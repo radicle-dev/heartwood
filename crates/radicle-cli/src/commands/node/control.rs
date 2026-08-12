@@ -76,11 +76,11 @@ pub fn start(
             logs(0, Some(time::Duration::from_secs(1)), profile)?;
         } else {
             let started = time::Instant::now();
-            let mut spinner = term::spinner(format!("Node starting.. {pid}"));
+            let mut spinner = term::spinner(format!("Node starting… (Process ID: {pid})"));
 
             loop {
                 if node.is_running() {
-                    spinner.message(format!("Node started {pid}"));
+                    spinner.message(format!("Node started. (Process ID: {pid})"));
                     spinner.finish();
 
                     term::println(term::format::dim(
