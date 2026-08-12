@@ -327,10 +327,6 @@ impl ReadRepository for MockRepository {
         Ok(self.doc.commit)
     }
 
-    fn identity_root_of(&self, _remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        Ok(self.doc.commit)
-    }
-
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         Ok(self.doc.commit)
     }

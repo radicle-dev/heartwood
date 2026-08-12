@@ -545,9 +545,6 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Get the root commit of the canonical identity branch.
     fn identity_root(&self) -> Result<Oid, RepositoryError>;
 
-    /// Get the root commit of the identity branch of a specific remote.
-    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError>;
-
     /// Load the identity history.
     fn identity(&self) -> Result<Identity, RepositoryError>
     where
