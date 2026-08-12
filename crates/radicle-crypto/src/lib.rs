@@ -665,7 +665,9 @@ impl cyphernet::EcSk for SigningKey {
     where
         Self: Sized,
     {
-        let signing_key = dalek::ed::SigningKey::from_bytes(&[154; 32]);
+        let mut random = [0; 32];
+        getrandom::fill(&mut random).expect("failed get random bytes from the operating system");
+        let signing_key = dalek::ed::SigningKey::from_bytes(&random);
         let verifying_key = signature::Keypair::verifying_key(&signing_key);
         (SigningKey(signing_key), VerifyingKey(verifying_key))
     }
