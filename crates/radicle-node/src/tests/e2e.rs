@@ -169,6 +169,117 @@ fn test_inventory_sync_star() {
 }
 
 #[test]
+fn public_to_private_to_public_replay() {
+    use radicle::identity::Identity;
+    use radicle::identity::Visibility;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
+    let bob = SigningKey::mock(99);
+
+    assert!(alice.id.to_human() > bob.public_key().to_human());
+
+    let rid = alice.project("acme", "");
+    let repo = alice.storage.repository(rid).unwrap();
+    let public_root = repo.identity_root().unwrap();
+
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::Public
+    );
+
+    let mut identity = Identity::load_mut(&repo, &alice.secret_key).unwrap();
+    let private_doc = repo
+        .identity_doc()
+        .unwrap()
+        .doc
+        .with_edits(|doc| {
+            doc.visibility = Visibility::private([]);
+        })
+        .unwrap();
+    let private_rev = identity
+        .update(Title::new("Private").unwrap(), "", &private_doc)
+        .unwrap();
+    repo.set_identity_head_to(private_rev).unwrap();
+
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::private([])
+    );
+
+    let remote = *bob.public_key();
+    let id_ref = format!("refs/namespaces/{}/refs/rad/id", remote);
+    let root_ref = format!("refs/namespaces/{}/refs/rad/root", remote);
+
+    let public_commit = repo.raw().find_commit(public_root.into()).unwrap();
+    let header = public_commit.raw_header().unwrap_or_default();
+
+    let tree = public_commit.tree().unwrap();
+    let mut signature = String::new();
+    let mut found = false;
+    for line in header.lines().skip(1) {
+        if !found {
+            if line.starts_with("gpgsig ") {
+                found = true;
+                signature.push_str(line.trim_start_matches("gpgsig "));
+                signature.push('\n');
+            }
+            continue;
+        }
+
+        if line.starts_with(' ') {
+            signature.push_str(line.trim_start_matches(' '));
+            signature.push('\n');
+        } else {
+            break;
+        }
+    }
+    assert!(found, "public identity root must include outer gpgsig");
+
+    let time = git::raw::Time::new(1700000000, 0);
+    let author = git::raw::Signature::new("Bob", "bob@example.invalid", &time).unwrap();
+    let wrapper_buffer = repo
+        .raw()
+        .commit_create_buffer(
+            &author.clone(),
+            &author,
+            "Rewrapped historical identity root",
+            &tree,
+            &[],
+        )
+        .unwrap();
+    let wrapper_content = std::str::from_utf8(&wrapper_buffer).unwrap();
+    let wrapper = repo
+        .raw()
+        .commit_signed(wrapper_content, &signature, None)
+        .unwrap();
+    let cob_ref = format!(
+        "refs/namespaces/{}/refs/cobs/{}/{}",
+        remote,
+        *radicle::cob::identity::TYPENAME,
+        wrapper
+    );
+
+    repo.raw().reference(&cob_ref, wrapper, true, "").unwrap();
+
+    repo.raw().reference(&id_ref, wrapper, true, "").unwrap();
+
+    repo.raw().reference(&root_ref, wrapper, true, "").unwrap();
+
+    repo.sign_refs(&bob).unwrap();
+
+    // Recompute and set the identity head, just like `rad id cache` would do.
+    repo.set_identity_head().unwrap();
+
+    // Even though Alice made the repository private, it still appears
+    // as public!
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::Public
+    );
+}
+
+#[test]
 fn test_replication() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
