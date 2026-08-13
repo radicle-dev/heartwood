@@ -271,11 +271,9 @@ fn public_to_private_to_public_replay() {
     // Recompute and set the identity head, just like `rad id cache` would do.
     repo.set_identity_head().unwrap();
 
-    // Even though Alice made the repository private, it still appears
-    // as public!
     assert_eq!(
         Identity::load(&repo).unwrap().doc().visibility(),
-        &Visibility::Public
+        &Visibility::private([])
     );
 }
 
