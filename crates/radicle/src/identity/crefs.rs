@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::git::canonical::rules::{self, RawRules, Rules};
-use crate::git::canonical::symbolic::{self, SymbolicRefs};
+use crate::git::canonical::symbolic::{self, RawSymbolicRefs, SymbolicRefs};
 use crate::git::fmt::Qualified;
 
 use super::doc::{Delegates, Payload};
@@ -11,6 +11,9 @@ use super::doc::{Delegates, Payload};
 pub enum ValidationError {
     #[error(transparent)]
     Rules(#[from] rules::ValidationError),
+
+    #[error(transparent)]
+    Symbolic(#[from] symbolic::ValidationError),
 
     #[error("the target of the symbolic reference '{name} → {target}' is not matched by any rule")]
     Dangling {
@@ -36,12 +39,12 @@ pub struct RawCanonicalRefs {
     rules: RawRules,
 
     #[serde(default)] // Default to empty for backwards compatibility.
-    symbolic: SymbolicRefs,
+    symbolic: RawSymbolicRefs,
 }
 
 impl RawCanonicalRefs {
     /// Construct a new [`RawCanonicalRefs`] from a set of [`RawRules`].
-    pub fn new(rules: RawRules, symbolic: SymbolicRefs) -> Self {
+    pub fn new(rules: RawRules, symbolic: RawSymbolicRefs) -> Self {
         Self { rules, symbolic }
     }
 
@@ -55,13 +58,13 @@ impl RawCanonicalRefs {
         &mut self.rules
     }
 
-    /// Return the [`SymbolicRefs`].
-    pub fn symbolic(&self) -> &SymbolicRefs {
+    /// Return the [`RawSymbolicRefs`].
+    pub fn symbolic(&self) -> &RawSymbolicRefs {
         &self.symbolic
     }
 
-    /// Return the [`SymbolicRefs`] for mutation.
-    pub fn symbolic_mut(&mut self) -> &mut SymbolicRefs {
+    /// Return the [`RawSymbolicRefs`] for mutation.
+    pub fn symbolic_mut(&mut self) -> &mut RawSymbolicRefs {
         &mut self.symbolic
     }
 
@@ -74,7 +77,8 @@ impl RawCanonicalRefs {
         R: Fn() -> Delegates,
     {
         let rules = Rules::from_raw(self.rules, resolve)?;
-        CanonicalRefs::new(rules, self.symbolic)
+        let symbolic = SymbolicRefs::try_from(self.symbolic)?;
+        CanonicalRefs::new(rules, symbolic)
     }
 }
 
@@ -132,15 +136,20 @@ impl CanonicalRefs {
     pub fn symbolic(&self) -> &SymbolicRefs {
         &self.symbolic
     }
-
-    pub fn into_raw(self) -> (RawRules, SymbolicRefs) {
-        (self.rules.into(), self.symbolic)
-    }
 }
 
 impl Extend<(rules::RawPattern, rules::RawRule)> for RawCanonicalRefs {
     fn extend<T: IntoIterator<Item = (rules::RawPattern, rules::RawRule)>>(&mut self, iter: T) {
         self.rules.extend(iter)
+    }
+}
+
+impl From<CanonicalRefs> for RawCanonicalRefs {
+    fn from(crefs: CanonicalRefs) -> Self {
+        Self {
+            rules: crefs.rules.into(),
+            symbolic: crefs.symbolic.into(),
+        }
     }
 }
 

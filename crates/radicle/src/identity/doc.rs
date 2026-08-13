@@ -20,7 +20,6 @@ use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
 use crate::git::canonical::rules::{self, ResolvedDelegates};
-use crate::git::canonical::symbolic;
 use crate::git::fmt::Qualified;
 use crate::git::fmt::RefString;
 use crate::git::raw::ErrorExt as _;
@@ -840,8 +839,9 @@ impl Doc {
                 self.validate_head_rule(&crefs, default_branch)?;
             }
             (None, Some(Ok(project))) => {
-                let raw_crefs = self.synthesize_head(crefs, &project)?;
-                return Ok(raw_crefs.try_into_canonical_refs(resolve)?);
+                return Ok(self
+                    .synthesize_head(crefs, &project)
+                    .try_into_canonical_refs(resolve)?);
             }
             (None, None) => {
                 return Err(CanonicalRefsError::SynthesisPayloadMissing);
@@ -861,10 +861,10 @@ impl Doc {
     /// later by [`RawCanonicalRefs::try_into_canonical_refs`] validation.
     fn validate_head_rule(
         &self,
-        raw_crefs: &CanonicalRefs,
+        crefs: &CanonicalRefs,
         default_branch: &Qualified<'static>,
     ) -> Result<(), CanonicalRefsError> {
-        let Some((pattern, rule)) = raw_crefs.rules().matches(default_branch).next() else {
+        let Some((pattern, rule)) = crefs.rules().matches(default_branch).next() else {
             return Ok(());
         };
 
@@ -902,30 +902,25 @@ impl Doc {
 
     /// Synthesize a `HEAD` symbolic reference and a default branch rule
     /// from the project payload.
-    fn synthesize_head(
-        &self,
-        crefs: CanonicalRefs,
-        project: &Project,
-    ) -> Result<RawCanonicalRefs, CanonicalRefsError> {
+    fn synthesize_head(&self, crefs: CanonicalRefs, project: &Project) -> RawCanonicalRefs {
         let default_branch = project.default_branch_qualified();
 
         let add_rule = crefs.rules().matches(&default_branch).next().is_none();
 
-        let (mut raw_rules, mut symbolic) = crefs.into_raw();
+        let mut raw_crefs = RawCanonicalRefs::from(crefs);
 
         if add_rule {
-            raw_rules.insert(
+            raw_crefs.raw_rules_mut().insert(
                 git::fmt::refspec::QualifiedPattern::from(default_branch.to_owned()),
                 rules::Rule::new(rules::Allowed::Delegates, self.threshold()),
             );
         }
 
-        #[allow(deprecated)]
-        symbolic
-            .combine(symbolic::SymbolicRefs::head(project.default_branch()))
-            .map_err(|source| CanonicalRefsError::SynthesisCycle { source })?;
+        raw_crefs
+            .symbolic_mut()
+            .insert(git::fmt::refname!("HEAD"), default_branch.to_ref_string());
 
-        Ok(RawCanonicalRefs::new(raw_rules, symbolic))
+        raw_crefs
     }
 
     /// Return the associated [`Visibility`] of this document.
@@ -1095,9 +1090,6 @@ pub enum CanonicalRefsError {
 
     #[error(transparent)]
     DefaultBranchRuleError(#[from] DefaultBranchRuleError),
-
-    #[error("synthesizing canonical references from project payload failed: {source}")]
-    SynthesisCycle { source: symbolic::InsertionError },
 }
 
 #[derive(Debug, Error)]
@@ -1371,6 +1363,45 @@ mod test {
             .unwrap()]))
             .unwrap(),
             serde_json::json!({ "type": "private", "allow": ["did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"] })
+        );
+    }
+
+    /// A [`Doc`] containing symbolic references that contain a chain must still
+    /// be readable after [`Doc::encode`]
+    #[test]
+    fn encode_preserves_symbolic_chain() {
+        let value = json!({
+            "payload": {
+                "xyz.radicle.crefs": {
+                    "symbolic": {
+                        "MAIN": "refs/heads/master",
+                        "HEAD": "MAIN",
+                    },
+                    "rules": {
+                        "refs/heads/master": { "allow": "delegates", "threshold": 1 }
+                    }
+                }
+            },
+            "delegates": ["did:key:z6MkireRatUThvd3qzfKht1S44wpm4FEWSSa4PRMTSQZ3voM"],
+            "threshold": 1
+        });
+
+        let doc = serde_json::from_value::<Doc>(value).unwrap();
+        doc.canonical_refs()
+            .expect("symref chain is valid before encoding");
+
+        let (_, bytes) = doc.encode().unwrap();
+        let decoded = RawDoc::from_json(&bytes).unwrap().verified().unwrap();
+
+        assert_eq!(decoded, doc);
+        assert_eq!(
+            decoded
+                .canonical_refs()
+                .expect("symref chain is still valid after encoding")
+                .symbolic()
+                .resolve_head()
+                .map(|q| q.to_string()),
+            Some("refs/heads/master".to_owned()),
         );
     }
 

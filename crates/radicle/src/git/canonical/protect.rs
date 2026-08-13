@@ -89,10 +89,7 @@ impl<T: RefLike + std::fmt::Display> std::fmt::Display for Unprotected<T> {
 /// For types that are commonly used in conjunction with [`Unprotected`]
 /// have some `impl`s and companion infallible injections.
 mod impls {
-    use crate::git::{
-        fmt::{Qualified, RefStr, RefString, refname, refspec::QualifiedPattern},
-        refs::branch,
-    };
+    use crate::git::fmt::{Qualified, RefString, refname, refspec::QualifiedPattern};
 
     use super::*;
 
@@ -114,18 +111,6 @@ mod impls {
 
     /// [`Qualified`] is a restriction on [`RefString`].
     impl RefLike for Qualified<'_> {}
-
-    impl Unprotected<Qualified<'_>> {
-        /// Construct a qualified reference name for given branch, i.e.,
-        /// return `/refs/heads/<name>`
-        pub fn branch(name: &RefStr) -> Self {
-            Self::new(branch(name)).expect("branches are never protected")
-        }
-
-        pub fn to_ref_string(&self) -> Unprotected<RefString> {
-            Unprotected::new_unchecked(self.0.to_ref_string())
-        }
-    }
 
     /// A [`QualifiedPattern`] is [`RefLike`] in the sense that it matches a
     /// (possibly infinite) set of [`crate::git::Qualified`].
