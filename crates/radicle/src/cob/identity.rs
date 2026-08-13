@@ -198,8 +198,14 @@ impl std::ops::Deref for Identity {
 }
 
 impl Identity {
-    pub fn new(root: Revision) -> Self {
+    fn new(root: Revision) -> Self {
         let root_id = root.id;
+        let founder = *root.author.id();
+
+        debug_assert_eq!(
+            *root.doc.delegates(),
+            crate::identity::doc::Delegates::from(founder)
+        );
 
         Self {
             root: root_id,
