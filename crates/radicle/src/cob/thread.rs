@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize, ser::SerializeStruct};
 use thiserror::Error;
 
@@ -291,14 +292,14 @@ pub struct Thread<T = Comment> {
     /// The comments under the thread.
     comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
-    timeline: Vec<CommentId>,
+    timeline: IndexSet<CommentId>,
 }
 
 impl<T> Default for Thread<T> {
     fn default() -> Self {
         Self {
             comments: BTreeMap::default(),
-            timeline: Vec::default(),
+            timeline: IndexSet::default(),
         }
     }
 }
@@ -313,7 +314,7 @@ impl<T> Thread<T> {
     pub fn new(id: CommentId, comment: T) -> Self {
         Self {
             comments: BTreeMap::from_iter([(id, Some(comment))]),
-            timeline: vec![id],
+            timeline: [id].into(),
         }
     }
 
@@ -512,8 +513,7 @@ pub fn comment<L>(
     {
         return Err(Error::Missing(id));
     }
-    debug_assert!(!thread.timeline.contains(&id));
-    thread.timeline.push(id);
+    thread.timeline.insert(id);
 
     // Nb. If a comment is already present, it must be redacted, because the
     // underlying store guarantees exactly-once delivery of ops.
@@ -536,8 +536,7 @@ pub fn edit<L>(
     body: String,
     embeds: Vec<Embed<Uri>>,
 ) -> Result<(), Error> {
-    debug_assert!(!thread.timeline.contains(&id));
-    thread.timeline.push(id);
+    thread.timeline.insert(id);
 
     // It's possible for a comment to be redacted before we're able to edit it, in
     // case of a concurrent update.
@@ -556,8 +555,7 @@ pub fn edit<L>(
 
 pub fn redact<T>(thread: &mut Thread<T>, id: EntryId, comment: EntryId) -> Result<(), Error> {
     if let Some(comment) = thread.comments.get_mut(&comment) {
-        debug_assert!(!thread.timeline.contains(&id));
-        thread.timeline.push(id);
+        thread.timeline.insert(id);
 
         *comment = None;
     } else {
@@ -579,8 +577,7 @@ pub fn react<T>(
         return Err(Error::Missing(comment));
     };
     if let Some(comment) = comment {
-        debug_assert!(!thread.timeline.contains(&id));
-        thread.timeline.push(id);
+        thread.timeline.insert(id);
 
         if active {
             comment.reactions.insert(key);
@@ -601,8 +598,7 @@ pub fn resolve<T>(
     };
 
     if let Some(comment) = comment {
-        debug_assert!(!thread.timeline.contains(&id));
-        thread.timeline.push(id);
+        thread.timeline.insert(id);
         comment.resolve();
     }
     Ok(())
@@ -618,8 +614,7 @@ pub fn unresolve<T>(
     };
 
     if let Some(comment) = comment {
-        debug_assert!(!thread.timeline.contains(&id));
-        thread.timeline.push(id);
+        thread.timeline.insert(id);
         comment.unresolve();
     }
     Ok(())
@@ -711,6 +706,58 @@ mod tests {
         assert_eq!(edits[1].body.as_str(), "Goodbye world.");
         assert_eq!(edits[2].body.as_str(), "Goodbye world!");
         assert_eq!(t1.comment(&c0.id()).unwrap().body(), "Goodbye world!");
+    }
+
+    /// Regression test for commit `1bb04020a4afb4b7a071dad9d0a06791c087fb3a`
+    /// in `rad:z2reN9XFdJgQmSbh23KUp9va689YJ`, which occurs in patch
+    /// `0978f920a494b52744a2b349b3453a42a8106513`.
+    ///
+    /// Generally, operations may carry multiple actions, thus, multiple actions
+    /// might be referred to by the same ID.
+    #[test]
+    fn resolve_and_unresolve_multiple_comments_in_one_operation() {
+        let mut alice = SigningKey::mock(49);
+        let repo = r#gen::<MockRepository>(1);
+
+        let comment_1 = alice.comment("First", None);
+        let comment_2 = alice.comment("Second", None);
+        let mut thread = Thread::from_ops([comment_1.clone(), comment_2.clone()], &repo).unwrap();
+
+        // Note that the same `operation` is used to resolve *both*
+        // `comment_1` and `comment_2`.
+        let operation = arbitrary::entry_id();
+
+        resolve(&mut thread, operation, comment_1.id()).unwrap();
+        resolve(&mut thread, operation, comment_2.id()).unwrap();
+
+        assert!(thread.comment(&comment_1.id()).unwrap().is_resolved());
+        assert!(thread.comment(&comment_2.id()).unwrap().is_resolved());
+        assert_eq!(
+            thread
+                .timeline
+                .iter()
+                .filter(|id| **id == operation)
+                .count(),
+            1
+        );
+
+        // Note that the same `operation` is used to unresolve *both*
+        // `comment_1` and `comment_2`.
+        let operation = arbitrary::entry_id();
+
+        unresolve(&mut thread, operation, comment_1.id()).unwrap();
+        unresolve(&mut thread, operation, comment_2.id()).unwrap();
+
+        assert!(!thread.comment(&comment_1.id()).unwrap().is_resolved());
+        assert!(!thread.comment(&comment_2.id()).unwrap().is_resolved());
+        assert_eq!(
+            thread
+                .timeline
+                .iter()
+                .filter(|id| **id == operation)
+                .count(),
+            1
+        );
     }
 
     #[test]
