@@ -291,7 +291,7 @@ pub struct Thread<T = Comment> {
     /// The comments under the thread.
     comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
-    pub(crate) timeline: Vec<CommentId>,
+    timeline: Vec<CommentId>,
 }
 
 impl<T> Default for Thread<T> {
