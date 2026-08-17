@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+## Fixes
+
+- A patch now merges on the quorum of the canonical reference rule that
+  matches its target branch, not on the identity document threshold.
+  Only merges by DIDs in the rule's `allow` set count, and they must
+  reach the rule's `threshold`. A patch that targets a branch which no
+  rule matches cannot merge.
+
 ## 1.10.3 - 2026-09-07
 
 ### Fixes
