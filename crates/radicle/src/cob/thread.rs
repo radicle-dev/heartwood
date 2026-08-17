@@ -289,7 +289,7 @@ impl From<Action> for nonempty::NonEmpty<Action> {
 #[serde(rename_all = "camelCase")]
 pub struct Thread<T = Comment> {
     /// The comments under the thread.
-    pub(crate) comments: BTreeMap<CommentId, Option<T>>,
+    comments: BTreeMap<CommentId, Option<T>>,
     /// Comment timeline.
     pub(crate) timeline: Vec<CommentId>,
 }
@@ -356,6 +356,10 @@ impl<T> Thread<T> {
 
     pub fn timeline(&self) -> impl DoubleEndedIterator<Item = &EntryId> + '_ {
         self.timeline.iter()
+    }
+
+    pub fn get_comment(&self, id: &CommentId) -> Option<&Option<T>> {
+        self.comments.get(id)
     }
 }
 

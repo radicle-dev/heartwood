@@ -373,7 +373,7 @@ impl Issue {
             Action::Comment { .. } => Authorization::Allow,
             // All roles can edit or redact their own comments.
             Action::CommentEdit { id, .. } | Action::CommentRedact { id, .. } => {
-                if let Some(comment) = self.thread.comments.get(id) {
+                if let Some(comment) = self.thread.get_comment(id) {
                     if let Some(comment) = comment {
                         Authorization::from(actor == comment.author())
                     } else {
