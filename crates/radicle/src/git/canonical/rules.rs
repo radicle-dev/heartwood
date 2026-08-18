@@ -32,9 +32,9 @@ use super::protect::Unprotected;
 
 const ASTERISK: char = '*';
 
-/// Private trait to ensure that not any `Rule` can be deserialized.
-/// Implementations are provided for `Allowed` and `usize` so that `RawRule`s
-/// can be deserialized, while `ValidRule`s cannot – preventing deserialization
+/// Private trait to ensure that not any [`Rule`] can be deserialized.
+/// Implementations are provided for [`Allowed`] and [`usize`] so that [`RawRule`]s
+/// can be deserialized, while [`ValidRule`]s cannot – preventing deserialization
 /// bugs for that type.
 trait Sealed {}
 impl Sealed for Allowed {}
@@ -246,7 +246,13 @@ impl RawRule {
     }
 }
 
-/// A set of `RawRule`s that can be serialized and deserialized.
+/// A set of [`RawRule`]s that can be serialized and deserialized.
+///
+/// Note that matching on the [`RawPattern`]s is deliberately not implemented,
+/// as the [`RawRule`]s are not validated and thus should not be used to
+/// calculate canonical references.
+/// If you want to match on a set of rules, obtain [`Rules`] via
+/// [`Rules::from_raw`], and use [`Rules::matches`] on the result.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawRules {
     /// The reference pattern that this rule applies to.
@@ -284,18 +290,6 @@ impl RawRules {
         self.rules
             .iter()
             .any(|(pattern, _)| pattern.as_str() == refname)
-    }
-
-    /// Check if the `refname` matches any existing rules, including glob
-    /// matches.
-    pub fn matches<'a, 'b>(
-        &self,
-        refname: &Qualified<'b>,
-    ) -> impl Iterator<Item = (&RawPattern, &RawRule)> + use<'a, '_, 'b> {
-        let refname = refname.clone();
-        self.rules
-            .iter()
-            .filter(move |(pattern, _)| matches(pattern, &refname))
     }
 }
 

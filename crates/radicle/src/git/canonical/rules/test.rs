@@ -563,3 +563,45 @@ fn matches_exactly_curly_braces() {
     assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/foo")));
     assert!(!matches(&exact, &git::fmt::qualified!("refs/heads/bar")));
 }
+
+#[test]
+fn most_specific_match_ignores_lexicographic_order() {
+    use helper::*;
+
+    let glob = raw_pattern(qualified_pattern!("refs/heads/*"));
+    let nested = raw_pattern(qualified_pattern!("refs/heads/feature/*"));
+    let exact = raw_pattern(qualified_pattern!("refs/heads/main"));
+    let rules = RawRules::from_iter([
+        (glob.clone(), Rule::new(Allowed::Delegates, 1)),
+        (nested.clone(), Rule::new(Allowed::Delegates, 1)),
+        (exact.clone(), Rule::new(Allowed::Delegates, 1)),
+    ]);
+
+    let resolve = &mut || {
+        doc::Delegates::from(
+            Did::decode("did:key:z6MkpQTLwr8QyADGmBGAMsGttvWzP4PojUMs4hREZW5T5E3K").unwrap(),
+        )
+    };
+
+    let rules = Rules::from_raw(rules, resolve).unwrap();
+
+    let main = git::fmt::qualified!("refs/heads/main");
+    assert_eq!(
+        rules.matches(&main).next().map(|(pattern, _)| pattern),
+        Some(&exact)
+    );
+
+    let feature = git::fmt::qualified!("refs/heads/feature/x");
+    assert_eq!(
+        rules.matches(&feature).next().map(|(pattern, _)| pattern),
+        Some(&nested),
+        "more components beat the glob"
+    );
+
+    assert!(
+        rules
+            .matches(&git::fmt::qualified!("refs/tags/v1.0"))
+            .next()
+            .is_none()
+    );
+}

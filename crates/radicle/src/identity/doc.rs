@@ -19,7 +19,7 @@ use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
-use crate::git::canonical::rules;
+use crate::git::canonical::rules::{self, ResolvedDelegates};
 use crate::git::canonical::symbolic;
 use crate::git::fmt::Qualified;
 use crate::git::fmt::RefString;
@@ -808,17 +808,20 @@ impl Doc {
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        let mut raw_crefs = self
+        let resolve = &mut || self.delegates.clone();
+        let crefs = self
             .raw_canonical_refs()
             .transpose()
             .map_err(CanonicalRefsError::Payload)?
+            .map(|crefs| crefs.try_into_canonical_refs(resolve))
+            .transpose()
+            .map_err(CanonicalRefsError::CanonicalRefs)?
             .unwrap_or_default();
-        let resolve = &mut || self.delegates.clone();
 
         // Determine where `HEAD` comes from. The `resolve_head()` result
         // borrows `raw_crefs`, so clone to allow mutation in the synthesis
         // path.
-        let head: Option<Qualified<'static>> = raw_crefs.symbolic().resolve_head().cloned();
+        let head: Option<Qualified<'static>> = crefs.symbolic().resolve_head().cloned();
 
         match (head, self.project()) {
             (Some(ref default_branch), Some(Ok(project))) => {
@@ -831,13 +834,14 @@ impl Doc {
                         },
                     ));
                 }
-                self.validate_head_rule(&raw_crefs, default_branch)?;
+                self.validate_head_rule(&crefs, default_branch)?;
             }
             (Some(ref default_branch), None) => {
-                self.validate_head_rule(&raw_crefs, default_branch)?;
+                self.validate_head_rule(&crefs, default_branch)?;
             }
             (None, Some(Ok(project))) => {
-                self.synthesize_head(&mut raw_crefs, &project)?;
+                let raw_crefs = self.synthesize_head(crefs, &project)?;
+                return Ok(raw_crefs.try_into_canonical_refs(resolve)?);
             }
             (None, None) => {
                 return Err(CanonicalRefsError::SynthesisPayloadMissing);
@@ -847,7 +851,7 @@ impl Doc {
             }
         }
 
-        Ok(raw_crefs.try_into_canonical_refs(resolve)?)
+        Ok(crefs)
     }
 
     /// Validate that the rule matching `HEAD`'s target branch uses
@@ -857,23 +861,32 @@ impl Doc {
     /// later by [`RawCanonicalRefs::try_into_canonical_refs`] validation.
     fn validate_head_rule(
         &self,
-        raw_crefs: &RawCanonicalRefs,
-        default_branch: &Qualified,
+        raw_crefs: &CanonicalRefs,
+        default_branch: &Qualified<'static>,
     ) -> Result<(), CanonicalRefsError> {
-        let Some((pattern, rule)) = raw_crefs.raw_rules().matches(default_branch).next() else {
+        let Some((pattern, rule)) = raw_crefs.rules().matches(default_branch).next() else {
             return Ok(());
         };
 
-        let allowed = rule.allowed();
-        if *allowed != rules::Allowed::Delegates {
-            return Err(CanonicalRefsError::DefaultBranchRuleError(
-                DefaultBranchRuleError::Allowed {
-                    pattern: pattern.to_string(),
-                    actual: allowed.to_string(),
-                },
-            ));
+        let _allowed = rule.allowed();
+        match rule.allowed() {
+            ResolvedDelegates::Delegates(_) => {
+                // This is the expected case, so we continue to validate the threshold.
+            }
+            ResolvedDelegates::Set(actual) => {
+                return Err(CanonicalRefsError::DefaultBranchRuleError(
+                    DefaultBranchRuleError::Allowed {
+                        pattern: pattern.to_string(),
+                        actual: actual
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    },
+                ));
+            }
         }
-        let actual = *rule.threshold();
+        let actual = (*rule.threshold()).into();
         let expected = self.threshold();
         if actual != expected {
             return Err(CanonicalRefsError::DefaultBranchRuleError(
@@ -891,30 +904,28 @@ impl Doc {
     /// from the project payload.
     fn synthesize_head(
         &self,
-        raw_crefs: &mut RawCanonicalRefs,
+        crefs: CanonicalRefs,
         project: &Project,
-    ) -> Result<(), CanonicalRefsError> {
+    ) -> Result<RawCanonicalRefs, CanonicalRefsError> {
         let default_branch = project.default_branch_qualified();
 
-        if raw_crefs
-            .raw_rules()
-            .matches(&default_branch)
-            .next()
-            .is_none()
-        {
-            raw_crefs.raw_rules_mut().insert(
+        let add_rule = crefs.rules().matches(&default_branch).next().is_none();
+
+        let (mut raw_rules, mut symbolic) = crefs.into_raw();
+
+        if add_rule {
+            raw_rules.insert(
                 git::fmt::refspec::QualifiedPattern::from(default_branch.to_owned()),
                 rules::Rule::new(rules::Allowed::Delegates, self.threshold()),
             );
         }
 
         #[allow(deprecated)]
-        raw_crefs
-            .symbolic_mut()
+        symbolic
             .combine(symbolic::SymbolicRefs::head(project.default_branch()))
             .map_err(|source| CanonicalRefsError::SynthesisCycle { source })?;
 
-        Ok(())
+        Ok(RawCanonicalRefs::new(raw_rules, symbolic))
     }
 
     /// Return the associated [`Visibility`] of this document.

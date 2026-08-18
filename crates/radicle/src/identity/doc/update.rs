@@ -208,21 +208,38 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
         }
     };
 
+    let resolve = &mut || proposal.delegates.clone();
+
+    let crefs = match proposal.raw_canonical_refs() {
+        None => None,
+        Some(Ok(crefs)) => match crefs.try_into_canonical_refs(resolve) {
+            Ok(crefs) => Some(crefs),
+            Err(err) => {
+                return Err(error::DocVerification::PayloadError {
+                    id: PayloadId::canonical_refs().clone(),
+                    err: err.to_string(),
+                });
+            }
+        },
+        Some(Err(PayloadError::Json(e))) => {
+            return Err(error::DocVerification::PayloadError {
+                id: PayloadId::canonical_refs().clone(),
+                err: e.to_string(),
+            });
+        }
+    };
+
     // If we have both payloads `xyz.radicle.{project,crefs}` ensure that,
     // in the `crefs` payload there is no …
     //  1. … rule that matches the default branch from the  `project` payload.
     //     (This rule must be synthesized!)
     //  2. … symbolic reference with the name `HEAD`.
     //     (This reference must be synthesized!)
-    match raw
-        .raw_canonical_refs()
-        .transpose()
-        .map(|rcrefs| rcrefs.zip(project))
-    {
-        Ok(Some((crefs, project))) => {
+    match crefs.zip(project) {
+        Some((crefs, project)) => {
             let default = project.default_branch_qualified().to_owned();
             let matches = crefs
-                .raw_rules()
+                .rules()
                 .matches(&default)
                 .map(|(pattern, _)| pattern.to_string())
                 .collect::<Vec<_>>();
@@ -240,13 +257,6 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
         _ => { /* we validate below */ }
     }
 
-    // Verify that the canonical references payload is valid
-    if let Err(e) = proposal.canonical_refs() {
-        return Err(error::DocVerification::PayloadError {
-            id: PayloadId::canonical_refs().clone(),
-            err: e.to_string(),
-        });
-    }
     Ok(proposal)
 }
 
