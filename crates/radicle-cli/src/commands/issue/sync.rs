@@ -224,8 +224,8 @@ pub(super) fn import(
             }
         };
 
-        let resolved = match resolve_internal_issue_id(issues, &id_map, external_id.as_str()) {
-            Ok(resolved) => resolved,
+        let resolution = match resolve_internal_issue_id(issues, &id_map, external_id.as_str()) {
+            Ok(resolution) => resolution,
             Err(err) => {
                 summary.failed += 1;
                 term::warning(format!(
@@ -236,7 +236,31 @@ pub(super) fn import(
             }
         };
 
-        let Some(id) = resolved else {
+        let id = match resolution {
+            ResolvedIssueId::Found(id) => Some(id),
+            ResolvedIssueId::MissingExternal => None,
+            ResolvedIssueId::MissingClaimed(claimed) => {
+                if !options.force {
+                    summary.conflicted += 1;
+                    term::warning(format!(
+                        "conflict: markdown id '{}' references Radicle issue {} which is not present locally; replicate the repository's issue data (eg. 'rad sync') or rerun with --force to create a distinct local issue",
+                        external_id, claimed
+                    ));
+                    continue;
+                }
+                if options.dry_run {
+                    summary.changed += 1;
+                    term::info!(
+                        "Would create distinct local issue for Radicle id '{}' (--force)",
+                        external_id
+                    );
+                    continue;
+                }
+                None
+            }
+        };
+
+        let Some(id) = id else {
             if options.dry_run {
                 summary.changed += 1;
                 continue;
@@ -382,6 +406,20 @@ fn owner_directory_name(profile: &Profile, issue: &issue::Issue) -> String {
     slugify_owner(owner.as_str())
 }
 
+/// Outcome of resolving a markdown issue id against local state.
+#[derive(Debug, Clone, Copy)]
+enum ResolvedIssueId {
+    /// A local issue exists for this file.
+    Found(cob::ObjectId),
+    /// No local issue exists, but the file claims the identity of a Radicle
+    /// object (either directly or through the id map) that is absent locally.
+    /// Creating a new issue would fork that identity.
+    MissingClaimed(cob::ObjectId),
+    /// No local issue exists and the id is external (not a Radicle object id);
+    /// creating a fresh local issue is unambiguous.
+    MissingExternal,
+}
+
 fn resolve_internal_issue_id(
     issues: &issue::Cache<
         '_,
@@ -391,7 +429,7 @@ fn resolve_internal_issue_id(
     >,
     id_map: &BTreeMap<String, String>,
     external_id: &str,
-) -> anyhow::Result<Option<cob::ObjectId>> {
+) -> anyhow::Result<ResolvedIssueId> {
     if let Some(mapped) = id_map.get(external_id) {
         let mapped_id = cob::ObjectId::from_str(mapped).with_context(|| {
             format!(
@@ -400,18 +438,17 @@ fn resolve_internal_issue_id(
             )
         })?;
         if issues.get(&mapped_id)?.is_some() {
-            return Ok(Some(mapped_id));
+            return Ok(ResolvedIssueId::Found(mapped_id));
         }
+
+        return Ok(ResolvedIssueId::MissingClaimed(mapped_id));
     }
 
-    let Ok(id) = cob::ObjectId::from_str(external_id) else {
-        return Ok(None);
-    };
-    if issues.get(&id)?.is_some() {
-        return Ok(Some(id));
+    match cob::ObjectId::from_str(external_id) {
+        Ok(id) if issues.get(&id)?.is_some() => Ok(ResolvedIssueId::Found(id)),
+        Ok(id) => Ok(ResolvedIssueId::MissingClaimed(id)),
+        Err(_) => Ok(ResolvedIssueId::MissingExternal),
     }
-
-    Ok(None)
 }
 
 fn create_issue_from_markdown(
@@ -1459,6 +1496,42 @@ mod tests {
     }
 
     #[test]
+    fn import_conflicts_when_radicle_issue_missing_locally() {
+        let ws = Workspace::new("thyseus", 12);
+        let claimed = "0123456789012345678901234567890123456789";
+        write_markdown_file(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-01-remote.md"],
+            claimed,
+            "Remote issue",
+        );
+
+        let mut issues = ws.issues();
+        let err = import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("conflict"), "{err:?}");
+        assert_eq!(ws.internal_issue_count(), 0);
+
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(true),
+            &mut issues,
+        )
+        .unwrap();
+        assert_eq!(ws.internal_issue_count(), 1);
+
+        let map = load_id_map(&ws.issue_dir()).unwrap();
+        let adopted = map.get(claimed).unwrap();
+        assert_ne!(adopted, claimed);
+    }
+
+    #[test]
     fn export_appends_comments_oldest_first() {
         let ws = Workspace::new("thyseus", 7);
         let mut issues = ws.issues();
@@ -1593,7 +1666,10 @@ mod tests {
         import(
             &dst.repo_root,
             Path::new(ISSUES_DIR),
-            import_options(false),
+            // The exported file carries the source issue's Radicle object id,
+            // which does not exist in this fresh repository; adopting it as a
+            // distinct local issue requires explicit --force.
+            import_options(true),
             &mut dst_issues,
         )
         .unwrap();

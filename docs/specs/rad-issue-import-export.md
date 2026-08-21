@@ -199,6 +199,14 @@ Notes:
 - Preserve unchanged internal values when a field is missing and optional.
 - Print summary: imported, unchanged, conflicted, failed.
 
+## Identity and replication
+
+- The front-matter `id` of an exported file is the internal Radicle issue id (COB object id).
+- Issue identity across machines comes from Radicle replication (`rad clone`, `rad sync`), which carries COB data alongside repository files. Markdown files alone do not confer identity.
+- If an import file references a Radicle issue id that is absent locally (eg. a plain Git clone that lacks COB refs), import reports a conflict instead of silently creating a divergent object. Replicate the issue data first, or pass `--force` to deliberately create a distinct local issue; the id map records the substitution.
+- Files with non-Radicle ids (eg. imported from another tracker) always create fresh local issues and are tracked via `.radicle-issue-import-map.json`. Commit this file so mappings propagate to collaborators.
+- Consequently, `rad issue show <ID>` refers to the same collaboratively replicated issue on two machines only when both obtained the COB data through replication. Importing the same Markdown file on two machines without replication yields distinct objects sharing a common external id.
+
 ## Conflict policy
 
 - Export is conservative: repository Markdown wins on divergence.
