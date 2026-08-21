@@ -20,6 +20,9 @@ use radicle::storage;
 use crate::terminal as term;
 
 const ID_MAP_FILE_NAME: &str = ".radicle-issue-import-map.json";
+const COMMENTS_HEADER: &str = "## Comments";
+const COMMENT_OPEN_MARKER: &str = "<!-- radicle:comment -->";
+const COMMENT_CLOSE_MARKER: &str = "<!-- /radicle:comment -->";
 
 #[derive(Debug, Clone)]
 pub(super) struct ExportOptions {
@@ -435,6 +438,11 @@ fn create_issue_from_markdown(
         created.lifecycle(desired.state)?;
     }
 
+    let root = *created.root().0;
+    for body in &desired.comments {
+        created.comment(body.as_str(), root, [])?;
+    }
+
     Ok(*created.id())
 }
 
@@ -494,6 +502,19 @@ fn apply_issue_updates(
         current.label(desired.labels.iter().cloned())?;
     }
 
+    let existing_comments = current
+        .comments()
+        .skip(1)
+        .map(|(_, comment)| comment.body().to_owned())
+        .collect::<std::collections::HashSet<_>>();
+    let root = *current.root().0;
+    for body in &desired.comments {
+        if existing_comments.contains(body) {
+            continue;
+        }
+        current.comment(body.as_str(), root, [])?;
+    }
+
     Ok(())
 }
 
@@ -517,6 +538,7 @@ struct DesiredIssue {
     state: State,
     assignees: BTreeSet<Did>,
     labels: BTreeSet<Label>,
+    comments: Vec<String>,
 }
 
 impl DesiredIssue {
@@ -553,19 +575,35 @@ impl DesiredIssue {
             state: parse_state(markdown.state.as_str())?,
             assignees,
             labels,
+            comments: markdown
+                .comments
+                .into_iter()
+                .map(|comment| comment.body)
+                .collect(),
         })
     }
 
     fn matches_issue(&self, issue: &issue::Issue) -> bool {
         let assignees = issue.assignees().cloned().collect::<BTreeSet<_>>();
         let labels = issue.labels().cloned().collect::<BTreeSet<_>>();
+        let comments = issue
+            .comments()
+            .skip(1)
+            .map(|(_, comment)| comment.body().to_owned())
+            .collect::<Vec<_>>();
 
         issue.title() == self.title
             && issue.description() == self.description
             && issue.state() == &self.state
             && assignees == self.assignees
             && labels == self.labels
+            && comments == self.comments
     }
+}
+
+#[derive(Debug, Clone)]
+struct MarkdownComment {
+    body: String,
 }
 
 #[derive(Debug, Clone)]
@@ -579,6 +617,7 @@ struct MarkdownIssue {
     created: String,
     updated: String,
     body: String,
+    comments: Vec<MarkdownComment>,
 }
 
 impl MarkdownIssue {
@@ -593,6 +632,21 @@ impl MarkdownIssue {
         labels.sort();
 
         let created = timestamp_to_rfc3339(issue.timestamp());
+
+        let mut comments = issue
+            .comments()
+            .skip(1)
+            .map(|(_, comment)| {
+                (
+                    comment.timestamp(),
+                    MarkdownComment {
+                        body: comment.body().to_owned(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        comments.sort_by_key(|(timestamp, _)| *timestamp);
+
         let updated = issue
             .comments()
             .map(|(_, comment)| comment.timestamp())
@@ -610,6 +664,7 @@ impl MarkdownIssue {
             created,
             updated,
             body: issue.description().to_owned(),
+            comments: comments.into_iter().map(|(_, comment)| comment).collect(),
         }
     }
 
@@ -653,6 +708,20 @@ impl MarkdownIssue {
         out.push_str(self.body.as_str());
         if !self.body.ends_with('\n') {
             out.push('\n');
+        }
+
+        if !self.comments.is_empty() {
+            out.push('\n');
+            out.push_str(COMMENTS_HEADER);
+            out.push_str("\n\n");
+            for comment in &self.comments {
+                out.push_str(COMMENT_OPEN_MARKER);
+                out.push('\n');
+                out.push_str(comment.body.trim_end_matches('\n'));
+                out.push('\n');
+                out.push_str(COMMENT_CLOSE_MARKER);
+                out.push_str("\n\n");
+            }
         }
 
         out
@@ -769,11 +838,12 @@ impl MarkdownIssue {
         let id = get_required_scalar(&fields, "id", path)?;
         let title = get_required_scalar(&fields, "title", path)?;
         let state = get_required_scalar(&fields, "state", path)?;
-        let body = if matches!(body_lines.first(), Some(line) if line.is_empty()) {
-            body_lines[1..].join("\n")
+        let raw_body = if matches!(body_lines.first(), Some(line) if line.is_empty()) {
+            body_lines.get(1..).unwrap_or_default().join("\n")
         } else {
             body_lines.join("\n")
         };
+        let (body, comments) = split_comments_from_body(&raw_body, path)?;
 
         Ok(Self {
             id,
@@ -785,8 +855,71 @@ impl MarkdownIssue {
             created: get_optional_scalar(&fields, "created").unwrap_or_default(),
             updated: get_optional_scalar(&fields, "updated").unwrap_or_default(),
             body,
+            comments,
         })
     }
+}
+
+fn split_comments_from_body(
+    raw_body: &str,
+    path: &Path,
+) -> anyhow::Result<(String, Vec<MarkdownComment>)> {
+    let lines = raw_body.lines().collect::<Vec<_>>();
+    let mut description_lines = Vec::new();
+    let mut comments = Vec::new();
+
+    let mut index = 0;
+    while let Some(&line) = lines.get(index) {
+        if line.trim() == COMMENTS_HEADER {
+            let mut lookahead = index + 1;
+            while lines.get(lookahead).is_some_and(|l| l.trim().is_empty()) {
+                lookahead += 1;
+            }
+            let starts_section = lines
+                .get(lookahead)
+                .is_some_and(|l| l.trim() == COMMENT_OPEN_MARKER);
+            if starts_section {
+                index = lookahead;
+                while lines
+                    .get(index)
+                    .is_some_and(|l| l.trim() == COMMENT_OPEN_MARKER)
+                {
+                    index += 1;
+
+                    let mut comment_lines = Vec::new();
+                    while let Some(l) = lines.get(index) {
+                        if l.trim() == COMMENT_CLOSE_MARKER {
+                            break;
+                        }
+                        comment_lines.push(*l);
+                        index += 1;
+                    }
+                    if index >= lines.len() {
+                        anyhow::bail!(
+                            "failed to parse '{}': unterminated comment block (missing '{}')",
+                            path.display(),
+                            COMMENT_CLOSE_MARKER
+                        );
+                    }
+                    index += 1;
+                    comments.push(MarkdownComment {
+                        body: comment_lines.join("\n"),
+                    });
+
+                    while lines.get(index).is_some_and(|l| l.trim().is_empty()) {
+                        index += 1;
+                    }
+                }
+                break;
+            }
+        }
+
+        description_lines.push(line);
+        index += 1;
+    }
+
+    let description = description_lines.join("\n");
+    Ok((description.trim_end_matches('\n').to_owned(), comments))
 }
 
 #[derive(Debug, Clone)]
@@ -947,9 +1080,9 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use super::{
-        ExportOptions, ID_MAP_FILE_NAME, ImportOptions, MarkdownIssue, WriteAs, cob,
-        collect_files_recursively, export, import, issue, load_id_map, resolve_issue_dir,
-        save_id_map, slugify_owner,
+        COMMENT_CLOSE_MARKER, COMMENT_OPEN_MARKER, COMMENTS_HEADER, ExportOptions,
+        ID_MAP_FILE_NAME, ImportOptions, MarkdownIssue, WriteAs, cob, collect_files_recursively,
+        export, import, issue, load_id_map, resolve_issue_dir, save_id_map, slugify_owner,
     };
     use crate::terminal as term;
     use radicle::Profile;
@@ -1026,27 +1159,45 @@ mod tests {
     }
 
     fn write_markdown_file(root: &Path, segments: &[&str], id: &str, title: &str) -> PathBuf {
+        write_markdown_file_with_comments(root, segments, id, title, &[])
+    }
+
+    fn write_markdown_file_with_comments(
+        root: &Path,
+        segments: &[&str],
+        id: &str,
+        title: &str,
+        comments: &[&str],
+    ) -> PathBuf {
         let path = segments
             .iter()
             .fold(root.to_path_buf(), |acc, s| acc.join(s));
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            format!(
-                "---\n\
-                id: \"{id}\"\n\
-                title: \"{title}\"\n\
-                state: \"open\"\n\
-                author: \"did:key:z6Mktest\"\n\
-                assignees: []\n\
-                labels: []\n\
-                created: \"2026-01-01T00:00:00+00:00\"\n\
-                updated: \"2026-01-01T00:00:00+00:00\"\n\
-                ---\n\n\
-                Imported body\n"
-            ),
-        )
-        .unwrap();
+
+        let mut contents = format!(
+            "---\n\
+            id: \"{id}\"\n\
+            title: \"{title}\"\n\
+            state: \"open\"\n\
+            author: \"did:key:z6Mktest\"\n\
+            assignees: []\n\
+            labels: []\n\
+            created: \"2026-01-01T00:00:00+00:00\"\n\
+            updated: \"2026-01-01T00:00:00+00:00\"\n\
+            ---\n\n\
+            Imported body\n"
+        );
+
+        if !comments.is_empty() {
+            contents.push_str("\n## Comments\n\n");
+            for body in comments {
+                contents.push_str(&format!(
+                    "{COMMENT_OPEN_MARKER}\n{body}\n{COMMENT_CLOSE_MARKER}\n\n"
+                ));
+            }
+        }
+
+        fs::write(&path, contents).unwrap();
         path
     }
 
@@ -1308,6 +1459,257 @@ mod tests {
     }
 
     #[test]
+    fn export_appends_comments_oldest_first() {
+        let ws = Workspace::new("thyseus", 7);
+        let mut issues = ws.issues();
+        let mut issue = issues
+            .create(
+                Title::new("Discussed issue").unwrap(),
+                "Issue description",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let root = *issue.root().0;
+        issue.comment("First comment", root, []).unwrap();
+        issue.comment("Second comment", root, []).unwrap();
+        drop(issue);
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let file = ws.owner_dir().join(ws.exported_files().remove(0));
+        let raw = fs::read_to_string(&file).unwrap();
+
+        assert!(raw.contains(COMMENTS_HEADER), "{raw}");
+        assert_eq!(raw.matches(COMMENT_OPEN_MARKER).count(), 2, "{raw}");
+        assert_eq!(raw.matches(COMMENT_CLOSE_MARKER).count(), 2, "{raw}");
+        let section = raw.find(COMMENTS_HEADER).unwrap();
+        assert!(raw.find("Issue description").unwrap() < section, "{raw}");
+
+        let first = raw.find("First comment").unwrap();
+        let second = raw.find("Second comment").unwrap();
+        assert!(first < second, "{raw}");
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), raw);
+    }
+
+    #[test]
+    fn import_creates_issue_with_comments_and_is_idempotent() {
+        let ws = Workspace::new("thyseus", 8);
+        write_markdown_file_with_comments(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-01-talk.md"],
+            "talk-1",
+            "Imported talk",
+            &["Alpha note", "Beta reply"],
+        );
+
+        let mut issues = ws.issues();
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap();
+
+        assert_eq!(ws.internal_issue_count(), 1);
+        {
+            let (_, issue) = issues.list().unwrap().next().unwrap().unwrap();
+            let bodies = issue
+                .comments()
+                .skip(1)
+                .map(|(_, comment)| comment.body().to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                bodies,
+                vec!["Alpha note".to_owned(), "Beta reply".to_owned()]
+            );
+        }
+
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap();
+        let (_, issue) = issues.list().unwrap().next().unwrap().unwrap();
+        assert_eq!(issue.comments().count(), 3);
+    }
+
+    #[test]
+    fn export_import_roundtrip_preserves_comment_bodies_and_order() {
+        let src = Workspace::new("thyseus", 9);
+        let mut issues = src.issues();
+        let mut issue = issues
+            .create(
+                Title::new("Roundtrip").unwrap(),
+                "Roundtrip body",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let root = *issue.root().0;
+        issue.comment("Oldest remark", root, []).unwrap();
+        issue.comment("Newest remark", root, []).unwrap();
+        drop(issue);
+
+        export(
+            &src.profile,
+            &src.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let dst = Workspace::new("thyseus", 10);
+        for file in collect_files_recursively(&src.issue_dir()).unwrap() {
+            let relative = file.strip_prefix(src.issue_dir()).unwrap();
+            let target = dst.issue_dir().join(relative);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::copy(&file, &target).unwrap();
+        }
+
+        let mut dst_issues = dst.issues();
+        import(
+            &dst.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut dst_issues,
+        )
+        .unwrap();
+
+        {
+            let (_, imported) = dst_issues.list().unwrap().next().unwrap().unwrap();
+            assert_eq!(imported.title(), "Roundtrip");
+            assert_eq!(imported.description(), "Roundtrip body");
+            let bodies = imported
+                .comments()
+                .skip(1)
+                .map(|(_, comment)| comment.body().to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                bodies,
+                vec!["Oldest remark".to_owned(), "Newest remark".to_owned()]
+            );
+        }
+
+        for file in collect_files_recursively(&dst.issue_dir()).unwrap() {
+            fs::remove_file(file).unwrap();
+        }
+
+        export(
+            &dst.profile,
+            &dst.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &dst_issues,
+        )
+        .unwrap();
+
+        let exported = dst.owner_dir().join(dst.exported_files().remove(0));
+        let raw = fs::read_to_string(&exported).unwrap();
+        let parsed = MarkdownIssue::parse(&exported, &raw).unwrap();
+
+        assert_eq!(parsed.body, "Roundtrip body");
+        let bodies = parsed
+            .comments
+            .iter()
+            .map(|comment| comment.body.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(bodies, vec!["Oldest remark", "Newest remark"]);
+
+        export(
+            &dst.profile,
+            &dst.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &dst_issues,
+        )
+        .unwrap();
+        assert_eq!(fs::read_to_string(&exported).unwrap(), raw);
+    }
+
+    #[test]
+    fn import_conflict_when_comments_diverge_requires_force() {
+        let ws = Workspace::new("thyseus", 11);
+        let mut issues = ws.issues();
+        let mut issue = issues
+            .create(
+                Title::new("Original title").unwrap(),
+                "Original body",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let root = *issue.root().0;
+        issue.comment("Internal note", root, []).unwrap();
+        drop(issue);
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let file = ws.owner_dir().join(ws.exported_files().remove(0));
+        let divergent = fs::read_to_string(&file)
+            .unwrap()
+            .replace("Internal note", "Divergent note");
+        fs::write(&file, &divergent).unwrap();
+
+        let err = import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("conflict"), "{err:?}");
+
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(true),
+            &mut issues,
+        )
+        .unwrap();
+        let (_, issue) = issues.list().unwrap().next().unwrap().unwrap();
+        let bodies = issue
+            .comments()
+            .skip(1)
+            .map(|(_, comment)| comment.body().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bodies,
+            vec!["Internal note".to_owned(), "Divergent note".to_owned()]
+        );
+    }
+
+    #[test]
     fn resolve_issue_dir_uses_default_relative_path() {
         let root = Path::new("/tmp/repo");
         let resolved = resolve_issue_dir(root, Path::new("issues"), None).unwrap();
@@ -1379,6 +1781,7 @@ Body
             created: "2026-08-21T00:00:00+00:00".to_owned(),
             updated: "2026-08-21T00:00:00+00:00".to_owned(),
             body: "Body".to_owned(),
+            comments: Vec::new(),
         };
 
         assert_eq!(
@@ -1406,6 +1809,63 @@ Body
         let parsed =
             MarkdownIssue::parse(Path::new("/tmp/repo/issues/2026-01-01-title.md"), raw).unwrap();
         assert_eq!(parsed.id, "deadbeef");
+    }
+
+    #[test]
+    fn markdown_parser_splits_comments_from_description() {
+        let raw = r#"---
+id: "abc123"
+title: "Title"
+state: "open"
+author: "did:key:z6Mktest"
+assignees: []
+labels: []
+created: "2026-01-01T00:00:00+00:00"
+updated: "2026-01-03T00:00:00+00:00"
+---
+
+First paragraph.
+
+Second paragraph.
+
+## Comments
+
+<!-- radicle:comment -->
+Line one.
+Line two.
+<!-- /radicle:comment -->
+
+<!-- radicle:comment -->
+Beta reply.
+<!-- /radicle:comment -->
+"#;
+
+        let parsed = MarkdownIssue::parse(Path::new("/tmp/repo/issues/x.md"), raw).unwrap();
+
+        assert_eq!(parsed.body, "First paragraph.\n\nSecond paragraph.");
+        assert_eq!(parsed.comments.len(), 2);
+        assert_eq!(parsed.comments[0].body, "Line one.\nLine two.");
+        assert_eq!(parsed.comments[1].body, "Beta reply.");
+    }
+
+    #[test]
+    fn markdown_parser_rejects_unterminated_comment_block() {
+        let raw = r#"---
+id: "abc123"
+title: "Title"
+state: "open"
+---
+
+Body.
+
+## Comments
+
+<!-- radicle:comment -->
+Never closed.
+"#;
+
+        let err = MarkdownIssue::parse(Path::new("/tmp/repo/issues/x.md"), raw).unwrap_err();
+        assert!(err.to_string().contains(COMMENT_CLOSE_MARKER), "{err:?}");
     }
 
     #[test]
