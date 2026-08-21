@@ -947,9 +947,365 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use super::{
-        ID_MAP_FILE_NAME, MarkdownIssue, collect_files_recursively, load_id_map, resolve_issue_dir,
+        ExportOptions, ID_MAP_FILE_NAME, ImportOptions, MarkdownIssue, WriteAs, cob,
+        collect_files_recursively, export, import, issue, load_id_map, resolve_issue_dir,
         save_id_map, slugify_owner,
     };
+    use crate::terminal as term;
+    use radicle::Profile;
+    use radicle::cob::Title;
+    use radicle::crypto::Seed;
+    use radicle::issue::cache::Issues as _;
+    use radicle::node::Alias;
+    use radicle::profile::{Home, Signer};
+    use radicle::storage::{self, ReadStorage as _};
+    use radicle::test::fixtures;
+
+    const ISSUES_DIR: &str = "issues";
+
+    struct Workspace {
+        _tmp: tempfile::TempDir,
+        profile: Profile,
+        signer: Signer,
+        repo: storage::git::Repository,
+        repo_root: std::path::PathBuf,
+    }
+
+    impl Workspace {
+        fn new(alias: &'static str, seed_byte: u8) -> Self {
+            let tmp = tempfile::tempdir().unwrap();
+            let home = Home::new(tmp.path().join("home")).unwrap();
+            let profile =
+                Profile::init(home, Alias::new(alias), None, Seed::new([seed_byte; 32])).unwrap();
+            let signer = profile.signer().unwrap();
+            let working = tmp.path().join("working");
+            let (rid, _, _, _) = fixtures::project(&working, &profile.storage, &signer).unwrap();
+            let repo = profile.storage.repository(rid).unwrap();
+
+            Self {
+                _tmp: tmp,
+                profile,
+                signer,
+                repo,
+                repo_root: working,
+            }
+        }
+
+        fn issues(
+            &self,
+        ) -> issue::Cache<'_, storage::git::Repository, WriteAs<'_, Signer>, cob::cache::StoreWriter>
+        {
+            term::cob::issues_mut(&self.profile, &self.repo, &self.signer).unwrap()
+        }
+        fn issue_dir(&self) -> PathBuf {
+            self.repo_root.join(ISSUES_DIR)
+        }
+
+        fn owner_dir(&self) -> PathBuf {
+            self.issue_dir().join("thyseus")
+        }
+
+        fn exported_files(&self) -> Vec<String> {
+            let mut names = fs::read_dir(self.owner_dir())
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+                .collect::<Vec<_>>();
+            names.sort();
+            names
+        }
+
+        fn internal_issue_count(&self) -> usize {
+            let issues = self.issues();
+            issues
+                .list()
+                .unwrap()
+                .map(|entry| entry.is_ok())
+                .filter(|ok| *ok)
+                .count()
+        }
+    }
+
+    fn write_markdown_file(root: &Path, segments: &[&str], id: &str, title: &str) -> PathBuf {
+        let path = segments
+            .iter()
+            .fold(root.to_path_buf(), |acc, s| acc.join(s));
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            format!(
+                "---\n\
+                id: \"{id}\"\n\
+                title: \"{title}\"\n\
+                state: \"open\"\n\
+                author: \"did:key:z6Mktest\"\n\
+                assignees: []\n\
+                labels: []\n\
+                created: \"2026-01-01T00:00:00+00:00\"\n\
+                updated: \"2026-01-01T00:00:00+00:00\"\n\
+                ---\n\n\
+                Imported body\n"
+            ),
+        )
+        .unwrap();
+        path
+    }
+
+    fn export_options() -> ExportOptions {
+        ExportOptions {
+            path: None,
+            dry_run: false,
+        }
+    }
+
+    fn import_options(force: bool) -> ImportOptions {
+        ImportOptions {
+            path: None,
+            dry_run: false,
+            force,
+        }
+    }
+
+    #[test]
+    fn export_groups_files_by_owner_and_is_idempotent() {
+        let ws = Workspace::new("thyseus", 1);
+        let mut issues = ws.issues();
+        issues
+            .create(
+                Title::new("My first issue").unwrap(),
+                "Body one",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        issues
+            .create(
+                Title::new("Second task!").unwrap(),
+                "Body two",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let files = ws.exported_files();
+        assert_eq!(files.len(), 2);
+        assert!(
+            files
+                .iter()
+                .any(|name| name.ends_with("-my-first-issue.md")),
+            "{files:?}"
+        );
+        assert!(
+            files.iter().any(|name| name.ends_with("-second-task.md")),
+            "{files:?}"
+        );
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+        assert_eq!(ws.exported_files(), files);
+    }
+
+    #[test]
+    fn export_reports_conflict_and_preserves_divergent_file() {
+        let ws = Workspace::new("thyseus", 2);
+        let mut issues = ws.issues();
+        issues
+            .create(
+                Title::new("Original title").unwrap(),
+                "Original body",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let file = ws.owner_dir().join(ws.exported_files().remove(0));
+        let divergent = fs::read_to_string(&file)
+            .unwrap()
+            .replace("\"Original title\"", "\"Renamed title\"");
+        fs::write(&file, &divergent).unwrap();
+
+        let err = export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("conflicts"), "{err:?}");
+        assert_eq!(fs::read_to_string(&file).unwrap(), divergent);
+    }
+
+    #[test]
+    fn import_creates_missing_issues_with_id_mapping() {
+        let ws = Workspace::new("thyseus", 3);
+        write_markdown_file(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-01-task.md"],
+            "task-42",
+            "Imported task",
+        );
+
+        let mut issues = ws.issues();
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap();
+
+        assert_eq!(ws.internal_issue_count(), 1);
+        let map_path = ws.issue_dir().join(ID_MAP_FILE_NAME);
+        let map_raw = fs::read_to_string(&map_path).unwrap();
+        assert!(map_raw.contains("\"task-42\""), "{map_raw}");
+
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap();
+        assert_eq!(ws.internal_issue_count(), 1);
+    }
+
+    #[test]
+    fn import_conflict_policy_requires_force_for_overwrite() {
+        let ws = Workspace::new("thyseus", 4);
+        let mut issues = ws.issues();
+        issues
+            .create(
+                Title::new("Original title").unwrap(),
+                "Original body",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+
+        export(
+            &ws.profile,
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            export_options(),
+            &issues,
+        )
+        .unwrap();
+
+        let file = ws.owner_dir().join(ws.exported_files().remove(0));
+        let divergent = fs::read_to_string(&file)
+            .unwrap()
+            .replace("\"Original title\"", "\"Renamed title\"");
+        fs::write(&file, &divergent).unwrap();
+
+        let err = import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("conflict"), "{err:?}");
+        assert_eq!(
+            issues.list().unwrap().next().unwrap().unwrap().1.title(),
+            "Original title"
+        );
+
+        import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(true),
+            &mut issues,
+        )
+        .unwrap();
+        assert_eq!(
+            issues.list().unwrap().next().unwrap().unwrap().1.title(),
+            "Renamed title"
+        );
+    }
+
+    #[test]
+    fn import_continues_after_invalid_file_and_fails() {
+        let ws = Workspace::new("thyseus", 5);
+        write_markdown_file(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-01-valid.md"],
+            "task-a",
+            "Valid task",
+        );
+        let invalid = ws.issue_dir().join("thyseus").join("2026-01-02-invalid.md");
+        fs::write(
+            &invalid,
+            "---\nid: \"task-b\"\nstate: \"open\"\n---\n\nMissing title\n",
+        )
+        .unwrap();
+
+        let mut issues = ws.issues();
+        let err = import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("failures"), "{err:?}");
+        assert_eq!(ws.internal_issue_count(), 1);
+    }
+
+    #[test]
+    fn import_rejects_duplicate_ids_across_files() {
+        let ws = Workspace::new("thyseus", 6);
+        write_markdown_file(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-01-first.md"],
+            "dup-1",
+            "First",
+        );
+        write_markdown_file(
+            &ws.issue_dir(),
+            &["thyseus", "2026-01-02-second.md"],
+            "dup-1",
+            "Second",
+        );
+
+        let mut issues = ws.issues();
+        let err = import(
+            &ws.repo_root,
+            Path::new(ISSUES_DIR),
+            import_options(false),
+            &mut issues,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("failures"), "{err:?}");
+        assert_eq!(ws.internal_issue_count(), 1);
+    }
 
     #[test]
     fn resolve_issue_dir_uses_default_relative_path() {
