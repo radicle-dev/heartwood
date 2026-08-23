@@ -184,8 +184,9 @@ pub fn register(
     profile: &Profile,
     passphrase: crypto::ssh::Passphrase,
 ) -> anyhow::Result<()> {
-    let secret = profile
-        .keystore
+    let keystore = &profile.keystore;
+    let secret_key_path = keystore.secret_key_path();
+    let secret = keystore
         .secret_key(Some(passphrase))
         .map_err(|e| {
             if e.is_crypto_err() {
@@ -194,9 +195,12 @@ pub fn register(
                 e.into()
             }
         })?
-        .ok_or_else(|| anyhow!("Key not found in {:?}", profile.keystore.secret_key_path()))?;
+        .ok_or_else(|| anyhow!("Key not found in '{}'", secret_key_path.display()))?;
 
-    agent.register(&secret)?;
+    agent.register(
+        &secret,
+        format!("Radicle key loaded from '{}'.", secret_key_path.display()),
+    )?;
 
     Ok(())
 }

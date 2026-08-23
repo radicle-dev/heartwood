@@ -93,7 +93,7 @@ impl Agent {
     }
 
     /// Register a key with the agent.
-    pub fn register(&mut self, key: &SigningKey) -> Result<(), AgentError> {
+    pub fn register(&mut self, key: &SigningKey, comment: String) -> Result<(), AgentError> {
         use ssh_key::private::{Ed25519Keypair, KeypairData};
         self.client.add_identity(proto::AddIdentity {
             credential: PrivateCredential::Key {
@@ -103,7 +103,7 @@ impl Agent {
                     )
                     .unwrap(),
                 ),
-                comment: "".into(),
+                comment,
             },
         })
     }
