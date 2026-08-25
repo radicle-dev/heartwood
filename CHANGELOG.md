@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Git remote helper `git-remote-rad` now supports the options
   `pushcert [if-asked|false]`. This means it will not refuse operation
   anymore if called via `git push --signed=[if-asked|false]`.
+- `rad patch diff` does not print a deprecation notice about `rad diff`
+  being deprecated anymore. Instead, `rad patch diff` executes `git diff`
+  directly (which is what `rad diff` does anyway).
 
 ## 1.10.1 - 2026-08-12
 
