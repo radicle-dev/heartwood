@@ -131,7 +131,16 @@ impl std::str::FromStr for Version {
 
 /// Get the system's git version.
 pub fn version() -> Result<Version, VersionError> {
-    let output = Command::new("git").arg("version").output()?;
+    let mut command = Command::new("git");
+    command.arg("version");
+
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(
+        &mut command,
+        radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
+    );
+
+    let output = command.output()?;
 
     if output.status.success() {
         let output = String::from_utf8(output.stdout)?;
@@ -746,6 +755,12 @@ where
     S: AsRef<std::ffi::OsStr>,
 {
     let mut cmd = Command::new("git");
+
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(
+        &mut cmd,
+        radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
+    );
 
     if let Some(working) = working {
         cmd.arg("-C").arg(dunce::canonicalize(working)?);

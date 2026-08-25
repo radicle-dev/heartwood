@@ -52,6 +52,12 @@ impl crate::git::raw::transport::SmartSubtransport for Local {
 
         let mut cmd = process::Command::new("git");
 
+        #[cfg(windows)]
+        std::os::windows::process::CommandExt::creation_flags(
+            &mut cmd,
+            radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
+        );
+
         if let Some(ns) = url.namespace {
             cmd.env("GIT_NAMESPACE", ns.to_string());
         }

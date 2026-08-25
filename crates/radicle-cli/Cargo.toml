@@ -64,6 +64,7 @@ backtrace = { workspace = true, optional = true }
 shlex = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+radicle-windows = { workspace = true }
 winsplit = { workspace = true }
 
 [dev-dependencies]
