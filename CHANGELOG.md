@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 1.10.2 - 2026-08-26
+
+## Improvements
+
+- `rad node start` now labels the process identifier it prints
+  when executing `radicle-node`.
+- On Windows, when spawning child processes, the "creation flags"
+  are set more carefully. This is to avoid opening of distracting
+  terminal windows (potentially stealing focus) and to detach
+  `radicle-node` from the CLI properly.
+- When `rad auth` loads a key into SSH Agent, it now sets a comment
+  to make clear that the key is used by Radicle and the file it
+  was loaded from.
 
 ## Fixes
 
@@ -15,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rad patch diff` does not print a deprecation notice about `rad diff`
   being deprecated anymore. Instead, `rad patch diff` executes `git diff`
   directly (which is what `rad diff` does anyway).
+- When recomputing the identity of a repository, the resolution of
+  the object identifier of the identity COB was tightened to be stricter,
+  to improve security.
 
 ## 1.10.1 - 2026-08-12
 
