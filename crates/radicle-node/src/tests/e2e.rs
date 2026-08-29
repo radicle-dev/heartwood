@@ -5,6 +5,7 @@ use radicle::cob::Title;
 use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git::fmt::Component;
+use radicle::identity::doc::GetPayload as _;
 use test_log::test;
 
 use radicle::git::raw::ErrorExt as _;
@@ -847,7 +848,7 @@ fn test_large_fetch() {
         .unwrap();
 
     let doc = bob.storage.repository(rid).unwrap().identity_doc().unwrap();
-    let proj = doc.project().unwrap();
+    let proj = doc.project().unwrap().unwrap();
 
     assert_eq!(proj.name(), "acme");
 }
@@ -956,7 +957,7 @@ fn test_concurrent_fetches() {
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.project().unwrap();
+        let proj = doc.project().unwrap().unwrap();
 
         assert!(proj.name().starts_with("bob"));
     }
@@ -967,7 +968,7 @@ fn test_concurrent_fetches() {
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.project().unwrap();
+        let proj = doc.project().unwrap().unwrap();
 
         assert!(proj.name().starts_with("alice"));
     }
@@ -1483,7 +1484,7 @@ fn missing_delegate_default_branch() {
     // Helper to assert that Bob's default branch is not in storage
     let assert_bobs_default_is_missing = |repo: &Repository| {
         let doc = repo.identity_doc().unwrap();
-        let project = doc.project().unwrap();
+        let project = doc.project().unwrap().unwrap();
         let default_branch = repo.reference(
             &bob_key,
             &radicle::git::refs::branch(project.default_branch()),
@@ -1810,7 +1811,7 @@ fn test_fetch_emits_canonical_ref_update() {
 
     let default_branch: git::fmt::Qualified = {
         let repo = alice.storage.repository(rid).unwrap();
-        let proj = repo.project().unwrap();
+        let proj = repo.identity_doc().unwrap().project().unwrap().unwrap();
         git::fmt::lit::refs_heads(proj.default_branch()).into()
     };
 

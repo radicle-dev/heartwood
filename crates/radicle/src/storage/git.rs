@@ -13,7 +13,7 @@ use std::{fs, io};
 
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
-use crate::identity::doc::DocError;
+use crate::identity::doc::{DocError, GetPayload as _};
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::storage::refs::{FeatureLevel, Refs, SignedRefs};
@@ -159,10 +159,10 @@ impl ReadStorage for Storage {
 
             // For performance reasons, we don't do a full repository check here.
             let head = match repo.head() {
-                Ok((_, head)) => head,
+                Ok((_, head)) => Some(head),
                 Err(e) => {
-                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
-                    continue;
+                    log::debug!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
+                    None
                 }
             };
             // Nb. This will be `None` if they were not found.
@@ -256,7 +256,7 @@ impl Storage {
     {
         rids.map(|rid| {
             let repo = self.repository(*rid)?;
-            let (_, head) = repo.head()?;
+            let head = repo.head().ok().map(|(_, head)| head);
 
             let refs = SignedRefsInfo::new(refs::SignedRefs::load(self.info.key, &repo))
                 .map_err(|err| Error::Refs(refs::Error::Read(err)))?;
@@ -570,12 +570,14 @@ impl Repository {
     }
 
     /// Get the canonical project information.
-    pub fn project(&self) -> Result<Project, RepositoryError> {
-        let head = self.identity_head()?;
-        let doc = self.identity_doc_at(head)?;
-        let proj = doc.project()?;
-
-        Ok(proj)
+    #[deprecated(note = "Use `Doc::project()` on `Self::identity_doc()`.")]
+    pub fn project(&self) -> Result<Option<Project>, RepositoryError> {
+        self.identity_doc().and_then(|identity| {
+            identity
+                .project()
+                .transpose()
+                .map_err(RepositoryError::Payload)
+        })
     }
 
     pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, DocError> {

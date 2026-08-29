@@ -1,5 +1,6 @@
 mod args;
 
+use radicle::identity::doc::GetPayload as _;
 use radicle::node::Handle;
 use radicle::node::policy;
 use radicle::node::policy::{Policy, Scope};
@@ -90,10 +91,18 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
         match policy {
             Ok(policy::SeedPolicy { rid, policy }) => {
                 let id = rid.to_string();
-                let name = storage
+
+                let name = match storage
                     .repository(rid)
-                    .and_then(|repo| repo.project().map(|proj| proj.name().to_string()))
-                    .unwrap_or_default();
+                    .and_then(|repo| repo.identity_doc().map(|identity| identity.project()))
+                {
+                    Ok(Some(Ok(project))) => project.name().to_string().into(),
+                    Ok(None) => term::format::dim("No name provided.".to_string()),
+                    Err(_) | Ok(Some(Err(_))) => {
+                        term::format::negative("Error determining name.".to_string())
+                    }
+                };
+
                 let scope = policy
                     .scope()
                     .map_or(String::new(), |scope| scope.to_string());

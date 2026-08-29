@@ -5,7 +5,7 @@ use crate::cob;
 use crate::cob::identity::{Did, Identity, RedactedBy, RejectedBy, RevisionId, State};
 use crate::cob::store::Transaction;
 use crate::crypto::Signer as _;
-use crate::identity::doc::PayloadId;
+use crate::identity::doc::{GetPayload as _, PayloadId};
 use crate::test::arbitrary::BoundedVec;
 use crate::test::setup::Network;
 
@@ -431,7 +431,7 @@ impl Harness {
     }
 
     fn update_description(&self, doc: &mut crate::prelude::RawDoc, msg: &str) {
-        let prj = doc.project().unwrap();
+        let prj = doc.project().unwrap().unwrap();
         let desc = format!("{} {}", msg, self.revisions.len());
         let prj = prj.update(None, desc, None).unwrap();
         doc.payload.insert(PayloadId::project(), prj.into());

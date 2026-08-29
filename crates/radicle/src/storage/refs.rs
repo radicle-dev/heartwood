@@ -675,7 +675,8 @@ mod tests {
         london
             .raw()
             .reference(
-                git::refs::storage::branch_of(bob.public_key(), &git::fmt::refname!("master"))
+                git::fmt::Qualified::from(git::fmt::lit::refs_heads(&git::fmt::refname!("master")))
+                    .with_namespace(bob.public_key().into())
                     .as_str(),
                 bob_head,
                 false,
