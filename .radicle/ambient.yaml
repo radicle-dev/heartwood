@@ -4,8 +4,8 @@ pre_plan:
   # This channel is also defined in `rust-toolchain.toml` – which hopefully can
   # be supported by ambient in the future.
   - action: rustup
-    channel: 1.97.1
-    
+    channel: 1.98.0
+
 plan:
   # Remove the components from rust-toolchain.toml. This works around the
   # inability of the rustup action to install components, and the only component

@@ -49,13 +49,11 @@ pub(super) fn parse_many_upserts(
 ) -> impl Iterator<Item = Result<PayloadUpsert, PayloadUpsertParseError>> + use<'_> {
     // `clap` ensures we have 3 values per option occurrence,
     // so we can chunk the aggregated slice exactly.
-    let chunks = values.chunks_exact(3);
+    let (chunks, remainder) = values.as_chunks::<3>();
 
-    assert!(chunks.remainder().is_empty());
+    assert!(remainder.is_empty());
 
-    chunks.map(|chunk| {
-        // Slice accesses will not panic, guaranteed by `chunks_exact(3)`.
-        #[allow(clippy::indexing_slicing)]
+    chunks.iter().map(|chunk| {
         Ok(PayloadUpsert {
             id: PayloadId::from_str(&chunk[0])?,
             key: chunk[1].to_owned(),
@@ -330,7 +328,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "assertion failed: chunks.remainder().is_empty()")]
+    #[should_panic(expected = "assertion failed: remainder.is_empty()")]
     fn should_not_parse_into_payload() {
         let _: Result<Vec<_>, _> =
             parse_many_upserts(&["xyz.radicle.project".to_string(), "name".to_string()]).collect();

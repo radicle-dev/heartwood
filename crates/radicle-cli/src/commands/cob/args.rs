@@ -204,17 +204,13 @@ where
 {
     // `clap` ensures we have 2 values per option occurrence,
     // so we can chunk the aggregated slice exactly.
-    let chunks = values.chunks_exact(2);
+    let (chunks, remainder) = values.as_chunks::<2>();
 
-    assert!(chunks.remainder().is_empty());
+    assert!(remainder.is_empty());
 
-    chunks.map(|chunk| {
-        // Slice accesses will not panic, guaranteed by `chunks_exact(2)`.
-        #[allow(clippy::indexing_slicing)]
-        Embed {
-            name: chunk[0].to_string(),
-            content: EmbedContent::from(T::from(chunk[1].clone())),
-        }
+    chunks.iter().map(|chunk| Embed {
+        name: chunk[0].to_string(),
+        content: EmbedContent::from(T::from(chunk[1].clone())),
     })
 }
 
