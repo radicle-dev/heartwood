@@ -65,7 +65,7 @@ pub struct RepositoryInfo {
     /// Repository identifier.
     pub rid: RepoId,
     /// Head of default branch.
-    pub head: Oid,
+    pub head: Option<Oid>,
     /// Identity document.
     pub doc: Doc,
     /// Information about local signed references.
@@ -521,7 +521,8 @@ pub trait ReadRepository: Sized + ValidateRepository {
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError>;
 
     /// Gets the qualified reference name of the default branch of self,
-    /// according to the project payload in the identity document.
+    /// according to the identity document.
+    #[deprecated]
     fn default_branch(&self) -> Result<Qualified<'_>, RepositoryError> {
         Ok(self.identity_doc()?.default_branch()?.to_owned())
     }

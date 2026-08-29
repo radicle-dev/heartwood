@@ -2,7 +2,11 @@ mod args;
 
 pub use args::Args;
 
-use radicle::storage::{ReadStorage, RepositoryInfo, SignedRefsInfo};
+use radicle::{
+    git::Oid,
+    identity::doc::GetPayload as _,
+    storage::{ReadStorage, RepositoryInfo, SignedRefsInfo},
+};
 
 use crate::terminal as term;
 
@@ -45,17 +49,15 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         if !seeded && args.seeded {
             continue;
         }
-        let proj = match doc.project() {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!(target: "cli", "Error loading project payload for {rid}: {e}");
-                continue;
-            }
-        };
-        let head = term::format::oid(head).into();
+        let proj = doc.project();
+        let head = term::format::oid(head.unwrap_or(Oid::ZERO_SHA1)).into();
 
         rows.push([
-            term::format::bold(proj.name().to_owned()),
+            match proj.as_ref() {
+                Some(Ok(project)) => term::format::bold(project.name().to_string()),
+                Some(Err(_)) => term::format::negative("Error determining name.".to_string()),
+                None => term::format::dim("No name provided.".to_string()),
+            },
             term::format::tertiary(rid.urn()),
             if seeded {
                 term::format::visibility(doc.visibility()).into()
@@ -63,7 +65,13 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 term::format::dim("local").into()
             },
             term::format::secondary(head),
-            term::format::italic(proj.description().to_owned()),
+            match proj.as_ref() {
+                Some(Ok(project)) => term::format::italic(project.description().to_string()),
+                Some(Err(_)) => {
+                    term::format::negative("Error determining description.".to_string())
+                }
+                None => term::format::dim("No description provided.".to_string()),
+            },
         ]);
     }
     rows.sort();

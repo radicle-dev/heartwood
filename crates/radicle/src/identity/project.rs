@@ -251,6 +251,10 @@ impl Project {
         &self.description
     }
 
+    /// Return the default branch of the project.
+    ///
+    /// To obtain the default branch of the repository, prefer
+    /// [`super::Doc::default_branch_name`].
     #[inline]
     pub fn default_branch(&self) -> &BranchName {
         &self.default_branch

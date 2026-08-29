@@ -1376,7 +1376,7 @@ mod test {
     use crate::crypto::{PublicKey, Signer as _, SigningKey};
     use crate::identity::Visibility;
     use crate::identity::did::Did;
-    use crate::identity::doc::PayloadId;
+    use crate::identity::doc::{GetPayload as _, PayloadId};
     use crate::rad;
     use crate::storage::ReadStorage as _;
     use crate::storage::git::Storage;
@@ -2590,7 +2590,7 @@ mod test {
         let repo = storage.repository(id).unwrap();
         let mut identity = Identity::load_mut(&repo, &alice).unwrap();
         let doc = identity.doc().clone();
-        let prj = doc.project().unwrap();
+        let prj = doc.project().unwrap().unwrap();
         let mut doc = doc.edit();
 
         // Make a change to the description and sign it.
@@ -2659,11 +2659,14 @@ mod test {
         assert_eq!(identity.head(), revision);
         assert_eq!(identity.doc(), &*doc);
         assert_eq!(
-            identity.doc().project().unwrap().description(),
+            identity.doc().project().unwrap().unwrap().description(),
             "Acme's repository!?"
         );
 
-        assert_eq!(doc.project().unwrap().description(), "Acme's repository!?");
+        assert_eq!(
+            doc.project().unwrap().unwrap().description(),
+            "Acme's repository!?"
+        );
     }
 
     #[test]

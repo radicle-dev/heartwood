@@ -296,6 +296,7 @@ pub mod refs {
         ///
         /// `refs/namespaces/<remote>/refs/heads/<branch>`
         ///
+        #[deprecated(note = "Use `Qualified::with_namespace` instead.")]
         pub fn branch_of<'a>(remote: &RemoteId, branch: &RefStr) -> Namespaced<'a> {
             Qualified::from(lit::refs_heads(branch)).with_namespace(remote.into())
         }
