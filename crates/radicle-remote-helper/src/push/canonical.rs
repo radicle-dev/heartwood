@@ -42,10 +42,11 @@ where
     /// Ensures that the new head and the canonical commit do not diverge.
     pub(super) fn quorum(
         self,
-    ) -> Result<(git::fmt::Qualified<'a>, canonical::Object), QuorumError> {
+    ) -> Result<(git::fmt::Qualified<'a>, canonical::Object), Box<QuorumError>> {
         self.canonical
             .quorum()
             .map(|QuorumWithConvergence { quorum, .. }| (quorum.refname, quorum.object))
+            .map_err(Box::new)
     }
 }
 

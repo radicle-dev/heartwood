@@ -10,6 +10,9 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+unstable-sha256 = ["radicle-cli/unstable-sha256"]
+
 [[bin]]
 name = "git-remote-rad"
 path = "src/main.rs"

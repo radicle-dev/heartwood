@@ -107,7 +107,7 @@ pub(super) enum Error {
     Repository(#[from] radicle::storage::RepositoryError),
     /// Quorum error.
     #[error(transparent)]
-    Quorum(#[from] radicle::git::canonical::error::QuorumError),
+    Quorum(#[from] Box<radicle::git::canonical::error::QuorumError>),
     #[error(transparent)]
     CanonicalRefs(#[from] radicle::identity::doc::CanonicalRefsError),
     #[error(transparent)]
@@ -411,7 +411,7 @@ pub(super) fn run(
                             let canonical = canonical::Canonical::new(me, object, canonical)?;
                             match canonical.quorum() {
                                 Ok(quorum) => set_canonical_refs.push(quorum),
-                                Err(e) => canonical::io::handle_error(e)?,
+                                Err(e) => canonical::io::handle_error(*e)?,
                             }
                         }
                         Ok(explorer)
