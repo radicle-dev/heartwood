@@ -182,7 +182,7 @@ impl TestFormula {
         }
     }
 
-    pub fn build(&mut self, binaries: &[(&str, &str)]) -> &mut Self {
+    pub fn build(&mut self, binaries: &[(&str, &str)], features: &[&str]) -> &mut Self {
         // We don't need to re-build every time the `build` function is called. Once is enough.
         BUILD.call_once(|| {
             use escargot::format::Message;
@@ -204,6 +204,7 @@ impl TestFormula {
                 let results = escargot::CargoBuild::new()
                     .package(package)
                     .bin(binary)
+                    .features(features.join(" "))
                     .manifest_path(cargo_manifest_dir().join("Cargo.toml"))
                     .target_dir(cargo_target_dir())
                     .exec()

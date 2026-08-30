@@ -33,10 +33,17 @@ pub(crate) fn formula(
         .env(env::RAD_RNG_SEED, "0")
         .env(env::RAD_LOCAL_TIME, "1671125284")
         .envs(radicle::git::env::GIT_DEFAULT_CONFIG)
-        .build(&[
-            ("radicle-remote-helper", "git-remote-rad"),
-            ("radicle-cli", "rad"),
-        ])
+        .build(
+            &[
+                ("radicle-remote-helper", "git-remote-rad"),
+                ("radicle-cli", "rad"),
+            ],
+            if cfg!(feature = "unstable-sha256") {
+                &["unstable-sha256"]
+            } else {
+                &[]
+            },
+        )
         .file(base.join(test))?;
 
     Ok(formula)
