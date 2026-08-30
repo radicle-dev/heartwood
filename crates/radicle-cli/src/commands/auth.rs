@@ -23,11 +23,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 pub fn init(args: Args) -> anyhow::Result<()> {
     term::headline("Initializing your Radicle 👾 identity");
 
-    if let Ok(version) = radicle::git::version() {
-        if version < radicle::git::VERSION_REQUIRED {
+    if let Ok(version) = crate::git::version() {
+        if version < crate::git::VERSION_REQUIRED {
             term::warning(format!(
                 "Your Git version is unsupported, please upgrade to {} or later",
-                radicle::git::VERSION_REQUIRED,
+                crate::git::VERSION_REQUIRED,
             ));
             term::blank();
         }

@@ -23,26 +23,6 @@ pub type BranchName = crate::git::fmt::RefString;
 
 /// Default port of the `git` transport protocol.
 pub const PROTOCOL_PORT: u16 = 9418;
-/// Minimum required git version.
-pub const VERSION_REQUIRED: Version = Version {
-    major: 2,
-    minor: 31,
-    patch: 0,
-};
-
-/// A parsed git version.
-#[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
-pub struct Version {
-    pub major: u8,
-    pub minor: u8,
-    pub patch: u8,
-}
-
-impl std::fmt::Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
 
 /// Verbosity level for Git commands.
 #[derive(Default, Clone, Copy)]
@@ -86,71 +66,6 @@ impl From<i8> for Verbosity {
     fn from(v: i8) -> Self {
         Self(v)
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum VersionError {
-    #[error("malformed git version string")]
-    Malformed,
-    #[error("malformed git version string: {0}")]
-    ParseInt(#[from] std::num::ParseIntError),
-    #[error("malformed git version string: {0}")]
-    Utf8(#[from] std::string::FromUtf8Error),
-    #[error("error retrieving git version: {0}")]
-    Io(#[from] io::Error),
-    #[error("error retrieving git version: {0}")]
-    Other(String),
-}
-
-impl std::str::FromStr for Version {
-    type Err = VersionError;
-
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let rest = input
-            .strip_prefix("git version ")
-            .ok_or(VersionError::Malformed)?;
-        let rest = rest.split(' ').next().ok_or(VersionError::Malformed)?;
-        let rest = rest.trim_end();
-
-        let mut parts = rest.split('.');
-        let major = parts.next().ok_or(VersionError::Malformed)?.parse()?;
-        let minor = parts.next().ok_or(VersionError::Malformed)?.parse()?;
-
-        let patch = match parts.next() {
-            None => 0,
-            Some(patch) => patch.parse()?,
-        };
-
-        Ok(Self {
-            major,
-            minor,
-            patch,
-        })
-    }
-}
-
-/// Get the system's git version.
-pub fn version() -> Result<Version, VersionError> {
-    let mut command = Command::new("git");
-    command.arg("version");
-
-    #[cfg(windows)]
-    std::os::windows::process::CommandExt::creation_flags(
-        &mut command,
-        radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
-    );
-
-    let output = command.output()?;
-
-    if output.status.success() {
-        let output = String::from_utf8(output.stdout)?;
-        let version = output.parse()?;
-
-        return Ok(version);
-    }
-    Err(VersionError::Other(
-        String::from_utf8_lossy(&output.stderr).to_string(),
-    ))
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -860,69 +775,5 @@ impl UserInfo {
     /// `<alias>@<public key>`.
     pub fn email(&self) -> String {
         format!("{}@{}", self.alias, self.key)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::str::FromStr;
-
-    #[test]
-    fn test_version_ord() {
-        assert!(
-            Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            } > Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            }
-        );
-        assert!(
-            Version {
-                major: 2,
-                minor: 24,
-                patch: 12
-            } < Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            }
-        );
-    }
-
-    #[test]
-    fn test_version_from_str() {
-        assert_eq!(
-            Version::from_str("git version 2.34.1\n").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            })
-        );
-
-        assert_eq!(
-            Version::from_str("git version 2.34.1 (macOS)").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 1
-            })
-        );
-
-        assert_eq!(
-            Version::from_str("git version 2.34").ok(),
-            Some(Version {
-                major: 2,
-                minor: 34,
-                patch: 0
-            })
-        );
-
-        assert!(Version::from_str("2.34").is_err());
     }
 }
