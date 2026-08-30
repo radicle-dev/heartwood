@@ -5,6 +5,8 @@ use radicle::git;
 use radicle::node::config::DefaultSeedingPolicy;
 use radicle::node::{Alias, Handle as _};
 use radicle::profile;
+#[cfg(feature = "unstable-sha256")]
+use radicle::storage::ReadStorage as _;
 use radicle_node::test::node::Node;
 
 #[test]
@@ -210,6 +212,32 @@ fn rad_init_sync_and_clone() {
         [],
     )
     .unwrap();
+}
+
+#[test]
+#[cfg(feature = "unstable-sha256")]
+fn rad_init_sha256_and_sync() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node_with(radicle::node::Config {
+        seeding_policy: DefaultSeedingPolicy::permissive(),
+        ..radicle::node::Config::test(Alias::new("bob"))
+    });
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice);
+
+    environment.test("rad-init-sha256", &alice).unwrap();
+
+    let repositories = alice.storage.repositories().unwrap();
+    let [repository] = repositories.as_slice() else {
+        panic!("expected exactly one repository, got {repositories:?}");
+    };
+
+    bob.converge([&alice]);
+    bob.has_repository(&repository.rid);
 }
 
 #[test]
