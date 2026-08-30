@@ -43,6 +43,20 @@ pub(super) fn for_fetch<R: ReadRepository + cob::Store<Namespace = NodeId> + 'st
     let mut lines = Vec::new();
 
     if let Some(namespace) = url.namespace {
+        if let Some(default_branch) = stored
+            .identity_doc()
+            .map(|doc| doc.default_branch().ok().map(|branch| branch.to_owned()))
+            .ok()
+            .flatten()
+            && stored
+                .reference(&namespace, &default_branch)
+                .ok()
+                .and_then(|reference| reference.target())
+                .is_some()
+        {
+            lines.push(format!("@{default_branch} HEAD"));
+        }
+
         // Listing namespaced refs.
         for (name, oid) in stored.references_of(&namespace)? {
             lines.push(format!("{oid} {name}"));
