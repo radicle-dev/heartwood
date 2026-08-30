@@ -8,15 +8,22 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[features]
+unstable-sha256 = [
+  "gix-hash/sha256",
+  "gix-protocol/sha256",
+  "radicle/unstable-sha256",
+]
+
 [dependencies]
 bstr = { workspace = true }
 either = "1.9.0"
-gix-features = { version = "0.48", features = ["progress"] }
+gix-features = { version = "0.49.1", features = ["progress"] }
 gix-hash = { workspace = true }
-gix-odb = "0.80.0"
-gix-pack = "0.70.0"
-gix-protocol = { version = "0.61.0", features = ["blocking-client"] }
-gix-transport = { version = "0.57.0", features = ["blocking-client"] }
+gix-odb = "0.84.0"
+gix-pack = "0.74.2"
+gix-protocol = { version = "0.65.1", features = ["blocking-client"] }
+gix-transport = { version = "0.59.1", features = ["blocking-client"] }
 log = { workspace = true, features = ["std"] }
 nonempty = { workspace = true }
 radicle = { workspace = true, features = ["bstr", "gix"] }
