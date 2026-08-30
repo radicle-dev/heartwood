@@ -202,7 +202,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
         Some(Ok(project)) => Some(project),
         Some(Err(PayloadError::Json(e))) => {
             return Err(error::DocVerification::PayloadError {
-                id: PayloadId::project(),
+                id: PayloadId::project().clone(),
                 err: e.to_string(),
             });
         }
@@ -214,7 +214,11 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     //     (This rule must be synthesized!)
     //  2. … symbolic reference with the name `HEAD`.
     //     (This reference must be synthesized!)
-    match raw.raw_canonical_refs().transpose().map(|rcrefs| rcrefs.zip(project)) {
+    match raw
+        .raw_canonical_refs()
+        .transpose()
+        .map(|rcrefs| rcrefs.zip(project))
+    {
         Ok(Some((crefs, project))) => {
             let default = project.default_branch_qualified().to_owned();
             let matches = crefs
@@ -239,7 +243,7 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     // Verify that the canonical references payload is valid
     if let Err(e) = proposal.canonical_refs() {
         return Err(error::DocVerification::PayloadError {
-            id: PayloadId::canonical_refs(),
+            id: PayloadId::canonical_refs().clone(),
             err: e.to_string(),
         });
     }
@@ -296,7 +300,7 @@ mod test {
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {
@@ -319,7 +323,7 @@ mod test {
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {
@@ -351,7 +355,7 @@ mod test {
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {

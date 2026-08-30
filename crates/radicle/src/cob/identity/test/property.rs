@@ -434,7 +434,7 @@ impl Harness {
         let prj = doc.project().unwrap().unwrap();
         let desc = format!("{} {}", msg, self.revisions.len());
         let prj = prj.update(None, desc, None).unwrap();
-        doc.payload.insert(PayloadId::project(), prj.into());
+        doc.payload.insert(PayloadId::project().clone(), prj.into());
     }
 
     fn did_for(&self, actor: &Actor) -> Did {

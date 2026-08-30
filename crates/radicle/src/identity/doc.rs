@@ -227,22 +227,21 @@ impl FromStr for PayloadId {
     }
 }
 
+static CANONICAL_REFS: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.crefs"));
+static PROJECT: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.project"));
+
 impl PayloadId {
-    /// Project payload type.
-    pub fn project() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.project")
-                .expect("PayloadId::project: type name is valid"),
-        )
+    pub fn canonical_refs() -> &'static Self {
+        &CANONICAL_REFS
     }
 
-    pub fn canonical_refs() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.crefs")
-                .expect("PayloadId::canonical_refs: type name is valid"),
-        )
+    pub fn project() -> &'static Self {
+        &PROJECT
+    }
+
+    #[inline]
+    fn new(type_name: &'static str) -> Self {
+        Self::from_str(type_name).expect("type_name is valid")
     }
 }
 
@@ -303,13 +302,13 @@ pub trait GetPayload {
 
     /// Get the [`Project`] by deserializing from the payload.
     fn project(&self) -> Option<Result<Project, PayloadError>> {
-        self.load_payload(&PayloadId::project())
+        self.load_payload(PayloadId::project())
     }
 
     /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
     /// (if present).
     fn raw_canonical_refs(&self) -> Option<Result<RawCanonicalRefs, PayloadError>> {
-        self.load_payload(&PayloadId::canonical_refs())
+        self.load_payload(PayloadId::canonical_refs())
     }
 }
 
@@ -454,7 +453,7 @@ impl RawDoc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates,
             threshold,
             visibility,
@@ -714,7 +713,7 @@ impl Doc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
             threshold: Threshold(NonZeroUsize::MIN),
             visibility,
@@ -809,7 +808,11 @@ impl Doc {
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        let mut raw_crefs = self.raw_canonical_refs().transpose().map_err(CanonicalRefsError::Payload)?.unwrap_or_default();
+        let mut raw_crefs = self
+            .raw_canonical_refs()
+            .transpose()
+            .map_err(CanonicalRefsError::Payload)?
+            .unwrap_or_default();
         let resolve = &mut || self.delegates.clone();
 
         // Determine where `HEAD` comes from. The `resolve_head()` result
@@ -1209,7 +1212,7 @@ mod test {
         // `IDENTITY_VERSION`.
         let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
         let payload = [(
-            PayloadId::project(),
+            PayloadId::project().clone(),
             Payload {
                 value: json!({
                     "name": "heartwood",

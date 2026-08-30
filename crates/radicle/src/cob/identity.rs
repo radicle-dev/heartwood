@@ -2596,7 +2596,8 @@ mod test {
         // Make a change to the description and sign it.
         let desc = prj.description().to_owned() + "!";
         let prj = prj.update(None, desc, None).unwrap();
-        doc.payload.insert(PayloadId::project(), prj.clone().into());
+        doc.payload
+            .insert(PayloadId::project().clone(), prj.clone().into());
         identity
             .update(
                 cob::Title::new("Update description").unwrap(),
@@ -2634,7 +2635,7 @@ mod test {
         // Update description again with signatures by Eve and Bob.
         let desc = prj.description().to_owned() + "?";
         let prj = prj.update(None, desc, None).unwrap();
-        doc.payload.insert(PayloadId::project(), prj.into());
+        doc.payload.insert(PayloadId::project().clone(), prj.into());
         let revision = bob_identity
             .update(
                 cob::Title::new("Update description again").unwrap(),
