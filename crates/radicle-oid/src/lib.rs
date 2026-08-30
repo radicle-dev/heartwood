@@ -82,6 +82,24 @@ pub enum ObjectFormat {
     Sha256 = 2,
 }
 
+impl ObjectFormat {
+    /// The name of this object format, as used in Git.
+    pub fn name(&self) -> &'static str {
+        match self {
+            #[cfg(feature = "sha1")]
+            ObjectFormat::Sha1 => {
+                // See <https://github.com/git/git/blob/v2.55.0/hash.c#L201>.
+                "sha1"
+            }
+            #[cfg(feature = "unstable-sha256")]
+            ObjectFormat::Sha256 => {
+                // See <https://github.com/git/git/blob/v2.55.0/hash.c#L217>.
+                "sha256"
+            }
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Ord, PartialOrd, Clone, Copy)]
 #[non_exhaustive]
 pub enum Oid {

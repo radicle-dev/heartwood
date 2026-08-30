@@ -70,6 +70,7 @@ where
         let transport = Transport::new(
             git_dir,
             BString::from(repo.as_ref().id.canonical()),
+            repo.as_ref().object_format(),
             connection,
         );
 

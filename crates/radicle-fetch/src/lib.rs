@@ -56,6 +56,8 @@ pub enum HandshakeError {
     Gix(handshake::Error),
     #[error("an I/O error occurred during the fetch handshake ({0})")]
     Io(io::Error),
+    #[error("object format not supported: {0}")]
+    ObjectFormat(gix_hash::Kind),
 }
 
 /// Pull changes from the `remote`.
@@ -142,12 +144,14 @@ where
         .map_err(Error::from)
 }
 
-fn handle_handshake_err(err: handshake::Error) -> HandshakeError {
+fn handle_handshake_err(err: transport::HandshakeError) -> HandshakeError {
+    use transport::HandshakeError::*;
     match err {
-        handshake::Error::Transport(error) => match error {
-            gix_transport::client::Error::Io(error) => HandshakeError::Io(error),
-            err => HandshakeError::Gix(handshake::Error::Transport(err)),
-        },
-        err => HandshakeError::Gix(err),
+        Handshake(handshake::Error::Transport(gix_transport::client::Error::Io(err)))
+        | Handshake(handshake::Error::ParseRefs(
+            gix_protocol::handshake::refs::parse::Error::Io(err),
+        )) => HandshakeError::Io(err),
+        Handshake(err) => HandshakeError::Gix(err),
+        ObjectFormat(kind) => HandshakeError::ObjectFormat(kind),
     }
 }

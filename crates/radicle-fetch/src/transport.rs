@@ -8,12 +8,14 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use bstr::BString;
+use bstr::ByteSlice;
 use gix_features::progress::prodash::progress;
 use gix_protocol::Handshake;
 use gix_protocol::handshake;
 use gix_transport::Protocol;
 use gix_transport::Service;
 use gix_transport::client;
+use radicle::git::ObjectFormat;
 use radicle::git::Oid;
 use radicle::git::fmt::Qualified;
 use radicle::storage::git::Repository;
@@ -54,6 +56,7 @@ pub trait SignalEof {
 pub struct Transport<S> {
     git_dir: PathBuf,
     repo: BString,
+    object_hash: gix_hash::Kind,
     stream: S,
 }
 
@@ -71,11 +74,24 @@ pub enum Error {
     PackIndex(#[from] gix_pack::index::init::Error),
 }
 
+#[derive(Error, Debug)]
+pub enum HandshakeError {
+    #[error(transparent)]
+    Handshake(#[from] handshake::Error),
+    #[error("object format not supported: {0}")]
+    ObjectFormat(gix_hash::Kind),
+}
+
 impl<S> Transport<S>
 where
     S: ConnectionStream,
 {
-    pub fn new(git_dir: PathBuf, mut repo: BString, stream: S) -> Self {
+    pub fn new(
+        git_dir: PathBuf,
+        mut repo: BString,
+        object_format: ObjectFormat,
+        stream: S,
+    ) -> Self {
         let repo = if repo.starts_with(b"/") {
             repo
         } else {
@@ -86,22 +102,40 @@ where
         Self {
             git_dir,
             repo,
+            object_hash: object_format.into(),
             stream,
         }
     }
 
     /// Perform the handshake with the server side.
     #[allow(clippy::result_large_err)]
-    pub(crate) fn handshake(&mut self) -> Result<Handshake, handshake::Error> {
+    pub(crate) fn handshake(&mut self) -> Result<Handshake, HandshakeError> {
         log::trace!("Performing handshake for {}", self.repo);
         let (read, write) = self.stream.open();
-        gix_protocol::handshake(
+        let handshake = gix_protocol::handshake(
             &mut Connection::new(read, write, self.repo.clone()),
             Service::UploadPack,
             |_| Ok(None),
             vec![],
             &mut progress::Discard,
-        )
+        )?;
+
+        // Check that the server supports the object format we want to use.
+        // Note that we assume that all servers support SHA-1, so we do not
+        // need to check in that case.
+        if self.object_hash != gix_hash::Kind::Sha1
+            && !handshake
+                .capabilities
+                .capability("object-format")
+                .and_then(|capability| {
+                    capability.supports(BString::from(self.object_hash.to_string()).as_bstr())
+                })
+                .unwrap_or_default()
+        {
+            return Err(HandshakeError::ObjectFormat(self.object_hash));
+        }
+
+        Ok(handshake)
     }
 
     /// Perform ls-refs with the server side.
@@ -142,6 +176,7 @@ where
                 fetch::PackWriter {
                     git_dir: self.git_dir.clone(),
                     interrupt,
+                    object_hash: self.object_hash,
                 },
                 handshake,
                 Connection::new(read, write, self.repo.clone()),
@@ -161,7 +196,7 @@ where
         {
             use gix_pack::index::File;
 
-            let idx = File::at(pack_path, gix_hash::Kind::Sha1)?;
+            let idx = File::at(pack_path, self.object_hash)?;
             for oid in wants_haves.wants {
                 if idx.lookup(oid).is_none() {
                     return Err(Error::NotFound(oid));

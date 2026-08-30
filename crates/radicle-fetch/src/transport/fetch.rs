@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -37,6 +36,8 @@ pub struct PackWriter {
     /// `interrupt` is checked regularly and when true, the whole
     /// operation will stop.
     pub interrupt: Arc<AtomicBool>,
+    /// Hash algorithm used by objects in the repository.
+    pub object_hash: gix_hash::Kind,
 }
 
 impl PackWriter {
@@ -53,18 +54,23 @@ impl PackWriter {
             thread_limit: None,
             iteration_mode: pack::data::input::Mode::Verify,
             index_version: pack::index::Version::V2,
-            object_hash: gix_hash::Kind::Sha1,
+            ..Default::default()
         };
         let odb_opts = gix_odb::store::init::Options {
             slots: gix_odb::store::init::Slots::default(),
-            object_hash: gix_hash::Kind::Sha1,
             use_multi_pack_index: true,
             current_dir: Some(self.git_dir.clone()),
             alloc_limit_bytes: None,
+            ..Default::default()
         };
         let thickener = Arc::new(
-            gix_odb::Store::at_opts(self.git_dir.join("objects"), &mut [].into_iter(), odb_opts)
-                .map_err(error::PackWriter::StoreOpen)?,
+            gix_odb::Store::at_opts(
+                self.git_dir.join("objects"),
+                self.object_hash,
+                &mut [].into_iter(),
+                odb_opts,
+            )
+            .map_err(error::PackWriter::StoreOpen)?,
         );
         let thickener = thickener.to_handle_arc();
         Ok(pack::Bundle::write_to_directory(
@@ -73,6 +79,7 @@ impl PackWriter {
             progress,
             &self.interrupt,
             Some(thickener),
+            self.object_hash,
             options,
         )?)
     }
@@ -189,7 +196,7 @@ where
         fetch::Context {
             handshake: &mut handshake,
             transport: &mut conn,
-            user_agent: ("agent", Some(Cow::Owned(agent_name()))),
+            user_agent: ("agent", Some(agent_name())),
             trace_packetlines: false,
         },
         fetch::Options {

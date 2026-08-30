@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::io;
 
@@ -67,7 +66,7 @@ where
     let ls_refs = gix_protocol::LsRefsCommand::new(
         Some(refspecs),
         capabilities,
-        ("agent", Some(Cow::Owned(agent_name()))),
+        ("agent", Some(agent_name())),
     );
 
     // According to [1], in the section on `ls-refs`, we must still filter on
