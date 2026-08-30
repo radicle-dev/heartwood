@@ -2112,7 +2112,7 @@ fn test_fetch_emits_canonical_ref_update_partial_glob() {
                 });
 
                 raw.payload.insert(
-                    radicle::identity::doc::PayloadId::canonical_refs(),
+                    radicle::identity::doc::PayloadId::CANONICAL_REFS.clone(),
                     radicle::identity::doc::Payload::from(crefs),
                 );
             })
