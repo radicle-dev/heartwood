@@ -431,37 +431,6 @@ impl std::ops::Deref for ResolvedDelegates {
     }
 }
 
-/// A reference that has been matched against a [`ValidRule`].
-///
-/// Can be constructed by using [`Rules::matches`].
-#[derive(Debug)]
-pub struct MatchedRule<'a> {
-    refname: Qualified<'a>,
-    rule: ValidRule,
-}
-
-impl MatchedRule<'_> {
-    /// Return the reference name that was used for checking if it was a match.
-    pub fn refname(&self) -> &Qualified<'_> {
-        &self.refname
-    }
-
-    /// Return the rule that was matched.
-    pub fn rule(&self) -> &ValidRule {
-        &self.rule
-    }
-
-    /// Return the allowed DIDs for the matched rule.
-    pub fn allowed(&self) -> &doc::Delegates {
-        self.rule().allowed()
-    }
-
-    /// Return the [`doc::Threshold`] for the matched rule.
-    pub fn threshold(&self) -> &doc::Threshold {
-        self.rule().threshold()
-    }
-}
-
 /// A set of valid [`Rule`]s, where the set of DIDs and threshold are fully
 /// resolved and valid. Since the rules are constructed via a `BTreeMap`, they
 /// cannot be duplicated.

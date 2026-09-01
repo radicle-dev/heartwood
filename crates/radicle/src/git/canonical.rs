@@ -14,7 +14,7 @@ pub mod protect;
 pub mod rules;
 pub mod symbolic;
 
-pub use rules::{MatchedRule, RawRule, Rules, ValidRule};
+pub use rules::{RawRule, Rules, ValidRule};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
