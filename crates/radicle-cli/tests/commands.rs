@@ -69,6 +69,8 @@ pub(crate) fn test<'a>(
 /// A utility to check that some program can be executed with a `--version`
 /// argument and exits successfully.
 ///
+/// On Unix, an exit status of 127 is interpreted as "command not found".
+///
 /// # Panics
 ///
 /// If there is an error executing the program other than the program not being
@@ -77,19 +79,24 @@ fn program_reports_version(program: &str) -> bool {
     use std::io::ErrorKind;
     use std::process::{Command, Stdio};
 
-    match Command::new(program)
+    let found = match Command::new(program)
         .arg("--version")
         .stdout(Stdio::null())
         .status()
     {
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            log::warn!(target: "test", "`{program}` not found.");
-            false
-        }
+        Err(e) if e.kind() == ErrorKind::NotFound => false,
         Err(e) => panic!("failure to execute `{program}`: {e}"),
         Ok(status) if status.success() => true,
+        #[cfg(unix)]
+        Ok(status) if status.code() == Some(127) => false,
         Ok(status) => panic!("executing `{program}` resulted in status {status}"),
+    };
+
+    if !found {
+        log::warn!(target: "test", "`{program}` not found.");
     }
+
+    found
 }
 
 #[test]
