@@ -104,18 +104,6 @@ impl Network {
             Self::Test => vec![],
         }
     }
-
-    /// Public seeds for this network.
-    pub fn public_seeds(&self) -> Vec<ConnectAddress> {
-        match self {
-            Self::Main => {
-                let mut result = seeds::RADICLE_NODE_BOOTSTRAP_IRIS.clone();
-                result.extend(seeds::RADICLE_NODE_BOOTSTRAP_ROSA.clone());
-                result
-            }
-            Self::Test => vec![],
-        }
-    }
 }
 
 /// Configuration parameters defining attributes of minima and maxima.
