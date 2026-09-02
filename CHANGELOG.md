@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+## Improvements
+
+- `rad patch edit` accepts `--target` to change the branch a patch is
+  meant to be merged into. Previously a wrong target could only be
+  corrected with a raw `rad cob update` action.
+- Opening a patch with `git push -o patch.target=<branch>` now warns when
+  the target has no canonical reference rule, or has a rule but no commits
+  yet. The push still succeeds, because a branch only becomes a canonical
+  reference after a push to it reaches quorum.
+
+## Fixes
+
+- `rad patch show` no longer fails with `reference '<branch>' not found`
+  when the patch targets a branch that is not a canonical reference of the
+  repository. The commit count is reported as unknown and the rest of the
+  patch is shown.
+
 ## 1.10.3 - 2026-09-07
 
 ### Fixes
