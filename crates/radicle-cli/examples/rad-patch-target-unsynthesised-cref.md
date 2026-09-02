@@ -22,6 +22,7 @@ $ git commit --allow-empty -m "Add new feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
+warn: target `refs/heads/accepted` has no commits yet
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -48,7 +49,7 @@ $ rad patch show 74cbe24
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    accepted                                       │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch not found)              │
+│ Commits   unknown (target branch unresolvable)           │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
