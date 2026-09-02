@@ -597,6 +597,14 @@ fn patch_open(
         return Err(Error::EmptyPatch);
     }
 
+    // The target may not be resolvable yet. Report it, but still open the
+    // patch: whether the target has commits is not settled at open time.
+    match opts.target.resolvable(stored) {
+        Ok(()) => {}
+        Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
+        Err(err) => warn(err.to_string()),
+    }
+
     let (title, description) = cli::terminal::patch::get_create_message(
         opts.message,
         &stored.backend,

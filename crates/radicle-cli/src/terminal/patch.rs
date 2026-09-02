@@ -369,7 +369,7 @@ pub fn show(
     // nothing to compare against. Degrade this row rather than the command.
     let ahead_behind = match patch.target().head(stored)? {
         Some(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
-        None => term::Line::new(term::format::dim("unknown (target branch not found)")),
+        None => term::Line::new(term::format::dim("unknown (target branch unresolvable)")),
     };
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile, verbose);

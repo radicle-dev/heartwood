@@ -525,6 +525,17 @@ impl TargetBranch {
     }
 }
 
+/// Why a [`MergeTarget`] has no reference in storage.
+#[derive(Debug, Error)]
+pub enum UnresolvableTarget {
+    #[error("target `{0}` has no commits yet")]
+    NoCommits(TargetBranch),
+    #[error("target `{0}` has no canonical reference rule")]
+    NoRule(TargetBranch),
+    #[error(transparent)]
+    Repository(#[from] RepositoryError),
+}
+
 /// Where a patch is intended to be merged.
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -557,6 +568,30 @@ impl MergeTarget {
                 Err(err) if err.is_not_found() => Ok(None),
                 Err(err) => Err(err.into()),
             },
+        }
+    }
+
+    /// Check that the target has a reference in `repo`.
+    pub fn resolvable(&self, repo: &Repository) -> Result<(), UnresolvableTarget> {
+        let MergeTarget::Branch(branch) = self else {
+            return Ok(());
+        };
+        if self.head(repo)?.is_some() {
+            return Ok(());
+        }
+
+        let doc = repo.identity_doc()?;
+        let has_rule = doc
+            .canonical_refs()
+            .map_err(RepositoryError::from)?
+            .rules()
+            .canonical(branch.clone().into_qualified(), repo)
+            .is_some();
+
+        if has_rule {
+            Err(UnresolvableTarget::NoCommits(branch.clone()))
+        } else {
+            Err(UnresolvableTarget::NoRule(branch.clone()))
         }
     }
 }

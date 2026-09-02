@@ -19,6 +19,7 @@ $ git commit --allow-empty -m "Add new feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add new feature" -o patch.target="refs/heads/nonexistent" rad HEAD:refs/patches
+warn: target `refs/heads/nonexistent` has no canonical reference rule
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -47,7 +48,7 @@ $ rad patch show 6b9cd39
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    nonexistent                                    │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch not found)              │
+│ Commits   unknown (target branch unresolvable)           │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
@@ -87,6 +88,7 @@ $ git commit --allow-empty -m "Add second feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add second feature" -o patch.target="refs/heads/sidechain" rad HEAD:refs/patches
+warn: target `refs/heads/sidechain` has no canonical reference rule
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -114,7 +116,7 @@ $ rad patch show fd3ecc5
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    sidechain                                      │
 │ Branches  feature/2                                      │
-│ Commits   unknown (target branch not found)              │
+│ Commits   unknown (target branch unresolvable)           │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 3071f29 Add second feature                               │
