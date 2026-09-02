@@ -228,6 +228,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         Command::Edit {
             id,
             revision,
+            target,
             message,
         } => {
             let message = Message::from(message);
@@ -236,7 +237,14 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .map(|id| id.resolve::<radicle::git::Oid>(&repository.backend))
                 .transpose()?
                 .map(patch::RevisionId::from);
-            edit::run(&patch_id, revision_id, message, &profile, &repository)?;
+            edit::run(
+                &patch_id,
+                revision_id,
+                target,
+                message,
+                &profile,
+                &repository,
+            )?;
         }
         Command::Redact { id } => {
             redact::run(&id, &profile, &repository)?;
