@@ -36,10 +36,23 @@ $ rad patch
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-Showing it still fails, even though the target is a legitimate canonical
-reference:
+Showing it works, with the `Commits` row degraded:
 
-``` (fail)
+```
 $ rad patch show 74cbe24
-✗ Error: reference 'refs/heads/accepted' not found; class=Reference (4); code=NotFound (-3)
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add new feature                                │
+│ Patch     74cbe24acc14abd62cc012997d99ec26be379e20       │
+│ Author    alice (you)                                    │
+│ Head      2f953624221d06c4c1e7a97637c758509a8558dd       │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    accepted                                       │
+│ Branches  feature/1                                      │
+│ Commits   unknown (target branch not found)              │
+│ Status    open                                           │
+├──────────────────────────────────────────────────────────┤
+│ 2f95362 Add new feature                                  │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 74cbe24 @ f2de534..2f95362 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
