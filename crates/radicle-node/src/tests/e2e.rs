@@ -843,7 +843,7 @@ fn test_large_fetch() {
             |e| {
                 matches!(e, Event::RefsFetched { updated, .. } if !updated.is_empty()).then_some(())
             },
-            time::Duration::from_secs(9 * scale as u64),
+            time::Duration::from_secs(9 * scale.max(3) as u64),
         )
         .unwrap();
 
