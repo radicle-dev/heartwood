@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## Improvements
+
+- Opening a patch with `git push -o patch.target=<branch>` now warns when
+  the target has no canonical reference rule, or has a rule but no commits
+  yet. The push still succeeds, because a branch only becomes a canonical
+  reference after a push to it reaches quorum.
+
 ## Fixes
 
 - A patch now merges on the quorum of the canonical reference rule that
@@ -14,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Only merges by DIDs in the rule's `allow` set count, and they must
   reach the rule's `threshold`. A patch that targets a branch which no
   rule matches cannot merge.
+- `rad patch show` no longer fails with `reference '<branch>' not found`
+  when the patch targets a branch that is not a canonical reference of the
+  repository. The commit count is reported as unknown and the rest of the
+  patch is shown.
 
 ## 1.10.3 - 2026-09-07
 
