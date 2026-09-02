@@ -365,8 +365,12 @@ pub fn show(
     } else {
         vec![]
     };
-    let ahead_behind =
-        common::ahead_behind(stored.raw(), revision.head(), patch.target().head(stored)?)?;
+    // The target may have no reference in storage yet, in which case there is
+    // nothing to compare against. Degrade this row rather than the command.
+    let ahead_behind = match patch.target().head(stored)? {
+        Some(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
+        None => term::Line::new(term::format::dim("unknown (target branch not found)")),
+    };
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile, verbose);
     let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();

@@ -31,15 +31,29 @@ $ rad patch
 ╭───────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title            Author         Reviews  Head     +   -   Updated  Labels │
 ├───────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  a75d4ea  Add new feature  alice   (you)  -        2f95362  +0  -0  now             │
+│ ●  6b9cd39  Add new feature  alice   (you)  -        2f95362  +0  -0  now             │
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-But it does not show:
+It also shows, with the `Commits` row degraded:
 
-``` (fail)
-$ rad patch show a75d4ea
-✗ Error: reference 'refs/heads/nonexistent' not found; class=Reference (4); code=NotFound (-3)
+```
+$ rad patch show 6b9cd39
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add new feature                                │
+│ Patch     6b9cd39ef8d7e50ebe07b4644300be146d792595       │
+│ Author    alice (you)                                    │
+│ Head      2f953624221d06c4c1e7a97637c758509a8558dd       │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    nonexistent                                    │
+│ Branches  feature/1                                      │
+│ Commits   unknown (target branch not found)              │
+│ Status    open                                           │
+├──────────────────────────────────────────────────────────┤
+│ 2f95362 Add new feature                                  │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 6b9cd39 @ f2de534..2f95362 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
 
 ## A target branch that exists, but is not canonical
@@ -78,21 +92,36 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new reference]   HEAD -> refs/patches
 ```
 
-Both patches list, and the second one does not show either:
+Both patches list, and the second one degrades the same way:
 
 ```
 $ rad patch
 ╭──────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●  ID       Title               Author         Reviews  Head     +   -   Updated  Labels │
 ├──────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●  a75d4ea  Add new feature     alice   (you)  -        2f95362  +0  -0  now             │
+│ ●  6b9cd39  Add new feature     alice   (you)  -        2f95362  +0  -0  now             │
 │ ●  fd3ecc5  Add second feature  alice   (you)  -        3071f29  +0  -0  now             │
 ╰──────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-``` (fail)
+```
 $ rad patch show fd3ecc5
-✗ Error: reference 'refs/heads/sidechain' not found; class=Reference (4); code=NotFound (-3)
+╭──────────────────────────────────────────────────────────╮
+│ Title     Add second feature                             │
+│ Patch     fd3ecc5dacf184921a0debbee809908c38be538d       │
+│ Author    alice (you)                                    │
+│ Head      3071f29a3bd95e2f9381310e560ab38b4ee38473       │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    sidechain                                      │
+│ Branches  feature/2                                      │
+│ Commits   unknown (target branch not found)              │
+│ Status    open                                           │
+├──────────────────────────────────────────────────────────┤
+│ 3071f29 Add second feature                               │
+│ 64da62b Start sidechain                                  │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision fd3ecc5 @ f2de534..3071f29 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
 
 ## Retargeting with `rad cob update`
@@ -106,17 +135,17 @@ the action directly.
 ```
 
 ```
-$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object a75d4ea --message "Retarget to delegates" retarget.jsonl
+$ rad cob update --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --type xyz.radicle.patch --object 6b9cd39 --message "Retarget to delegates" retarget.jsonl
 [..]
 ```
 
 The patch now targets the default branch, and shows:
 
 ```
-$ rad patch show a75d4ea
+$ rad patch show 6b9cd39
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add new feature                                │
-│ Patch     a75d4ea4837e03c69b9dd2406766fcc6304478ee       │
+│ Patch     6b9cd39ef8d7e50ebe07b4644300be146d792595       │
 │ Author    alice (you)                                    │
 │ Head      2f953624221d06c4c1e7a97637c758509a8558dd       │
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
@@ -127,6 +156,6 @@ $ rad patch show a75d4ea
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
 ├──────────────────────────────────────────────────────────┤
-│ ● Revision a75d4ea @ f2de534..2f95362 by alice (you) now │
+│ ● Revision 6b9cd39 @ f2de534..2f95362 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
