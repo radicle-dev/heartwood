@@ -438,6 +438,11 @@ fn rad_patch_magic_push() {
 }
 
 #[test]
+fn rad_patch_edit_target() {
+    Environment::alice(["rad-init", "rad-patch-edit-target"]);
+}
+
+#[test]
 fn rad_patch_target_missing_branch() {
     Environment::alice(["rad-init", "rad-patch-target-missing-branch"]);
 }

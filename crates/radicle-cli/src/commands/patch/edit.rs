@@ -12,6 +12,7 @@ use crate::terminal as term;
 pub fn run(
     patch_id: &PatchId,
     revision_id: Option<patch::RevisionId>,
+    target: Option<patch::MergeTarget>,
     message: term::patch::Message,
     profile: &Profile,
     repository: &Repository,
@@ -24,8 +25,24 @@ pub fn run(
     let (title, description) = term::patch::get_edit_message(message, &patch)?;
 
     match revision_id {
-        Some(id) => edit_revision(patch, id, title, description),
-        None => edit_root(patch, title, description),
+        Some(id) => {
+            if target.is_some() {
+                anyhow::bail!("`--target` cannot be used with `--revision`");
+            }
+            edit_revision(patch, id, title, description)
+        }
+        None => {
+            // A target that cannot resolve is not settled state, so warn about
+            // it rather than rejecting the edit.
+            if let Some(target) = &target {
+                match target.resolvable(repository) {
+                    Ok(()) => {}
+                    Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
+                    Err(err) => term::warning(err),
+                }
+            }
+            edit_root(patch, title, description, target)
+        }
     }
 }
 
@@ -40,7 +57,9 @@ fn edit_root(
     >,
     title: Title,
     description: String,
+    target: Option<patch::MergeTarget>,
 ) -> anyhow::Result<()> {
+    let retarget = target.filter(|t| t != patch.target());
     let title = if title.as_ref() != patch.title() {
         Some(title)
     } else {
@@ -52,18 +71,28 @@ fn edit_root(
         None
     };
 
-    if title.is_none() && description.is_none() {
+    if title.is_none() && description.is_none() && retarget.is_none() {
         // Nothing to do.
         return Ok(());
     }
 
     let (root, _) = patch.root();
-    let target = patch.target().clone();
     let embeds = patch.embeds().to_owned();
+    // `Action::Edit` carries the title and the target together, so a change to
+    // either has to restate both.
+    let edit = if title.is_some() || retarget.is_some() {
+        let title = match title {
+            Some(title) => title,
+            None => Title::new(patch.title())?,
+        };
+        Some((title, retarget.unwrap_or_else(|| patch.target().clone())))
+    } else {
+        None
+    };
 
     patch.transaction("Edit root", |tx| {
-        if let Some(t) = title {
-            tx.edit(t, target)?;
+        if let Some((title, target)) = edit {
+            tx.edit(title, target)?;
         }
         if let Some(d) = description {
             tx.edit_revision(root, d, embeds)?;
