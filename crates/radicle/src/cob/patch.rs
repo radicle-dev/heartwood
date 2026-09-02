@@ -28,6 +28,7 @@ use crate::cob::thread::{Comment, CommentId, Edit, Reactions};
 use crate::cob::{ActorId, Embed, EntryId, ObjectId, TypeName, Uri, op, store};
 use crate::crypto::PublicKey;
 use crate::git;
+use crate::git::raw::ErrorExt as _;
 use crate::identity::PayloadError;
 use crate::identity::doc::{DefaultBranchError, DocAt, DocError};
 use crate::prelude::*;
@@ -540,13 +541,22 @@ pub enum MergeTarget {
 
 impl MergeTarget {
     /// Get the head of the target branch.
-    pub fn head(&self, repo: &Repository) -> Result<git::Oid, RepositoryError> {
+    ///
+    /// Returns `None` if the target has no reference in `repo`. A
+    /// [`MergeTarget::Branch`] only gets a top-level reference once a push to
+    /// it reaches quorum, so a target that names a branch with no canonical
+    /// rule, or one whose rule has no commits yet, is not resolvable.
+    pub fn head(&self, repo: &Repository) -> Result<Option<git::Oid>, RepositoryError> {
         match self {
             MergeTarget::Delegates => {
                 let (_, target) = repo.head()?;
-                Ok(target)
+                Ok(Some(target))
             }
-            MergeTarget::Branch(branch) => Ok(repo.backend.refname_to_id(branch.as_str())?.into()),
+            MergeTarget::Branch(branch) => match repo.backend.refname_to_id(branch.as_str()) {
+                Ok(oid) => Ok(Some(oid.into())),
+                Err(err) if err.is_not_found() => Ok(None),
+                Err(err) => Err(err.into()),
+            },
         }
     }
 }
