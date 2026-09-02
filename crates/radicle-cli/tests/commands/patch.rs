@@ -438,6 +438,16 @@ fn rad_patch_magic_push() {
 }
 
 #[test]
+fn rad_patch_target_missing_branch() {
+    Environment::alice(["rad-init", "rad-patch-target-missing-branch"]);
+}
+
+#[test]
+fn rad_patch_target_unsynthesised_cref() {
+    Environment::alice(["rad-init", "rad-patch-target-unsynthesised-cref"]);
+}
+
+#[test]
 fn rad_patch_merge_into_canonical_ref_branch() {
     Environment::alice(["rad-init", "rad-patch-merge-into-canonical-ref-branch"]);
 }
