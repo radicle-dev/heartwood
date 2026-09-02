@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the target has no canonical reference rule, or has a rule but no commits
   yet. The push still succeeds, because a branch only becomes a canonical
   reference after a push to it reaches quorum.
+- `rad patch edit` accepts `--target` to change the branch a patch is
+  meant to be merged into. Previously a wrong target could only be
+  corrected with a raw `rad cob update` action.
 
 ## Fixes
 
