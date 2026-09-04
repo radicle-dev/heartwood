@@ -195,7 +195,6 @@ impl SymbolicRefs {
 impl SymbolicRefs {
     /// Convenience method to get the resolved target of the `HEAD` reference.
     /// Returns the final [`Qualified`] reference after chasing the chain.
-    /// See also [`SymbolicRefs::head`].
     pub fn resolve_head(&self) -> Option<&Qualified<'static>> {
         self.resolve(Unprotected::head().as_ref())
     }
