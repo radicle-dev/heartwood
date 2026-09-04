@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 1.10.2 - 2026-08-26
 
-## Improvements
+### Improvements
 
 - `rad node start` now labels the process identifier it prints
   when executing `radicle-node`.
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to make clear that the key is used by Radicle and the file it
   was loaded from.
 
-## Fixes
+### Fixes
 
 - The Git remote helper `git-remote-rad` now supports the options
   `pushcert [if-asked|false]`. This means it will not refuse operation
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 1.10.1 - 2026-08-12
 
-## Improvements
+### Improvements
 
 - `rad debug` now prints the contents of `/etc/os-release` to help identifying
   the operating system.
@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html#method.verify_strict),
   refer to the documentation of the function.
 
-## Fixes
+### Fixes
 
 - Nodes would leak repository identifiers of private repositories to peers for
   which the private repository should not be visible. This was fixed.
@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 1.10.0 - 2026-08-05
 
-## Repository Identity Evaluation
+### Repository Identity Evaluation
 
 The limitations of evaluating repository identities were found on multiple
 repositories, including the `heartwood` repository. This prompted a review of
@@ -120,7 +120,7 @@ differences.
 In case your repository is affected, you might need to run `rad id cache`. This
 re-evaluates the identity COB and updates the `refs/rad/id` reference.
 
-## Improvements
+### Improvements
 
 - `rad patch list` includes a `Labels` column, showing any assigned labels to
   the patch.
@@ -130,7 +130,7 @@ re-evaluates the identity COB and updates the `refs/rad/id` reference.
   I2P transports, which are higher latency, a larger timeout avoids spurious
   aborts during tunnel rebuilds or congestion.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - Previously, a delegate could push to the default branch, for the first time,
   while attempting to merge a patch. However, the patch would not be marked as
@@ -143,13 +143,13 @@ re-evaluates the identity COB and updates the `refs/rad/id` reference.
 
 ## 1.9.1
 
-## Improvements
+### Improvements
 
 - The Gitoxide dependencies were updated after vulnerabilities were found and
   reported in a number of its crates. Also, the filtering of references in
   `radicle-fetch` is expected to perform better.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - Parsing `AddressType` and `Address` would fail for dependents that do not
   enable the `radicle` crate features `tor` and/or `i2p`.
@@ -171,12 +171,12 @@ re-evaluates the identity COB and updates the `refs/rad/id` reference.
 
 ## 1.9.0
 
-## Minimum Supported Rust Version (MSRV)
+### Minimum Supported Rust Version (MSRV)
 
 The MSRV is updated to `1.88.0` due to dependencies requiring a higher bound.
 This effectively puts all published crates in `heartwood` to an MSRV of `1.88.0`.
 
-## Domain Name Migration
+### Domain Name Migration
 
 Following a domain move of the project, the names of the bootstrap nodes change:
 `{iris,rosa}.radicle.{xyz → network}`.
@@ -185,20 +185,20 @@ be printed.
 The systemd credential IDs that node uses change: `{xyz → dev}.radicle.node.*`.
 COB type names and payload IDs remain unchanged for backwards compatibility.
 
-## New Features
+### New Features
 
-- The remote helper (`git-remote-rad`) now supports the push option 
-  `patch.target`. This allows users to explicitly specify a target canonical 
+- The remote helper (`git-remote-rad`) now supports the push option
+  `patch.target`. This allows users to explicitly specify a target canonical
   reference when opening or updating a patch. For example, to open a patch that
   targets the branch "backport", use `git push -o patch.target=refs/heads/backport`.
-  Furthermore, strict merge and revert isolation is now enforced: patches are 
-  only marked as merged or reverted if the commits are pushed to the target 
+  Furthermore, strict merge and revert isolation is now enforced: patches are
+  only marked as merged or reverted if the commits are pushed to the target
   branch of the patch explicitly.
-- Additionally a magic push reference has been introduced to shortcut the usage 
-  of the aforementioned push option `patch.target`. `refs/for/<branch>` can be 
-  used to set the `patch.target` when used as a push target e.g. 
+- Additionally a magic push reference has been introduced to shortcut the usage
+  of the aforementioned push option `patch.target`. `refs/for/<branch>` can be
+  used to set the `patch.target` when used as a push target e.g.
   `git push rad HEAD:refs/for/backport`. This will use the `refs/heads/backport`
-  canonical reference as its `patch.target` in place of using the push option. 
+  canonical reference as its `patch.target` in place of using the push option.
 - Teach `rad patch show` to show the full commit range for each revision.
   Previously, it would only show the head of the range, but not the base.
   It now shows `<base>..<head>`, where the shortened OID is used when not
@@ -218,7 +218,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   connections via SOCKS proxy and I2P for `*.i2p{,.alt}` names is now supported.
   To enable making connections via I2P, configure `node.i2p`.
 
-## Deprecations
+### Deprecations
 
 - The commands to read and modify particular values in Radicle configuration via
   the CLI, i.e.,
@@ -231,7 +231,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   with your favorite text editor (e.g. via `rad config edit`), or specialized
   tools like `jq`.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - Skip node address entries that cannot be parsed from an SQLite row into a
   valid address entry. This improves the node service, when it checks available
@@ -251,7 +251,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 
 ## 1.8.0
 
-## New Features
+### New Features
 
 - Teach the `rad sync` and `rad clone` commands to accept the
   `--signed-refs-feature-level` option. This option configures that fetch to use
@@ -287,7 +287,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 
 ## 1.7.1
 
-## Fixed Bugs
+### Fixed Bugs
 
 - The fix to ambiguous IPv6 addresses, e.g. `::1:8776` vs. `[::1]:8776`,
   resulted in backward incompatibility. Configuration files containing addresses
@@ -307,7 +307,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 
 ## 1.7.0
 
-## Release Highlights
+### Release Highlights
 
 - The "Signed References" feature was reimplemented. The commits in
   `refs/rad/sigrefs` will now only verify if they carry an appropriate value for
@@ -322,7 +322,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   so, it walks the history of `refs/rad/sigrefs` backwards to the root commit,
   if `refs/rad/sigrefs-parent` is not set.
 
-## New Features
+### New Features
 
 - The block policy for `NodeId`'s is used for limiting the namespaces fetched
   from other nodes. It is now also extended to block connections to the blocked
@@ -338,7 +338,7 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
   generates less I/O operations. On power loss, transactions might be rolled
   back, but SQLite still guarantees consistency in this mode.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - When preparing commands to execute, the `shlex` crate was used on all platforms.
   The semantics on Windows are different (e.g. '\' is a path separator on Windows
@@ -362,14 +362,14 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 - On Windows, use `CONIN$` to reopen the terminal input stream, instead of refusing
   to launch an editor for `radicle-remote-helper`
 
-## Deprecations
+### Deprecations
 
 - The `rad fork` command was confusing, and mislead users as to what its purpose
   was. Many believed it to create a hard-fork of the repository. Instead, it
   pushed the default branch to the local user's namespace. The command is now
   deprecated, and the user should use `git push` instead.
 
-## Breaking Changes
+### Breaking Changes
 
 - The `Connected` state of a peer no longer contains fetching information. This
   information was returned when requesting for `Seeds` on the control socket.
@@ -385,20 +385,20 @@ COB type names and payload IDs remain unchanged for backwards compatibility.
 
 ## 1.6.1
 
-## Fixed Bugs
+### Fixed Bugs
 
-### Improve Logging
+#### Improve Logging
 
 The introduction of new logs in `radicle-node` caused too many log lines to be
 output. All logs were evaluated and adjusted to a more suitable log level.
 
-### Improve `Service::fetch_missing_repositories`
+#### Improve `Service::fetch_missing_repositories`
 
 If the check for `storage.contains` failed with an error, the whole process of
 fetching missing repositories would fail. Instead, the error is logged and it
 continues to gather repositories to fetch.
 
-### Surface Underlying I/O Error for `radicle-fetch`
+#### Surface Underlying I/O Error for `radicle-fetch`
 
 When an I/O error would occur within the `gix-transport` crate, the underlying
 error would become opaque. This makes it hard to debug the issue when it occurs.
@@ -406,9 +406,9 @@ Instead, surface the I/O error so that it can be inspected.
 
 ## 1.6.0
 
-## Release Highlights
+### Release Highlights
 
-### Migrating `radicle-node` to `mio`
+#### Migrating `radicle-node` to `mio`
 
 The crates [`netservices`], [`io-reactor`], and [`popol`] were crucially valuable
 for implementing `radicle-node`. However, they are not ideal dependencies for
@@ -465,7 +465,7 @@ ensuring long-term health of the network I/O layer:
 [`std::net`]: https://doc.rust-lang.org/stable/std/net/index.html
 [noted by cloudhead]: https://cloudhead.io/popol/
 
-### Building `radicle-node` on Windows
+#### Building `radicle-node` on Windows
 
 The efforts to migrate `radicle-node` to use `mio`, alongside changes that fixed
 path canonicalization and supporting Windows pipes, have allowed developers to
@@ -476,14 +476,14 @@ time of writing, there may be undiscovered issues, since this is a nascent time
 for `radicle-node` on Windows. Please report any issues you see via `rad issue`
 or on our [Zulip](https://radicle.zulipchat.com).
 
-### Rust MSRV Update to 1.85
+#### Rust MSRV Update to 1.85
 
 For those who are developing on top of the `heartwood` crates, it is important
 to note that the Minimum Supported Rust Version (MSRV) is now 1.85.
 
-## New Features
+### New Features
 
-### Argument Parsing via `clap`
+#### Argument Parsing via `clap`
 
 `rad` now uses the `clap` crate for parsing its command-line arguments. This
 brings a brand new look to the help output for the `rad` CLI, and ensures that
@@ -495,7 +495,7 @@ affect error reporting, as they are now reported by `clap` when parsing fails.
 With the introduction of `clap`, this helped with the introduction of a command
 `rad completion` to emit shell completions for static information.
 
-### systemd Credentials for `radicle-node`
+#### systemd Credentials for `radicle-node`
 
 `radicle-node` now supports systemd Credentials (refer to
 <https://systemd.io/CREDENTIALS> for more information) to load:
@@ -510,9 +510,9 @@ With the introduction of `clap`, this helped with the introduction of a command
 - Symbolic references can now be handled by canonical references by coding them
   in the payload `xyz.radicle.crefs` under the key `symbolic`.
 
-## Fixed Bugs
+### Fixed Bugs
 
-### Fix Bootstrapping
+#### Fix Bootstrapping
 
 The IP (both IPv4 and IPv6) and the Tor onion addresses were specified for the
 bootstrap nodes. When a new user came to using Radicle, there was a chance that
@@ -523,9 +523,9 @@ configured, and removed the IP addresses in favor of the DNS names.
 
 ## 1.5.0
 
-## Release Highlights
+### Release Highlights
 
-### Better Support for Bare Repositories
+#### Better Support for Bare Repositories
 
 [gitrepository-layout]: https://git-scm.com/docs/gitrepository-layout/2.49.0
 
@@ -541,7 +541,7 @@ For `jj` users, this begins to unlock being able to use `jj` without co-location
 of the Git repository. Further improvements to interoperability with `jj` are
 in progress and will be released in future versions.
 
-### Introducing the `patch.branch` Option
+#### Introducing the `patch.branch` Option
 
 Continuing on the theme of making `jj` users happy, `git-remote-rad` can now
 handle the option `-o patch.branch[=<name>]`. When the option is passed without
@@ -565,13 +565,13 @@ output shows a timeline of the root of the patch and each new revision, without
 any differentiation. The revision identifiers, head commit of the revision, and
 author are still printed as per usual.
 
-### Structured Logging
+#### Structured Logging
 
 The `radicle-node` has learned to output structure logging using the new
 `--log-logger structured` and `--log-format json` option pairs. If they are not
 specified, then the logging will remain the same as per usual.
 
-### Deprecations in `rad`
+#### Deprecations in `rad`
 
 It is important to note that we are now emitting deprecation and obsoletion
 warnings for several `rad` commands and options.
@@ -593,7 +593,7 @@ requires more research and time to implement. These commands will likely be
 removed before a next major release, since their lack of functionality is
 confusing.
 
-## Deprecations
+### Deprecations
 
 - The option `rad self --nid` was deprecated in favor of `rad node status --only nid`
 - `rad diff` was deprecated in favor of using `git diff`
@@ -603,7 +603,7 @@ confusing.
 - The option `radicle-node --log` was deprecated in favor of
   `radicle-node --log-level` to be in line with `--log-logger` and `--log-format`.
 
-## New Features
+### New Features
 
 - `rad clone` now supports the flag `--bare` which works analogously to
   `git clone --bare`.
@@ -622,7 +622,7 @@ confusing.
   options. The node will output its logs in a structured, JSON format when
   specified.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - The `rad` CLI now uses [indicatif](https://crates.io/crates/indicatif) for
   emitting progress spinners. This fixes an issue when the terminal size was
@@ -637,35 +637,35 @@ confusing.
 
 ## 1.4.0
 
-## Release Highlights
+### Release Highlights
 
-### systemd service hardening
+#### systemd service hardening
 
 Running `radicle-node` as systemd service using our service files, will now run the service with some hardening options enabled.
 This work includes some trivial sandboxing options in the provided service files and lead users to `systemd-analyze security`.
 
 While being a trivial change and far from a secure service it is an improvement and may push downstream packagers and / or users to add even a bit of sandboxing.
 
-### Path to Windows
+#### Path to Windows
 
 We continued working on Windows support for Radicle and made some progress on the node implementation.
 As `std::os::unix` is obviously not available on Windows, we resorted to using the `winpipe` crate.
 This crate implements a very similar API to `std::os::unix` but for named pipes.
 The node has learned how to use named pipes when for the control socket when on Windows architecture.
 
-### Bootstrapping Improvements
+#### Bootstrapping Improvements
 
 When you start a fresh node, it'll need to have at least one seed that it can bootstrap from.
 We do this by using `iris.radicle.xyz` and `rosa.radicle.xyz` as bootstrap nodes.
 With this release, a node can now connect to them when DNS is not available or a connection via Tor is desired.
 
-### Improvements to `rad cob log`
+#### Improvements to `rad cob log`
 
 The rad cob log command learned two new options, `--from` and `--to`.
 These take a commit SHA that correspond to a COB operation,
 and allows you to limit the log to start from or end the log at those operations, respectively.
 
-### Improvements to rad sync
+#### Improvements to rad sync
 
 We now use a more suitable symbol in rad sync status for the status:
 
@@ -682,26 +682,26 @@ Included in these improvements is changing the target behavior.
 Before, the announcements would attempt to reach the preferred seeds target and the replication factor.
 Now, it tries to reach the preferred seeds and falls back to the replication factor.
 
-### Human Oriented Panics
+#### Human Oriented Panics
 
 The `rad` CLI now prints a more human-friendly message when it encounters a panic.
 
-### Notable Crate Changes
+#### Notable Crate Changes
 
 - Introduce a new module that provides an API for iterating over a COB's operations, given a range of commits
 - Remove `anyhow` from `radicle-term` and `radicle-node`
 - BREAKING: Removed `radicle::node::DEFAULT_SOCKET_NAME`, use `radicle::profile::Home::socket` instead
 - BREAKING: Add a node event for canonical reference updates
 
-## Fixed Bugs
+### Fixed Bugs
 
 - Fix panic when reading from SQLite database fails
 
 ## 1.3.1 - 2025-09-04
 
-## Fixed Bugs
+### Fixed Bugs
 
-### Fixed Panics
+#### Fixed Panics
 
 Two instances of panics were fixed in this release.
 
@@ -718,12 +718,11 @@ calls `try_read` and `unwrap`s the `Result`, which would cause a panic. We have
 replaced the calls to `read` with `try_read` to more gracefully handle the
 error.
 
-
 ## 1.3.0 - 2025-08-12
 
-## Release Highlights
+### Release Highlights
 
-### Canonical References
+#### Canonical References
 
 Introduce canonical reference rules via a payload entry in the identity
 document. The payload is identified by `xyz.radicle.crefs`, and the payload
@@ -736,7 +735,7 @@ document fields: `threshold` and `delegates`. This means that a rule for that
 reference is not allowed within the rule set. This checked when performing a
 `rad id update`.
 
-### Introducing `radicle-protocol`
+#### Introducing `radicle-protocol`
 
 This set of changes is mostly cosmetic for the time being. A new crate,
 `radicle-protocol`, was introduced to provide a home for a sans I/O
@@ -759,14 +758,14 @@ However, the sans I/O approach mentioned above will provide a way
 forward for implementing a `radicle-node` that works on Windows, and we will
 continue to look into other fixes required for getting full Windows support.
 
-### Display Full Node IDs
+#### Display Full Node IDs
 
 Node IDs and node addresses have improved formatting. The CLI will output
 shortened forms of NIDs and addresses when the output is transient, and the full
 form where it is presented to the user. This will allow you to be able to copy
 and paste these identifiers.
 
-## New Features
+### New Features
 
 - Canonical reference rule in the identity payload, identified by
   `xyz.radicle.crefs`.
@@ -781,7 +780,7 @@ and paste these identifiers.
   repository is now by provided the branch you are on or the Git configuration
   option `init.defaultBranch`.
 
-## Fixed Bugs
+### Fixed Bugs
 
 - Connection attempts will now return an error if they fail. Before the change,
   the connection attempts would timeout.
