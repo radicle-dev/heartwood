@@ -379,6 +379,7 @@
           cargo-audit
           cargo-deny
           cargo-watch
+          cargo-msrv
           cargo-nextest
           cargo-semver-checks
           cargo-shear
