@@ -20,7 +20,7 @@ the refs.
 ``` ~alice
 $ rad id update --title "Allow Bob" --description "" --allow did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk -q
 ...
-$ rad sync --announce --timeout 3s
+$ rad sync --announce --timeout 30s
 ✓ Synced with 1 seed(s)
 ```
 
