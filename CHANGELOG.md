@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.10.3 - 2026-09-07
+
+### Fixes
+
+- Repositories where the founder, i.e., the delegate of the initial version of
+  the identity document, is not a delegate anymore, could not be cloned. To
+  remedy, the namespace of the founder is now always fetched (just like the
+  namespaces of all current delegates are also always fetched).
+- Serialization and deserialization of canonical symbolic references (to and
+  from JSON) was erroneously implemented under ordering assumptions that
+  conflicted with the canonical JSON encoding used. The affected code was
+  rewritten to not require the assumption and is now more resilient.
+- Matches of reference names against raw canonical reference rules were reported
+  in the wrong order. They should have been reported in descending specificity,
+  but were reported in lexicographic order. Matching on raw rules was removed.
+  It is now only possible to match against a validated set of canonical
+  reference rules.
+
+### Improvements
+
+- If the environment variable `SSH_AUTH_SOCK` is empty, this is not treated as
+  a path to the socket to use for communication with an SSH Agent anymore.
+- The configuration value `preferredSeeds` is not populated by default anymore.
+- The Git remote helper will now report the symbolic reference `HEAD` even for
+  user namespaces, according to the canonical references of the repository.
+- Assumptions regarding the presence of the identity document payload
+  `xyz.radicle.project` were greatly relaxed. This is in preparation of future
+  changes to the schema of the identity document.
+
 ## 1.10.2 - 2026-08-26
 
 ### Improvements
