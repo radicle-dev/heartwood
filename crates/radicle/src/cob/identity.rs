@@ -509,8 +509,8 @@ impl Identity {
         let did = author.into();
 
         match action {
-            action @ (Action::RevisionAccept { revision: id, .. }
-            | Action::RevisionReject { revision: id }) => {
+            Action::RevisionAccept { revision: id, .. }
+            | Action::RevisionReject { revision: id } => {
                 let noun = match action {
                     Action::RevisionAccept { .. } => "acceptance",
                     Action::RevisionReject { .. } => "rejection",
