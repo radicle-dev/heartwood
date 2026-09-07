@@ -282,6 +282,8 @@ fn git_push_canonical_lightweight_tags() {
 
     bob.connect(&alice).converge([&alice]);
     bob.clone(rid, environment.work(&bob)).unwrap();
+    // Alice must see Bob as a seed before `git push` tries to sync.
+    alice.routes_to(&[(rid, bob.id)]);
     formula(
         &environment.tempdir(),
         "examples/git/git-push-canonical-lightweight-tags.md",
@@ -328,6 +330,8 @@ fn git_push_canonical() {
 
     bob.connect(&alice).converge([&alice]);
     bob.clone(rid, environment.work(&bob)).unwrap();
+    // Alice must see Bob as a seed before `git push` tries to sync.
+    alice.routes_to(&[(rid, bob.id)]);
     formula(
         &environment.tempdir(),
         "examples/git/git-push-canonical-annotated-tags.md",
