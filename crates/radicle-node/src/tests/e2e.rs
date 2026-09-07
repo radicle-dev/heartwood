@@ -826,13 +826,15 @@ fn clone_without_founder_namespace() {
     assert!(!eve.storage.contains(&rid).unwrap());
     eve.handle.seed(rid, Scope::Followed).unwrap();
 
-    assert_matches!(
-        eve
-            .handle
+    assert!(
+        eve.handle
             .fetch(rid, bob.id, DEFAULT_TIMEOUT, None)
-            .unwrap(),
-        FetchResult::Failed { reason } if reason == "missing identity document"
+            .unwrap()
+            .is_success()
     );
+
+    let cloned = eve.storage.repository(rid).unwrap();
+    assert_eq!(cloned.identity_doc().unwrap().doc, doc);
 }
 
 #[test]
