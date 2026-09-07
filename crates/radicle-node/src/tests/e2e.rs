@@ -754,6 +754,88 @@ fn test_clone() {
 }
 
 #[test]
+fn clone_without_founder_namespace() {
+    use radicle::identity::Identity;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Node::init(tmp.path(), config::relay("amy"), 13);
+    let bob = Node::init(tmp.path(), config::relay("bob"), 37);
+    let eve = Node::init(tmp.path(), config::relay("eve"), 42);
+    let rid = amy.project("acme", "");
+
+    // Amy hands over the repository to Bob, making him the sole delegate.
+    let doc = {
+        let repo = amy.storage.repository(rid).unwrap();
+        let mut identity = Identity::load_mut(&repo, &amy.secret_key).unwrap();
+        let doc = identity
+            .doc()
+            .clone()
+            .with_edits(|doc| {
+                doc.delegate(bob.id.into());
+                assert!(doc.rescind(&amy.id.into()).unwrap());
+            })
+            .unwrap();
+        assert_eq!(doc.delegates().len(), 1);
+        let revision = identity
+            .update(Title::new("Hand over to Bob").unwrap(), "", &doc)
+            .unwrap();
+        repo.set_identity_head_to(revision).unwrap();
+
+        doc
+    };
+
+    let amy = amy.spawn();
+    let mut bob = bob.spawn();
+    bob.connect(&amy);
+    bob.handle.seed(rid, Scope::All).unwrap();
+
+    assert_matches!(
+        bob.handle
+            .fetch(rid, amy.id, DEFAULT_TIMEOUT, None)
+            .unwrap(),
+        FetchResult::Success { .. }
+    );
+
+    // Have Bob fork Amy's namespace, so that the default branch remains
+    // well defined.
+    rad::fork_remote(rid, &amy.id, &bob.signer, &bob.storage).unwrap();
+
+    bob.disconnect(&amy);
+
+    let founder = amy.id;
+    drop(amy);
+
+    let repo = bob.storage.repository(rid).unwrap();
+    let identity = Identity::load(&repo).unwrap();
+
+    assert!(!identity.doc().is_delegate(&founder.into()));
+    assert_eq!(identity.doc().delegates().len(), 1);
+    assert!(identity.doc().is_delegate(&bob.id.into()));
+
+    // Bob still has the founder's namespace.
+    assert!(
+        repo.reference_oid(&founder, &git::refs::storage::IDENTITY_ROOT)
+            .is_ok()
+    );
+
+    // Eve has no cached refs/rad/id. Fetching with followed scope must also
+    // include the founder, Amy, even though she is no longer a delegate.
+    let mut eve = eve.spawn();
+    eve.connect(&bob);
+
+    assert!(!eve.storage.contains(&rid).unwrap());
+    eve.handle.seed(rid, Scope::Followed).unwrap();
+
+    assert_matches!(
+        eve
+            .handle
+            .fetch(rid, bob.id, DEFAULT_TIMEOUT, None)
+            .unwrap(),
+        FetchResult::Failed { reason } if reason == "missing identity document"
+    );
+}
+
+#[test]
 fn test_fetch_up_to_date() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
