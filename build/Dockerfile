@@ -40,7 +40,7 @@ RUN rustup target add \
 # We use Zig as the linker to perform the compilation from a Linux host.
 # Zig is not yet available on Debian, so we download the official binary.
 # Compilation is done via `cargo-zigbuild` which is a wrapper around `zig`.
-RUN cargo install --locked cargo-zigbuild@0.22.1
+RUN cargo install --locked cargo-zigbuild@0.23.4
 
 # Parts of the macOS SDK are required to build Radicle, we make these available
 # here. So far only `CoreFoundation` and `Security` frameworks are needed.
