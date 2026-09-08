@@ -1398,7 +1398,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_updates() {
+    fn identity_updates() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = SigningKey::mock(103);
         let signer = &node.signer;
@@ -1461,7 +1461,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_update_rejected() {
+    fn identity_update_rejected() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = SigningKey::mock(200);
         let eve = SigningKey::mock(201);
@@ -1541,7 +1541,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_updates_concurrent() {
+    fn identity_updates_concurrent() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
@@ -1613,7 +1613,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_redact_revision() {
+    fn identity_redact_revision() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
@@ -1972,7 +1972,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_updates_concurrent_outdated() {
+    fn identity_updates_concurrent_outdated() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
@@ -2253,7 +2253,7 @@ mod test {
     }
 
     #[test]
-    fn test_identity_cannot_redact_terminal_states() {
+    fn identity_cannot_redact_terminal_states() {
         let network = Network::default();
         let alice = &network.alice;
         let bob = &network.bob;
@@ -2571,7 +2571,7 @@ mod test {
     }
 
     #[test]
-    fn test_valid_identity() {
+    fn valid_identity() {
         let tempdir = tempfile::tempdir().unwrap();
         let mut rng = fastrand::Rng::new();
 

@@ -620,7 +620,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_diff_encode_decode_diff() {
+    fn diff_encode_decode_diff() {
         let diff_a = diff::Diff::parse(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/data/diff.diff"
@@ -636,7 +636,7 @@ mod test {
     }
 
     #[test]
-    fn test_diff_content_encode_decode_content() {
+    fn diff_content_encode_decode_content() {
         let diff_content = diff::DiffContent::parse(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/data/diff_body.diff"

@@ -259,7 +259,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_truncate() {
+    fn truncate() {
         assert_eq!("🍍".truncate(1, "…"), String::from("…"));
         assert_eq!("🍍".truncate(1, ""), String::from(""));
         assert_eq!("🍍🍍".truncate(2, "…"), String::from("…"));
@@ -272,7 +272,7 @@ mod test {
     }
 
     #[test]
-    fn test_table() {
+    fn table() {
         let mut t = Table::new(TableOptions::default());
 
         t.push(["pineapple", "rosemary"]);
@@ -289,7 +289,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_border() {
+    fn table_border() {
         let mut t = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
@@ -326,7 +326,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_border_truncated() {
+    fn table_border_truncated() {
         let mut t = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
@@ -367,7 +367,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_border_maximized() {
+    fn table_border_maximized() {
         let mut t = Table::new(TableOptions {
             border: Some(Color::Unset),
             spacing: 3,
@@ -411,7 +411,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_truncate() {
+    fn table_truncate() {
         let mut t = Table::default();
         let constrain = Constraint::new(
             Size::MIN,
@@ -435,7 +435,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_unicode() {
+    fn table_unicode() {
         let mut t = Table::new(TableOptions::default());
 
         t.push(["🍍pineapple", "__rosemary", "__sage"]);
@@ -452,7 +452,7 @@ mod test {
     }
 
     #[test]
-    fn test_table_unicode_truncate() {
+    fn table_unicode_truncate() {
         let mut t = Table::new(TableOptions {
             ..TableOptions::default()
         });

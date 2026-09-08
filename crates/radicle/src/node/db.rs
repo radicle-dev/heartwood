@@ -245,7 +245,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_version() {
+    fn version() {
         let n = MIGRATIONS.len();
         let db = Database::memory().unwrap();
         assert_eq!(db.version().unwrap(), n);

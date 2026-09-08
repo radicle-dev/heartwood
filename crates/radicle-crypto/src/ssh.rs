@@ -82,23 +82,23 @@ pub mod fmt {
         use alloc::str::FromStr;
 
         #[test]
-        fn test_key() {
+        fn key() {
             let pk =
                 PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
 
             assert_eq!(
-                key(&pk),
+                super::key(&pk),
                 "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINDoXIrhcnRjnLGUXUFdxhkuy08lkTOwrj2IoGsEX6+Q"
             );
         }
 
         #[test]
-        fn test_fingerprint() {
+        fn fingerprint() {
             let pk =
                 PublicKey::from_str("z6MktWkM9vcfysWFq1c2aaLjJ6j4PYYg93TLPswR4qtuoAeT").unwrap();
 
             assert_eq!(
-                fingerprint(&pk),
+                super::fingerprint(&pk),
                 "SHA256:gE/Ty4fuXzww49lcnNe9/GI0L7xSEQdFp/v9tOjFwB4"
             );
         }

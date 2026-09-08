@@ -134,7 +134,7 @@ mod test {
     use super::{Review, Summary};
 
     #[test]
-    fn test_review_summary() {
+    fn review_summary() {
         let summary_null = json!(null);
         let summary_string = json!("lgtm");
         let summary_edits = json!([{
@@ -165,7 +165,7 @@ mod test {
     }
 
     #[test]
-    fn test_review_deserialize_summary_migration_null_summary() {
+    fn review_deserialize_summary_migration_null_summary() {
         let review = json!({
             "id": "89d45fb371eb2622ba88188d474347cc526d80bb",
             "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
@@ -186,7 +186,7 @@ mod test {
     }
 
     #[test]
-    fn test_review_deserialize_summary_migration_without_summary() {
+    fn review_deserialize_summary_migration_without_summary() {
         let review = json!({
             "id": "89d45fb371eb2622ba88188d474347cc526d80bb",
             "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
@@ -206,7 +206,7 @@ mod test {
     }
 
     #[test]
-    fn test_review_deserialize_summary_migration_with_summary() {
+    fn review_deserialize_summary_migration_with_summary() {
         let review = json!({
             "id": "89d45fb371eb2622ba88188d474347cc526d80bb",
             "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },
@@ -227,7 +227,7 @@ mod test {
     }
 
     #[test]
-    fn test_review_deserialize_summary_v2() {
+    fn review_deserialize_summary_v2() {
         let review = json!({
             "id": "89d45fb371eb2622ba88188d474347cc526d80bb",
             "author": { "id": "did:key:z6MkwPUeUS2fJMfc2HZN1RQTQcTTuhw4HhPySB8JeUg2mVvx" },

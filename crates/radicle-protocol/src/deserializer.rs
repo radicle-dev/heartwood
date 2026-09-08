@@ -126,7 +126,7 @@ mod test {
     const MSG_BYE: &[u8] = &[3, b'b', b'y', b'e'];
 
     #[test]
-    fn test_decode_next() {
+    fn decode_next() {
         let mut decoder = Deserializer::<1024, String>::new(8);
 
         decoder.input(&[3, b'b']).unwrap();
@@ -144,7 +144,7 @@ mod test {
     }
 
     #[test]
-    fn test_unparsed() {
+    fn unparsed() {
         let mut decoder = Deserializer::<1024, String>::new(8);
 
         decoder.input(&[3, b'b', b'y']).unwrap();

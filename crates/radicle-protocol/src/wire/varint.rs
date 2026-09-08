@@ -218,12 +218,12 @@ mod test {
 
     #[test]
     #[should_panic(expected = "overflow")]
-    fn test_encode_overflow() {
+    fn encode_overflow() {
         VarInt(u64::MAX).encode_to_vec();
     }
 
     #[test]
-    fn test_encoding() {
+    fn encoding() {
         assert_eq!(VarInt(0).encode_to_vec(), vec![0x0]);
         assert_eq!(VarInt(1).encode_to_vec(), vec![0x01]);
         assert_eq!(VarInt(10).encode_to_vec(), vec![0x0a]);

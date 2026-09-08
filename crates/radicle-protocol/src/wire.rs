@@ -628,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn test_string() {
+    fn string() {
         assert_eq!(
             String::from("hello").encode_to_vec(),
             vec![5, b'h', b'e', b'l', b'l', b'o']
@@ -636,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn test_alias() {
+    fn alias() {
         assert_eq!(
             Alias::from_str("hello").unwrap().encode_to_vec(),
             vec![5, b'h', b'e', b'l', b'l', b'o']
@@ -644,7 +644,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_invalid() {
+    fn filter_invalid() {
         let b = bloomy::BloomFilter::with_size(filter::FILTER_SIZE_M / 3);
         let f = filter::Filter::from(b);
         let bytes = f.encode_to_vec();
@@ -656,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bounded_vec_limit() {
+    fn bounded_vec_limit() {
         let v: BoundedVec<u8, 2> = vec![1, 2].try_into().unwrap();
         let buf = &v.encode_to_vec();
 

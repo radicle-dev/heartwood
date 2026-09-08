@@ -1133,7 +1133,7 @@ mod test {
     use qcheck_macros::quickcheck;
 
     #[test]
-    fn test_duplicate_dids() {
+    fn duplicate_dids() {
         let delegate = SigningKey::mock(usize::MAX);
         let did = Did::from(delegate.public_key());
         let mut doc = RawDoc::new(r#gen::<Project>(1), vec![did], 1, Visibility::Public);
@@ -1144,7 +1144,7 @@ mod test {
     }
 
     #[test]
-    fn test_max_delegates() {
+    fn max_delegates() {
         // Generate more than the max delegates
         let delegates = arbitrary::set::<Did>(MAX_DELEGATES + 1..=MAX_DELEGATES + 1)
             .into_iter()
@@ -1165,7 +1165,7 @@ mod test {
     }
 
     #[test]
-    fn test_is_valid_version() {
+    fn is_valid_version() {
         // 0 is not a valid version
         assert!(!Version::is_valid_version(&0));
 
@@ -1180,7 +1180,7 @@ mod test {
     }
 
     #[test]
-    fn test_future_version_error() {
+    fn future_version_error() {
         let v = Version(NonZeroU32::MAX).to_string();
         assert_eq!(
             serde_json::from_str::<Version>(&v)
@@ -1191,7 +1191,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_version() {
+    fn parse_version() {
         // Original document before introducing the version field
         let v1 = json!(
             {
@@ -1265,7 +1265,7 @@ mod test {
     }
 
     #[test]
-    fn test_canonical_example() {
+    fn canonical_example() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
@@ -1296,7 +1296,7 @@ mod test {
     }
 
     #[test]
-    fn test_not_found() {
+    fn not_found() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let remote = arbitrary::r#gen::<RemoteId>(1);
@@ -1315,7 +1315,7 @@ mod test {
     }
 
     #[test]
-    fn test_canonical_doc() {
+    fn canonical_doc() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         transport::local::register(storage.clone());
@@ -1345,7 +1345,7 @@ mod test {
     }
 
     #[test]
-    fn test_visibility_json() {
+    fn visibility_json() {
         use std::str::FromStr;
 
         assert_eq!(

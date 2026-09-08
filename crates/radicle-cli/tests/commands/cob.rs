@@ -102,7 +102,7 @@ fn rad_cob_operations() {
 }
 
 #[test]
-fn test_cob_replication() {
+fn cob_replication() {
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
     let mut alice = environment.node("alice");
@@ -171,7 +171,7 @@ fn test_cob_replication() {
 }
 
 #[test]
-fn test_cob_deletion() {
+fn cob_deletion() {
     let mut environment = Environment::new();
     let working = tempfile::tempdir().unwrap();
     let mut alice = environment.node("alice");

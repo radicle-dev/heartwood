@@ -1161,7 +1161,7 @@ mod tests {
     use crate::test::fixtures;
 
     #[test]
-    fn test_references_of() {
+    fn references_of() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = SigningKey::mock(54);
         let storage = Storage::open(tmp.path().join("storage"), fixtures::user()).unwrap();
@@ -1195,7 +1195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_refs() {
+    fn sign_refs() {
         let tmp = tempfile::tempdir().unwrap();
         let signer = SigningKey::mock(0xb4);
         let storage = Storage::open(tmp.path(), fixtures::user()).unwrap();

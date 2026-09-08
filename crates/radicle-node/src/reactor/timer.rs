@@ -67,7 +67,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_wake_exact() {
+    fn wake_exact() {
         let mut tm = Timer::new();
 
         let now = Instant::now();
@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wake() {
+    fn wake() {
         let mut tm = Timer::new();
 
         let now = Instant::now();
@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn test_next() {
+    fn next() {
         let mut tm = Timer::new();
 
         let mut now = Instant::now();

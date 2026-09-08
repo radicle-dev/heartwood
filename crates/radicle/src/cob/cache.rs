@@ -449,7 +449,7 @@ mod tests {
     use crate::assert_matches;
 
     #[test]
-    fn test_check_version() {
+    fn check_version() {
         let mut db = StoreWriter::memory().unwrap();
         assert_matches!(db.check_version(), Err(Error::OutOfDate));
 
@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_to() {
+    fn migrate_to() {
         let mut db = StoreWriter::memory().unwrap();
         assert_eq!(db.version().unwrap(), 0);
 

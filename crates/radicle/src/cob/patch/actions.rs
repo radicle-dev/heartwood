@@ -188,7 +188,7 @@ mod test {
     use super::ReviewEdit;
 
     #[test]
-    fn test_review_edit() {
+    fn review_edit() {
         let v1 = json!({
             "type": "review.edit",
             "review": "89d45fb371eb2622ba88188d474347cc526d80bb",

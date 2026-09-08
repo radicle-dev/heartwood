@@ -945,7 +945,7 @@ mod test {
     use crate::{assert_matches, test};
 
     #[test]
-    fn test_concurrency() {
+    fn concurrency() {
         let t = test::setup::Network::default();
 
         let mut alice_issues = Cache::no_cache(&*t.alice.repo, &t.alice.signer).unwrap();
@@ -1016,7 +1016,7 @@ mod test {
     }
 
     #[test]
-    fn test_ordering() {
+    fn ordering() {
         assert!(CloseReason::Solved > CloseReason::Other);
         assert!(
             State::Open
@@ -1027,7 +1027,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_create_and_assign() {
+    fn issue_create_and_assign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1063,7 +1063,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_create_and_reassign() {
+    fn issue_create_and_reassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1095,7 +1095,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_create_and_get() {
+    fn issue_create_and_get() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let created = issues
@@ -1120,7 +1120,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_create_and_change_state() {
+    fn issue_create_and_change_state() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1156,7 +1156,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_create_and_unassign() {
+    fn issue_create_and_unassign() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1183,7 +1183,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_edit() {
+    fn issue_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1207,7 +1207,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_edit_description() {
+    fn issue_edit_description() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1232,7 +1232,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_react() {
+    fn issue_react() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1261,7 +1261,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_reply() {
+    fn issue_reply() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1307,7 +1307,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_label() {
+    fn issue_label() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let bug_label = Label::new("bug").unwrap();
@@ -1338,7 +1338,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_comment() {
+    fn issue_comment() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let author = node.signer.public_key();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
@@ -1374,7 +1374,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_comment_redact() {
+    fn issue_comment_redact() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1403,7 +1403,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_state_serde() {
+    fn issue_state_serde() {
         assert_eq!(
             serde_json::to_value(State::Open).unwrap(),
             serde_json::json!({ "status": "open" })
@@ -1419,7 +1419,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_all() {
+    fn issue_all() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         issues
@@ -1447,7 +1447,7 @@ mod test {
     }
 
     #[test]
-    fn test_issue_multilines() {
+    fn issue_multilines() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let created = issues
@@ -1472,7 +1472,7 @@ mod test {
     }
 
     #[test]
-    fn test_embeds() {
+    fn embeds() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1525,7 +1525,7 @@ mod test {
     }
 
     #[test]
-    fn test_embeds_edit() {
+    fn embeds_edit() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
 
@@ -1573,7 +1573,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_actions() {
+    fn invalid_actions() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1604,7 +1604,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_tx() {
+    fn invalid_tx() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let mut issue = issues
@@ -1630,7 +1630,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_tx_reference() {
+    fn invalid_tx_reference() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
         let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
         let issue = issues
@@ -1652,7 +1652,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_cob() {
+    fn invalid_cob() {
         use cob::change::Storage as _;
         use cob::object::Storage as _;
         use nonempty::NonEmpty;

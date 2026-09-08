@@ -1592,7 +1592,7 @@ mod test {
     use crate::assert_matches;
 
     #[test]
-    fn test_user_agent() {
+    fn user_agent() {
         assert!(UserAgent::from_str("/radicle:1.0.0/").is_ok());
         assert!(UserAgent::from_str("/radicle:1.0.0/heartwood:0.9/").is_ok());
         assert!(UserAgent::from_str("/radicle:1.0.0/heartwood:0.9/rust:1.77/").is_ok());
@@ -1614,7 +1614,7 @@ mod test {
     }
 
     #[test]
-    fn test_alias() {
+    fn alias() {
         assert!(Alias::from_str("cloudhead").is_ok());
         assert!(Alias::from_str("cloud-head").is_ok());
         assert!(Alias::from_str("cl0ud.h3ad$__").is_ok());
@@ -1629,7 +1629,7 @@ mod test {
     }
 
     #[test]
-    fn test_address() {
+    fn address() {
         assert!(Address::from_str("127.0.0.1:8776").is_ok());
         assert!(Address::from_str("[::1]:8776").is_ok());
         assert!(Address::from_str("[::ffff:127.0.0.1]:8776").is_ok());
@@ -1645,7 +1645,7 @@ mod test {
     }
 
     #[test]
-    fn test_command_result() {
+    fn command_result() {
         #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
         struct Test {
             value: u32,

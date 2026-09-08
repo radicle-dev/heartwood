@@ -576,7 +576,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_parse() {
+    fn parse() {
         let input = r#"
 Let's try to track @dave and @sean:
 ``` RAD_HINT=true
@@ -664,7 +664,7 @@ $ rad sync
     }
 
     #[test]
-    fn test_run() {
+    fn run() {
         let input = r#"
 Running a simple command such as `head`:
 ```
@@ -688,7 +688,7 @@ name = "radicle-cli-test"
     }
 
     #[test]
-    fn test_example_spaced_brackets() {
+    fn example_spaced_brackets() {
         let input = r#"
 Running a simple command such as `head`:
 ```

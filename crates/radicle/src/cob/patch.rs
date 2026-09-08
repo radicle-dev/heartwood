@@ -3068,7 +3068,7 @@ mod test {
     }
 
     #[test]
-    fn test_target_branch() {
+    fn target_branch() {
         let unqualified = TargetBranch::try_from("master").unwrap();
         assert_eq!(unqualified.as_str(), "refs/heads/master");
 
@@ -3092,7 +3092,7 @@ mod test {
     }
 
     #[test]
-    fn test_json_serialisation_target() {
+    fn json_serialisation_target() {
         let edit_none = Action::Edit {
             title: cob::Title::new("My patch").unwrap(),
             target: MergeTarget::Delegates,
@@ -3115,7 +3115,7 @@ mod test {
     }
 
     #[test]
-    fn test_merge_target_resolution() {
+    fn merge_target_resolution() {
         let alice = SigningKey::mock(23);
         let project = Project::new(
             ProjectName::from_str("test_merge_target_resolution").unwrap(),
@@ -3170,7 +3170,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_authorization_ref_formats() {
+    fn patch_merge_authorization_ref_formats() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3253,7 +3253,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_custom_destination_authorized() {
+    fn patch_merge_custom_destination_authorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3312,7 +3312,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_custom_destination_unauthorized() {
+    fn patch_merge_custom_destination_unauthorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3371,7 +3371,7 @@ mod test {
     }
 
     #[test]
-    fn test_json_serialization() {
+    fn json_serialization() {
         let edit = Action::Label {
             labels: BTreeSet::new(),
         };
@@ -3382,7 +3382,7 @@ mod test {
     }
 
     #[test]
-    fn test_reactions_json_serialization() {
+    fn reactions_json_serialization() {
         #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
         #[serde(rename_all = "camelCase")]
         struct TestReactions {
@@ -3424,7 +3424,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_create_and_get() {
+    fn patch_create_and_get() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3465,7 +3465,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_discussion() {
+    fn patch_discussion() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3497,7 +3497,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge() {
+    fn patch_merge() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3527,7 +3527,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review() {
+    fn patch_review() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3577,7 +3577,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_revision_redact() {
+    fn patch_review_revision_redact() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3607,7 +3607,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_review_merge_redacted() {
+    fn revision_review_merge_redacted() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = SigningKey::mock(14);
@@ -3665,7 +3665,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_edit_redact() {
+    fn revision_edit_redact() {
         let base = arbitrary::oid();
         let oid = arbitrary::oid();
         let repo = r#gen::<MockRepository>(1);
@@ -3726,7 +3726,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_reaction() {
+    fn revision_reaction() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = SigningKey::mock(35);
@@ -3764,7 +3764,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_edit() {
+    fn patch_review_edit() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3801,7 +3801,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_duplicate() {
+    fn patch_review_duplicate() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3831,7 +3831,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_edit_comment() {
+    fn patch_review_edit_comment() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3880,7 +3880,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_comment() {
+    fn patch_review_comment() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3925,7 +3925,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_remove_summary() {
+    fn patch_review_remove_summary() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3965,7 +3965,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_update() {
+    fn patch_update() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -4019,7 +4019,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_redact() {
+    fn patch_redact() {
         let alice = test::setup::Node::default();
         let repo = alice.project();
         let branch = repo
@@ -4056,7 +4056,7 @@ mod test {
     }
 
     #[test]
-    fn test_json() {
+    fn json() {
         use serde_json::json;
 
         assert_eq!(

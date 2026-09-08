@@ -56,7 +56,7 @@ fn tree_serialization() {
 }
 
 #[test]
-fn test_tree_last_commit() {
+fn tree_last_commit() {
     let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo.tree(refname!("refs/heads/master"), &"src").unwrap();
     let last_commit = tree.last_commit(&repo).unwrap();

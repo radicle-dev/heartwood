@@ -519,7 +519,7 @@ mod tests {
     // to `london`. We expect that this does not cause the canonical head of the `london` repo
     // to change, despite Bob being a delegate of both repos, because the refs were signed for the
     // `paris` repo. We also don't expected the signed refs to validate without error.
-    fn test_rid_verification() {
+    fn rid_verification() {
         let tmp = tempfile::tempdir().unwrap();
         let alice = SigningKey::mock(9);
         let bob = SigningKey::mock(10);

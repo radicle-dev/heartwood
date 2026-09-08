@@ -400,7 +400,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_stream_id() {
+    fn stream_id() {
         assert_eq!(StreamId(VarInt(0b000)).kind().unwrap(), StreamType::Control);
         assert_eq!(StreamId(VarInt(0b010)).kind().unwrap(), StreamType::Gossip);
         assert_eq!(StreamId(VarInt(0b100)).kind().unwrap(), StreamType::Git);
@@ -419,7 +419,7 @@ mod test {
     }
 
     #[test]
-    fn test_encode_git_large() {
+    fn encode_git_large() {
         use wire::Encode as _;
 
         let size = u16::MAX as usize * 3;

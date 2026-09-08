@@ -523,7 +523,7 @@ mod test {
     }
 
     #[test]
-    fn test_create_display_message() {
+    fn create_display_message() {
         let tmpdir = tempfile::tempdir().unwrap();
         let (repo, commit_0) = fixtures::repository(&tmpdir);
         let commit_1 = commit(
@@ -539,7 +539,7 @@ mod test {
             "Commit 2\n\nDescription\n",
         );
 
-        let res = create_display_message(&repo, &commit_0, &commit_0).unwrap();
+        let res = super::create_display_message(&repo, &commit_0, &commit_0).unwrap();
         assert_eq!(
             "\
             <!--\n\
@@ -555,7 +555,7 @@ mod test {
             res
         );
 
-        let res = create_display_message(&repo, &commit_0, &commit_1).unwrap();
+        let res = super::create_display_message(&repo, &commit_0, &commit_1).unwrap();
         assert_eq!(
             "\
             Commit 1\n\
@@ -575,7 +575,7 @@ mod test {
             res
         );
 
-        let res = create_display_message(&repo, &commit_0, &commit_2).unwrap();
+        let res = super::create_display_message(&repo, &commit_0, &commit_2).unwrap();
         assert_eq!(
             "\
             <!--\n\
@@ -610,8 +610,8 @@ mod test {
     }
 
     #[test]
-    fn test_edit_display_message() {
-        let res = edit_display_message("title", "The patch description.");
+    fn edit_display_message() {
+        let res = super::edit_display_message("title", "The patch description.");
         assert_eq!(
             "\
             title\n\
@@ -633,7 +633,7 @@ mod test {
     }
 
     #[test]
-    fn test_update_display_message() {
+    fn update_display_message() {
         let tmpdir = tempfile::tempdir().unwrap();
         let (repo, commit_0) = fixtures::repository(&tmpdir);
 
@@ -646,7 +646,7 @@ mod test {
             "commit squashed",
         );
 
-        let res = update_display_message(&repo, &commit_1, &commit_1).unwrap();
+        let res = super::update_display_message(&repo, &commit_1, &commit_1).unwrap();
         assert_eq!(
             "\
             <!--\n\
@@ -657,7 +657,7 @@ mod test {
             res
         );
 
-        let res = update_display_message(&repo, &commit_1, &commit_2).unwrap();
+        let res = super::update_display_message(&repo, &commit_1, &commit_2).unwrap();
         assert_eq!(
             "\
             commit 2\n\
@@ -670,7 +670,7 @@ mod test {
             res
         );
 
-        let res = update_display_message(&repo, &commit_1, &commit_squashed).unwrap();
+        let res = super::update_display_message(&repo, &commit_1, &commit_squashed).unwrap();
         assert_eq!(
             "\
             <!--\n\

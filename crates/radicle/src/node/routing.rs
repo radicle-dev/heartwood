@@ -273,7 +273,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_get() {
+    fn insert_and_get() {
         let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
@@ -296,7 +296,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_get_resources() {
+    fn insert_and_get_resources() {
         let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
@@ -314,7 +314,7 @@ mod test {
     }
 
     #[test]
-    fn test_entries() {
+    fn entries() {
         let ids = arbitrary::set::<RepoId>(6..9);
         let nodes = arbitrary::set::<NodeId>(6..9);
         let mut db = database(":memory:");
@@ -338,7 +338,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_remove() {
+    fn insert_and_remove() {
         let ids = arbitrary::set::<RepoId>(5..10);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");
@@ -357,7 +357,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_duplicate() {
+    fn insert_duplicate() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let node = arbitrary::r#gen::<NodeId>(1);
         let mut db = database(":memory:");
@@ -377,7 +377,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_existing_updated_time() {
+    fn insert_existing_updated_time() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let node = arbitrary::r#gen::<NodeId>(1);
         let mut db = database(":memory:");
@@ -398,7 +398,7 @@ mod test {
     }
 
     #[test]
-    fn test_update_existing_multi() {
+    fn update_existing_multi() {
         let id1 = arbitrary::r#gen::<RepoId>(1);
         let id2 = arbitrary::r#gen::<RepoId>(1);
         let node = arbitrary::r#gen::<NodeId>(1);
@@ -427,7 +427,7 @@ mod test {
     }
 
     #[test]
-    fn test_remove_redundant() {
+    fn remove_redundant() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let node = arbitrary::r#gen::<NodeId>(1);
         let mut db = database(":memory:");
@@ -441,7 +441,7 @@ mod test {
     }
 
     #[test]
-    fn test_remove_many() {
+    fn remove_many() {
         let id1 = arbitrary::r#gen::<RepoId>(1);
         let id2 = arbitrary::r#gen::<RepoId>(1);
         let id3 = arbitrary::r#gen::<RepoId>(1);
@@ -457,7 +457,7 @@ mod test {
     }
 
     #[test]
-    fn test_len() {
+    fn len() {
         let mut db = database(":memory:");
         let ids = arbitrary::vec::<RepoId>(10);
         let node = arbitrary::r#gen(1);
@@ -469,7 +469,7 @@ mod test {
     }
 
     #[test]
-    fn test_prune() {
+    fn prune() {
         let mut rng = fastrand::Rng::new();
         let now = LocalTime::now();
         let ids = arbitrary::vec::<RepoId>(10);
@@ -503,7 +503,7 @@ mod test {
     }
 
     #[test]
-    fn test_count() {
+    fn count() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let nodes = arbitrary::set::<NodeId>(5..10);
         let mut db = database(":memory:");

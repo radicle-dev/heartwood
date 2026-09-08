@@ -305,7 +305,7 @@ mod test {
     use super::PayloadUpsert;
 
     #[test]
-    fn test_can_update_crefs() {
+    fn can_update_crefs() {
         let raw = arbitrary::r#gen::<RawDoc>(1);
         let raw = super::payload(
             raw,
@@ -326,7 +326,7 @@ mod test {
     }
 
     #[test]
-    fn test_cannot_include_default_branch_rule() {
+    fn cannot_include_default_branch_rule() {
         let raw = arbitrary::r#gen::<RawDoc>(1);
         let project = raw.project().unwrap().unwrap();
         let branch = project.default_branch_qualified();
@@ -358,7 +358,7 @@ mod test {
     }
 
     #[test]
-    fn test_default_branch_rule_exists_after_verification() {
+    fn default_branch_rule_exists_after_verification() {
         let raw = arbitrary::r#gen::<RawDoc>(1);
         let project = raw.project().unwrap().unwrap();
         let branch = project.default_branch_qualified();

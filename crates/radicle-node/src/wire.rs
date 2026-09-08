@@ -1305,7 +1305,7 @@ mod test {
     use crate::wire::varint;
 
     #[test]
-    fn test_pong_message_with_extension() {
+    fn pong_message_with_extension() {
         use protocol::deserializer;
 
         let mut stream = Vec::new();
@@ -1336,7 +1336,7 @@ mod test {
     }
 
     #[test]
-    fn test_inventory_ann_with_extension() {
+    fn inventory_ann_with_extension() {
         use protocol::deserializer;
 
         #[derive(Debug)]

@@ -283,7 +283,7 @@ mod test {
     use crate::assert_matches;
 
     #[test]
-    fn test_project_name() {
+    fn project_name() {
         assert_matches!(serde_json::from_str::<ProjectName>("\"\""), Err(_));
         assert_matches!(
             serde_json::from_str::<ProjectName>("\"invalid name\""),

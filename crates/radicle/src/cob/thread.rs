@@ -664,7 +664,7 @@ mod tests {
     impl<T> SignerThreadOpExt for T where T: SignerOpExt {}
 
     #[test]
-    fn test_redact_comment() {
+    fn redact_comment() {
         let radicle::test::setup::Node { signer, .. } = radicle::test::setup::Node::default();
         let repo = r#gen::<MockRepository>(1);
         let mut alice = signer;
@@ -689,7 +689,7 @@ mod tests {
     }
 
     #[test]
-    fn test_edit_comment() {
+    fn edit_comment() {
         let mut alice = SigningKey::mock(49);
         let repo = r#gen::<MockRepository>(1);
 
@@ -761,7 +761,7 @@ mod tests {
     }
 
     #[test]
-    fn test_timeline() {
+    fn timeline() {
         let alice = SigningKey::mock(94);
         let bob = SigningKey::mock(103);
         let eve = SigningKey::mock(104);
@@ -829,7 +829,7 @@ mod tests {
     }
 
     #[test]
-    fn test_duplicate_comments() {
+    fn duplicate_comments() {
         let repo = r#gen::<MockRepository>(1);
         let alice = SigningKey::mock(94);
         let bob = SigningKey::mock(103);
@@ -934,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn test_comment_redact_missing() {
+    fn comment_redact_missing() {
         let repo = r#gen::<MockRepository>(1);
         let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
@@ -944,7 +944,7 @@ mod tests {
     }
 
     #[test]
-    fn test_comment_edit_missing() {
+    fn comment_edit_missing() {
         let repo = r#gen::<MockRepository>(1);
         let mut alice = SigningKey::mock(94);
         let mut t = Thread::default();
@@ -954,7 +954,7 @@ mod tests {
     }
 
     #[test]
-    fn test_comment_edit_redacted() {
+    fn comment_edit_redacted() {
         let repo = r#gen::<MockRepository>(1);
         let mut alice = SigningKey::mock(94);
 

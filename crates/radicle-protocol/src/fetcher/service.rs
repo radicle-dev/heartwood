@@ -172,7 +172,7 @@ mod tests {
     use crate::fetcher::{FetchConfig, MaxQueueSize};
 
     #[test]
-    fn test_fetch_coalescing_different_refs() {
+    fn fetch_coalescing_different_refs() {
         let config = Config::new()
             .with_max_concurrency(NonZeroUsize::new(1).unwrap())
             .with_max_capacity(MaxQueueSize::new(NonZeroUsize::new(10).unwrap()));

@@ -405,7 +405,7 @@ mod test {
     use radicle::test::arbitrary;
 
     #[test]
-    fn test_announced() {
+    fn announced() {
         let mut db = Database::memory().unwrap();
         let nid = arbitrary::r#gen::<NodeId>(1);
         let rid = arbitrary::r#gen::<RepoId>(1);

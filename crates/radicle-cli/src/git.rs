@@ -469,7 +469,7 @@ mod test {
     use std::str::FromStr;
 
     #[test]
-    fn test_version_ord() {
+    fn version_ord() {
         assert!(
             Version {
                 major: 2,
@@ -495,7 +495,7 @@ mod test {
     }
 
     #[test]
-    fn test_version_from_str() {
+    fn version_from_str() {
         assert_eq!(
             Version::from_str("git version 2.34.1\n").ok(),
             Some(Version {

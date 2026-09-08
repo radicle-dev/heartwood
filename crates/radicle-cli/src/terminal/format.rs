@@ -413,10 +413,9 @@ pub mod identity {
 #[cfg(test)]
 mod test {
     use super::*;
-    use html::strip_comments;
 
     #[test]
-    fn test_strip_comments() {
+    fn strip_comments() {
         let test = "\
         commit 2\n\
         \n\
@@ -428,7 +427,7 @@ mod test {
         commit 2\n\
         ";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -438,7 +437,7 @@ mod test {
         commit 2\n\
         -->";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -447,7 +446,7 @@ mod test {
         ";
         let exp = "";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -464,17 +463,20 @@ mod test {
         \n\
         -->";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
     }
 
     #[test]
-    fn test_bytes() {
-        assert_eq!(bytes(1023).to_string(), "1023 B");
-        assert_eq!(bytes(1024).to_string(), "1 KiB");
-        assert_eq!(bytes(1024 * 9).to_string(), "9 KiB");
-        assert_eq!(bytes(1024usize.pow(2)).to_string(), "1 MiB");
-        assert_eq!(bytes(1024usize.pow(2) * 56).to_string(), "56 MiB");
-        assert_eq!(bytes(1024usize.pow(3) * 1024).to_string(), "1024 GiB");
+    fn bytes() {
+        assert_eq!(super::bytes(1023).to_string(), "1023 B");
+        assert_eq!(super::bytes(1024).to_string(), "1 KiB");
+        assert_eq!(super::bytes(1024 * 9).to_string(), "9 KiB");
+        assert_eq!(super::bytes(1024usize.pow(2)).to_string(), "1 MiB");
+        assert_eq!(super::bytes(1024usize.pow(2) * 56).to_string(), "56 MiB");
+        assert_eq!(
+            super::bytes(1024usize.pow(3) * 1024).to_string(),
+            "1024 GiB"
+        );
     }
 }

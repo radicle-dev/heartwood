@@ -517,7 +517,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_init() {
+    fn init() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = SigningKey::mock(73);
         let public_key = signer.public_key();
@@ -526,7 +526,7 @@ mod tests {
         transport::local::register(storage.clone());
 
         let (repo, _) = fixtures::repository(tempdir.path().join("working"));
-        let (proj, _, refs) = init(
+        let (proj, _, refs) = super::init(
             &repo,
             "acme".try_into().unwrap(),
             "Acme's repo",
@@ -569,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fork() {
+    fn fork() {
         let mut rng = fastrand::Rng::new();
         let tempdir = tempfile::tempdir().unwrap();
         let alice = SigningKey::mock(rng.usize(..));
@@ -581,7 +581,7 @@ mod tests {
 
         // Alice creates a project.
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
-        let (id, _, alice_refs) = init(
+        let (id, _, alice_refs) = super::init(
             &original,
             "acme".try_into().unwrap(),
             "Acme's repo",
@@ -593,8 +593,8 @@ mod tests {
         .unwrap();
 
         // Bob forks it and creates a checkout.
-        fork(id, &bob, &storage).unwrap();
-        checkout(id, bob_id, tempdir.path().join("copy"), &storage, false).unwrap();
+        super::fork(id, &bob, &storage).unwrap();
+        super::checkout(id, bob_id, tempdir.path().join("copy"), &storage, false).unwrap();
 
         let bob_remote = storage.repository(id).unwrap().remote(bob_id).unwrap();
 
@@ -608,7 +608,7 @@ mod tests {
     }
 
     #[test]
-    fn test_checkout() {
+    fn checkout() {
         let tempdir = tempfile::tempdir().unwrap();
         let signer = SigningKey::mock(73);
         let remote_id = signer.public_key();
@@ -617,7 +617,7 @@ mod tests {
         transport::local::register(storage.clone());
 
         let (original, _) = fixtures::repository(tempdir.path().join("original"));
-        let (id, _, _) = init(
+        let (id, _, _) = super::init(
             &original,
             "acme".try_into().unwrap(),
             "Acme's repo",
@@ -629,7 +629,8 @@ mod tests {
         .unwrap();
         git::set_upstream(&original, "rad", "master", "refs/heads/master").unwrap();
 
-        let copy = checkout(id, remote_id, tempdir.path().join("copy"), &storage, false).unwrap();
+        let copy =
+            super::checkout(id, remote_id, tempdir.path().join("copy"), &storage, false).unwrap();
 
         assert_eq!(
             copy.head().unwrap().target(),

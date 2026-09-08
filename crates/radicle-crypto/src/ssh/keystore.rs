@@ -240,7 +240,7 @@ mod tests {
     use std::borrow::ToOwned as _;
 
     #[test]
-    fn test_init_passphrase() {
+    fn init_passphrase() {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp);
 
@@ -265,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_no_passphrase() {
+    fn init_no_passphrase() {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp);
 
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_signer() {
+    fn signer() {
         let tmp = tempfile::tempdir().unwrap();
         let store = Keystore::new(&tmp);
 

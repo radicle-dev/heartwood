@@ -221,7 +221,7 @@ mod test {
     use crate::VerifyingKey;
 
     #[test]
-    fn test_agent_encoding_remove() {
+    fn agent_encoding_remove() {
         use std::str::FromStr;
 
         let pk =
@@ -256,7 +256,7 @@ mod test {
     }
 
     #[test]
-    fn test_agent_encoding_sign() {
+    fn agent_encoding_sign() {
         use std::str::FromStr;
 
         let pk =

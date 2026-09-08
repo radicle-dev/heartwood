@@ -181,7 +181,7 @@ mod test {
     use localtime::{LocalDuration, LocalTime};
 
     #[test]
-    fn test_count() {
+    fn count() {
         let mut db = Database::memory().unwrap();
         let oid = arbitrary::oid();
 
@@ -209,7 +209,7 @@ mod test {
     }
 
     #[test]
-    fn test_set_and_delete() {
+    fn set_and_delete() {
         let mut db = Database::memory().unwrap();
         let oid = arbitrary::oid();
 
@@ -226,7 +226,7 @@ mod test {
     }
 
     #[test]
-    fn test_set_and_get() {
+    fn set_and_get() {
         let mut db = Database::memory().unwrap();
         let oid1 = arbitrary::oid();
         let oid2 = arbitrary::oid();

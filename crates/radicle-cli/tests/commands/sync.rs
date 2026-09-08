@@ -109,7 +109,7 @@ fn rad_sync() {
 //
 //     alice -- seed -- bob
 //
-fn test_replication_via_seed() {
+fn replication_via_seed() {
     let mut environment = Environment::new();
     let alice = environment.relay("alice");
     let bob = environment.relay("bob");

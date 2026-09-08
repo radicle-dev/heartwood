@@ -125,7 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_capabilities() {
+    fn capabilities() {
         assert_eq!(
             Command::parse_line("capabilities").unwrap(),
             Line::Valid(Command::Capabilities)
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list() {
+    fn list() {
         assert_eq!(
             Command::parse_line("list").unwrap(),
             Line::Valid(Command::List)
@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_for_push() {
+    fn list_for_push() {
         assert_eq!(
             Command::parse_line("list for-push").unwrap(),
             Line::Valid(Command::ListForPush)
@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fetch() {
+    fn fetch() {
         assert_eq!(
             Command::parse_line("fetch oid ref").unwrap(),
             Line::Valid(Command::Fetch {
@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fetch_whitespace() {
+    fn fetch_whitespace() {
         assert_eq!(
             Command::parse_line("fetch   oid     ref").unwrap(),
             Line::Valid(Command::Fetch {
@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push() {
+    fn push() {
         assert_eq!(
             Command::parse_line("push src:dst").unwrap(),
             Line::Valid(Command::Push("src:dst".to_owned()))
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_force() {
+    fn push_force() {
         assert_eq!(
             Command::parse_line("push +src:dst").unwrap(),
             Line::Valid(Command::Push("+src:dst".to_owned()))
@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_delete() {
+    fn push_delete() {
         assert_eq!(
             Command::parse_line("push :dst").unwrap(),
             Line::Valid(Command::Push(":dst".to_owned()))
@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_option() {
+    fn option() {
         assert_eq!(
             Command::parse_line("option verbosity 2").unwrap(),
             Line::Valid(Command::Option {
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn test_option_whitespace_preservation() {
+    fn option_whitespace_preservation() {
         assert_eq!(
             Command::parse_line("option patch.message Fix:  whitespace").unwrap(),
             Line::Valid(Command::Option {
@@ -217,13 +217,13 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
+    fn empty() {
         assert_eq!(Command::parse_line("").unwrap(), Line::Blank);
         assert_eq!(Command::parse_line("   ").unwrap(), Line::Blank);
     }
 
     #[test]
-    fn test_invalid() {
+    fn invalid() {
         assert!(Command::parse_line("invalid command").is_err());
         assert!(Command::parse_line("list invalid").is_err());
     }

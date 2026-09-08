@@ -309,10 +309,9 @@ fn tree(mut refs: Vec<String>) -> String {
 
 #[cfg(test)]
 mod test {
-    use super::*;
 
     #[test]
-    fn test_tree() {
+    fn tree() {
         let arg = vec![
             String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/heads/master"),
             String::from("z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi/refs/rad/id"),
@@ -329,7 +328,7 @@ z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
 "#
         .trim_start();
 
-        assert_eq!(tree(arg), exp);
-        assert_eq!(tree(vec![String::new()]), "\n");
+        assert_eq!(super::tree(arg), exp);
+        assert_eq!(super::tree(vec![String::new()]), "\n");
     }
 }

@@ -525,7 +525,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_title() {
+    fn title() {
         assert_eq!(Title::new(""), Err(TitleError::EmptyTitle));
         assert_eq!(Title::new(" "), Err(TitleError::EmptyTitle));
         assert_eq!(Title::new("\t"), Err(TitleError::EmptyTitle));
@@ -535,7 +535,7 @@ mod test {
     }
 
     #[test]
-    fn test_color() {
+    fn color() {
         let c = Color::from_str("#ffccaa").unwrap();
         assert_eq!(c.to_string(), "#ffccaa".to_owned());
         assert_eq!(serde_json::to_string(&c).unwrap(), "\"#ffccaa\"".to_owned());
@@ -555,7 +555,7 @@ mod test {
     }
 
     #[test]
-    fn test_emojis() {
+    fn emojis() {
         let emojis = emojis::Group::SmileysAndEmotion
             .emojis()
             .chain(emojis::Group::PeopleAndBody.emojis())

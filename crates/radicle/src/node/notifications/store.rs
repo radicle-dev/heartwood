@@ -421,7 +421,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_clear() {
+    fn clear() {
         let mut db = Store::open(":memory:").unwrap();
         let repo = arbitrary::r#gen::<RepoId>(1);
         let old = arbitrary::oid();
@@ -444,7 +444,7 @@ mod test {
     }
 
     #[test]
-    fn test_counts_by_repo() {
+    fn counts_by_repo() {
         let mut db = Store::open(":memory:").unwrap();
         let repo1 = arbitrary::r#gen::<RepoId>(1);
         let repo2 = arbitrary::r#gen::<RepoId>(1);
@@ -478,7 +478,7 @@ mod test {
     }
 
     #[test]
-    fn test_branch_notifications() {
+    fn branch_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
         let old = arbitrary::oid();
         let master = arbitrary::oid();
@@ -556,7 +556,7 @@ mod test {
     }
 
     #[test]
-    fn test_notification_status() {
+    fn notification_status() {
         let repo = arbitrary::r#gen::<RepoId>(1);
         let oid = arbitrary::oid();
         let time = LocalTime::from_millis(32188142);
@@ -599,7 +599,7 @@ mod test {
     }
 
     #[test]
-    fn test_duplicate_notifications() {
+    fn duplicate_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
         let old = arbitrary::oid();
         let master1 = arbitrary::oid();
@@ -647,7 +647,7 @@ mod test {
     }
 
     #[test]
-    fn test_cob_notifications() {
+    fn cob_notifications() {
         let repo = arbitrary::r#gen::<RepoId>(1);
         let old = arbitrary::oid();
         let new = arbitrary::oid();

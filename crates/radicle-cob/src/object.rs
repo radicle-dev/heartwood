@@ -98,7 +98,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_serde() {
+    fn serde() {
         let id = ObjectId::from_str("3ad84420bd882f983c2f9b605e7a68f5bdf95f5c").unwrap();
 
         assert_eq!(

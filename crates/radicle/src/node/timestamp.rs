@@ -125,7 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_timestamp_max() {
+    fn timestamp_max() {
         assert_eq!(i64::try_from(*Timestamp::MAX), Ok(i64::MAX));
     }
 }

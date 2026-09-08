@@ -276,7 +276,7 @@ fn rad_clone_unknown() {
 
 #[test]
 // User tries to clone; no seeds are available, but user has the repo locally.
-fn test_clone_without_seeds() {
+fn clone_without_seeds() {
     let mut environment = Environment::new();
     let mut alice = environment.node("alice");
     let working = environment.tempdir().join("working");
