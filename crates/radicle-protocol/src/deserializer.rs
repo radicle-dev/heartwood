@@ -58,7 +58,18 @@ impl<const B: usize, D: wire::Decode> Deserializer<B, D> {
 
                 Ok(Some(msg))
             }
-            Err(wire::Error::UnexpectedEnd { .. }) => Ok(None),
+            Err(wire::Error::UnexpectedEnd { .. }) => {
+                log::debug!("Dropping incomplete frame: Expected more bytes.");
+                Ok(None)
+            }
+            Err(wire::Error::FrameTooLong { length, limit }) => {
+                log::debug!(
+                    "Dropping frame that is too large: Expected at most {} bytes, got {} bytes.",
+                    limit,
+                    length
+                );
+                Ok(None)
+            }
             Err(wire::Error::Invalid(err)) => Err(err),
         }
     }

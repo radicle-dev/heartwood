@@ -163,10 +163,21 @@ pub mod payload {
         buf.put_slice(payload);
     }
 
-    /// Decode varint-prefixed data payload.
-    pub fn decode(buf: &mut impl Buf) -> Result<Vec<u8>, wire::Error> {
+    /// Decode varint-prefixed data payload, if the size of the payload
+    /// is at most `limit` bytes.
+    pub fn decode(buf: &mut impl Buf, limit: usize) -> Result<Vec<u8>, wire::Error> {
         let size = VarInt::decode(buf)?;
-        let mut data = vec![0; *size as usize];
+
+        let size = *size as usize;
+
+        if size > limit {
+            return Err(wire::Error::FrameTooLong {
+                length: size,
+                limit,
+            });
+        }
+
+        let mut data = vec![0; size];
         buf.try_copy_to_slice(&mut data[..])?;
 
         Ok(data)

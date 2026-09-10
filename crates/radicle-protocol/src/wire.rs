@@ -93,6 +93,9 @@ pub enum Error {
     #[error(transparent)]
     Invalid(#[from] Invalid),
 
+    #[error("frame too long: expected at most {limit}, got {length}")]
+    FrameTooLong { length: usize, limit: usize },
+
     #[error(
         "unexpected end of buffer, requested {requested} more bytes but only {available} are available"
     )]
@@ -147,7 +150,7 @@ pub trait Decode: Sized {
                 }
                 Ok(value)
             }
-            Err(err @ Error::UnexpectedEnd { .. }) => {
+            Err(err @ (Error::UnexpectedEnd { .. } | Error::FrameTooLong { .. })) => {
                 panic!("{}", err);
             }
             Err(Error::Invalid(e)) => Err(e),

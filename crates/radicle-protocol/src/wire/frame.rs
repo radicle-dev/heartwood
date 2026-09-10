@@ -210,6 +210,9 @@ pub struct Frame<M = Message> {
 }
 
 impl<M> Frame<M> {
+    /// The maximum length of a frame, in bytes (128 KiB).
+    pub const LENGTH_LIMIT: usize = 1 << 17;
+
     /// Create a 'git' protocol frame.
     pub fn git(stream: StreamId, data: Vec<u8>) -> Self {
         Self {
@@ -360,7 +363,7 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
                 Ok(frame)
             }
             Ok(StreamType::Gossip) => {
-                let data = varint::payload::decode(buf)?;
+                let data = varint::payload::decode(buf, Frame::<M>::LENGTH_LIMIT)?;
                 let mut cursor = io::Cursor::new(data);
                 let msg = M::decode(&mut cursor)?;
                 let frame = Frame {
@@ -375,7 +378,7 @@ impl<M: wire::Decode> wire::Decode for Frame<M> {
                 Ok(frame)
             }
             Ok(StreamType::Git) => {
-                let data = varint::payload::decode(buf)?;
+                let data = varint::payload::decode(buf, Frame::<M>::LENGTH_LIMIT)?;
                 Ok(Frame::git(stream, data))
             }
             Err(n) => Err(wire::Invalid::StreamType { actual: n }.into()),
