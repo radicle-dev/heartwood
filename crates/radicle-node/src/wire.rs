@@ -784,6 +784,9 @@ where
                                 data: FrameData::Git(data),
                                 ..
                             })) => {
+                                // Counts as liveness: this peer is sending something
+                                self.service.received_bytes(*nid);
+
                                 if let Some(s) = streams.get_mut(&stream) {
                                     metrics.received_git_bytes += data.len();
                                     // Send via channel to the worker thread
