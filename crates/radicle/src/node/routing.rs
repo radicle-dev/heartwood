@@ -221,20 +221,33 @@ impl Store for Database {
         limit: Option<usize>,
         ignore: &NodeId,
     ) -> Result<usize, Error> {
-        let limit: i64 = limit
-            .and_then(|limit| i64::try_from(limit).ok())
-            .unwrap_or(i64::MAX);
-        let mut stmt = self.db.prepare(
-            "DELETE FROM routing
-             WHERE node <> ?1 AND rowid IN
-             (SELECT rowid FROM routing WHERE timestamp < ?2 ORDER BY timestamp LIMIT ?3)",
-        )?;
+        let mut pruned = 0;
+
+        if let Some(limit) = limit {
+            let limit = i64::try_from(limit).unwrap_or(i64::MAX);
+            let mut stmt = self.db.prepare(
+                "DELETE FROM routing
+                 WHERE node <> ?1 AND rowid IN
+                 (SELECT rowid FROM routing
+                  WHERE node <> ?1
+                  ORDER BY timestamp ASC
+                  LIMIT ?2)",
+            )?;
+            stmt.bind((1, ignore))?;
+            stmt.bind((2, limit))?;
+            stmt.next()?;
+            pruned += self.db.change_count();
+        }
+
+        let mut stmt = self
+            .db
+            .prepare("DELETE FROM routing WHERE node <> ?1 AND timestamp < ?2")?;
         stmt.bind((1, ignore))?;
         stmt.bind((2, &oldest))?;
-        stmt.bind((3, limit))?;
         stmt.next()?;
+        pruned += self.db.change_count();
 
-        Ok(self.db.change_count())
+        Ok(pruned)
     }
 
     fn count(&self, id: &RepoId) -> Result<usize, Error> {
