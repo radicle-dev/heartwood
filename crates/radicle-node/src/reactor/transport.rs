@@ -204,8 +204,12 @@ impl<S: Session> Transport<S> {
         use io::ErrorKind::*;
 
         if !self.session.is_established() {
-            let _ = self.session.write(&[]);
-            self.write_intent = true;
+            match self.session.write(&[]) {
+                Err(err) if !matches!(err.kind(), WouldBlock | Interrupted | WriteZero) => {
+                    events.push(self.terminate(err));
+                }
+                _ => self.write_intent = true,
+            }
             return;
         }
 
@@ -295,6 +299,9 @@ impl<S: Session> Transport<S> {
 
         loop {
             match self.session.read(self.read_buffer.as_mut()) {
+                Ok(0) if self.state == TransportState::Active => {
+                    events.push(self.terminate(UnexpectedEof.into()));
+                }
                 Ok(0) => {}
                 Ok(len) => {
                     events.push(SessionEvent::Data(self.read_buffer[..len].to_vec()));
@@ -362,5 +369,96 @@ impl<S: Session> super::BufferWrite for Transport<S> {
 
         self.write_buffer.extend(buf);
         self.write_intent = true;
+    }
+}
+
+#[cfg(all(test, unix, feature = "socket2"))]
+mod tests {
+    use std::net::{Shutdown, TcpListener};
+    use std::time::Duration;
+    use std::{net, thread};
+
+    use mio::net::TcpStream;
+
+    use super::*;
+
+    fn connected_pair() -> (TcpStream, net::TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let local = net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (remote, _) = listener.accept().unwrap();
+        local.set_nonblocking(true).unwrap();
+
+        (TcpStream::from_std(local), remote)
+    }
+
+    fn active_transport() -> (Transport<TcpStream>, net::TcpStream) {
+        let (local, remote) = connected_pair();
+        let transport = Transport::with_session(local).unwrap();
+        assert_eq!(transport.state, TransportState::Active);
+
+        (transport, remote)
+    }
+
+    fn reset(remote: net::TcpStream) {
+        socket2::SockRef::from(&remote)
+            .set_linger(Some(Duration::ZERO))
+            .unwrap();
+        drop(remote);
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    fn handle_ready(transport: &mut Transport<TcpStream>) -> Vec<SessionEvent<TcpStream>> {
+        let mut events = Vec::new();
+        transport.handle_io(Interest::WRITABLE, &mut events);
+        transport.handle_io(Interest::READABLE, &mut events);
+        events
+    }
+
+    fn assert_terminated(transport: &Transport<TcpStream>, events: &[SessionEvent<TcpStream>]) {
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, SessionEvent::Terminated(_))),
+            "transport was not terminated"
+        );
+        assert_eq!(transport.state, TransportState::Terminated);
+        assert_eq!(transport.interests(), None);
+    }
+
+    #[test]
+    fn reset_peer_is_terminated() {
+        let (mut transport, remote) = active_transport();
+        reset(remote);
+
+        let events = handle_ready(&mut transport);
+
+        assert_terminated(&transport, &events);
+    }
+
+    #[test]
+    fn reset_peer_is_terminated_after_error_was_consumed() {
+        let (mut transport, remote) = active_transport();
+        reset(remote);
+        let error = transport.session.take_error().unwrap();
+        assert!(
+            error.is_some(),
+            "expected a pending socket error after reset"
+        );
+
+        let events = handle_ready(&mut transport);
+
+        assert_terminated(&transport, &events);
+    }
+
+    #[test]
+    fn half_closed_peer_is_terminated_on_eof() {
+        let (mut transport, remote) = active_transport();
+        remote.shutdown(Shutdown::Write).unwrap();
+        thread::sleep(Duration::from_millis(100));
+
+        let mut events = Vec::new();
+        transport.handle_io(Interest::READABLE, &mut events);
+
+        assert_terminated(&transport, &events);
     }
 }
