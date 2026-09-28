@@ -1,6 +1,9 @@
 mod args;
 mod cache;
 mod comment;
+mod sync;
+
+use std::path::Path;
 
 use anyhow::Context as _;
 
@@ -34,7 +37,7 @@ const ABOUT: &str = "Manage issues";
 
 pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     let profile = ctx.profile()?;
-    let (_, rid) = rid_or_cwd(args.repo)?;
+    let (workdir, rid) = rid_or_cwd(args.repo)?;
     let repo = profile.storage.repository_mut(rid)?;
 
     // Fallback to [`Command::List`] if no subcommand is provided.
@@ -73,6 +76,33 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 args.quiet,
                 &mut issues,
                 &profile,
+            )?;
+        }
+        Command::Export { path, dry_run } => {
+            let repo_root = workdir_root(workdir.as_ref())?;
+            sync::export(
+                &profile,
+                repo_root,
+                Path::new(profile.config.cli.issues.directory.as_str()),
+                sync::ExportOptions { path, dry_run },
+                &issues,
+            )?;
+        }
+        Command::Import {
+            path,
+            dry_run,
+            force,
+        } => {
+            let repo_root = workdir_root(workdir.as_ref())?;
+            sync::import(
+                repo_root,
+                Path::new(profile.config.cli.issues.directory.as_str()),
+                sync::ImportOptions {
+                    path,
+                    dry_run,
+                    force,
+                },
+                &mut issues,
             )?;
         }
         Command::Comment(c) => match CommentAction::from(c) {
@@ -320,6 +350,13 @@ where
     table.print();
 
     Ok(())
+}
+
+fn workdir_root(workdir: Option<&radicle::git::raw::Repository>) -> anyhow::Result<&Path> {
+    let workdir = workdir.context("this command must be run from a repository working copy")?;
+    workdir
+        .workdir()
+        .context("could not resolve repository working directory")
 }
 
 fn mk_issue_row(

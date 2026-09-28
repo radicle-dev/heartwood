@@ -120,7 +120,10 @@ impl Environment {
         let alias = Alias::new(alias);
         profile::Config {
             node: node::Config::test(alias),
-            cli: radicle::cli::Config { hints: false },
+            cli: radicle::cli::Config {
+                hints: false,
+                ..radicle::cli::Config::default()
+            },
             public_explorer: radicle::explorer::Explorer::default(),
             preferred_seeds: vec![],
             web: radicle::web::Config::default(),
