@@ -3194,7 +3194,7 @@ mod test {
         });
         let crefs = serde_json::json!({ "rules": rules });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 
@@ -3276,7 +3276,7 @@ mod test {
             "rules": rules
         });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 
@@ -3335,7 +3335,7 @@ mod test {
             "rules": rules
         });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 

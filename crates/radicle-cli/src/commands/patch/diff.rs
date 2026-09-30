@@ -25,7 +25,7 @@ pub fn run(
     };
     let (from, to) = revision.range();
 
-    process::Command::new("rad")
+    process::Command::new("git")
         .current_dir(stored.path())
         .args(["diff", from.to_string().as_str(), to.to_string().as_str()])
         .stdout(process::Stdio::inherit())

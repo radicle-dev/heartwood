@@ -69,6 +69,11 @@ pub(crate) fn test<'a>(
 /// A utility to check that some program can be executed with a `--version`
 /// argument and exits successfully.
 ///
+/// Returns `false` if the program cannot be found. Some `posix_spawn`
+/// implementations, including qemu-user, OpenBSD, and HPPA, report a missing
+/// executable as the child exiting with status 127 instead of returning
+/// [`std::io::ErrorKind::NotFound`] to the parent.
+///
 /// # Panics
 ///
 /// If there is an error executing the program other than the program not being
@@ -88,6 +93,10 @@ fn program_reports_version(program: &str) -> bool {
         }
         Err(e) => panic!("failure to execute `{program}`: {e}"),
         Ok(status) if status.success() => true,
+        Ok(status) if status.code() == Some(127) => {
+            log::warn!(target: "test", "`{program}` not found.");
+            false
+        }
         Ok(status) => panic!("executing `{program}` resulted in status {status}"),
     }
 }

@@ -9,7 +9,7 @@ use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::doc::update;
 use radicle::identity::{Doc, Identity, RawDoc, doc};
 use radicle::node::NodeId;
-use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadRepository as _, ReadStorage as _, WriteRepository};
 use radicle::{Profile, cob, crypto};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
@@ -226,29 +226,56 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                     identity::State::Redacted(_) => continue,
                 }
                 .into();
-                let state = r.state.to_string().into();
-                let id = term::format::oid(r.id).into();
+                let state = match &r.state {
+                    identity::State::Active => "active".to_string(),
+                    identity::State::Accepted => "accepted".to_string(),
+                    identity::State::Rejected(identity::RejectedBy::Vote) => {
+                        "rejected ✘".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Parent) => {
+                        "rejected ↥".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Sibling(_)) => {
+                        "rejected ⇄".to_string()
+                    }
+                    identity::State::Redacted(_) => continue,
+                }
+                .into();
+                let id = if args.verbose {
+                    term::label(r.id.to_string())
+                } else {
+                    term::format::oid(r.id).into()
+                };
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
                     term::format::Author::new(r.author.public_key(), &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
                 let parent = r
                     .parent
-                    .map(term::format::oid)
-                    .unwrap_or_else(|| term::Paint::new("none".to_string()));
+                    .map(|p| {
+                        if args.verbose {
+                            term::label(p.to_string())
+                        } else {
+                            term::format::oid(p).into()
+                        }
+                    })
+                    .unwrap_or_else(|| term::Paint::new("none".to_string()).into());
 
-                revisions.push([
-                    icon,
-                    id,
-                    title,
-                    alias,
-                    author,
-                    state,
-                    timestamp,
-                    parent.into(),
-                ]);
+                revisions.push([icon, id, title, alias, author, state, timestamp, parent]);
             }
             revisions.print();
+
+            term::blank();
+            term::println("Hints:");
+            term::println(format!(
+                "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
+                term::format::tertiary("●"),
+                term::format::positive("●"),
+                term::format::negative("●"),
+                "✘",
+                "↥",
+                "⇄",
+            ));
         }
         Command::Redact { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
@@ -275,6 +302,19 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .ok_or(anyhow!("revision `{previous}` not found"))?;
 
             print(revision, previous, &repo, &profile)?;
+        }
+        Command::Cache { storage: false } => {
+            set_identity_head(&repo)?;
+        }
+        Command::Cache { storage: true } => {
+            for info in profile.storage.repositories()? {
+                if let Err(err) = set_identity_head(&profile.storage.repository(info.rid)?) {
+                    term::error(format!(
+                        "Failed to cache identity for repository {}: {err}",
+                        info.rid
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -319,10 +359,31 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         term::format::bold("Author").into(),
         term::label(revision.author.to_string()),
     ]);
-    attrs.push([
-        term::format::bold("State").into(),
-        term::label(revision.state.to_string()),
-    ]);
+    match &revision.state {
+        identity::State::Rejected(reason) => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(format!(
+                    "{} {}",
+                    term::format::negative(revision.state),
+                    term::format::dim(format!("by {reason}")),
+                )),
+            ]);
+        }
+        identity::State::Active => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::tertiary(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Accepted => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::positive(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Redacted(_) => (),
+    }
     attrs.push([
         term::format::bold("Quorum").into(),
         if revision.is_accepted() {
@@ -464,6 +525,12 @@ fn update(
     } else {
         Err(anyhow!("you must provide a revision title and description"))
     }
+}
+
+fn set_identity_head(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
+    repo.set_identity_head()?;
+    term::success!("Successfully cached identity of repository {}", repo.id());
+    Ok(())
 }
 
 fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {
