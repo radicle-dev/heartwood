@@ -16,10 +16,10 @@ use radicle::git::fmt::RefString;
 use radicle::git::raw;
 use radicle::git::raw::ErrorExt as _;
 use radicle::identity::project::ProjectName;
-use radicle::identity::{Doc, RepoId, Visibility};
+use radicle::identity::{Doc, RepoId, Visibility, doc::GetPayload as _};
 use radicle::node::events::UploadPack;
 use radicle::node::{DEFAULT_SUBSCRIBE_TIMEOUT, Event, Handle, NodeId};
-use radicle::storage::ReadStorage as _;
+use radicle::storage::{ReadRepository, ReadStorage as _};
 use radicle::{Node, profile};
 
 use crate::commands;
@@ -147,11 +147,15 @@ pub fn init(repo: raw::Repository, args: Args, profile: &profile::Profile) -> an
         &profile.storage,
     ) {
         Ok((rid, doc, _)) => {
-            let proj = doc.project()?;
+            let proj = doc.project().transpose().ok().flatten();
 
             spinner.message(format!(
                 "Repository {} created.",
-                term::format::highlight(proj.name())
+                term::format::highlight(
+                    proj.as_ref()
+                        .map(|project| project.name().to_string())
+                        .unwrap_or_else(|| rid.to_string())
+                )
             ));
             spinner.finish();
 
@@ -168,13 +172,13 @@ pub fn init(repo: raw::Repository, args: Args, profile: &profile::Profile) -> an
                 }
             }
 
-            if args.set_upstream || git::branch_remote(&repo, proj.default_branch()).is_err() {
+            if args.set_upstream || git::branch_remote(&repo, &branch).is_err() {
                 // Setup, e.g. `master` -> `rad/master`
                 radicle::git::set_upstream(
                     &repo,
                     &*radicle::rad::REMOTE_NAME,
-                    proj.default_branch(),
-                    radicle::git::refs::workdir::branch(proj.default_branch()),
+                    &branch,
+                    radicle::git::refs::workdir::branch(&branch),
                 )?;
             } else {
                 push_cmd = format!("git push {} {branch}", *radicle::rad::REMOTE_NAME);
@@ -231,7 +235,6 @@ pub fn init_existing(
     profile: &profile::Profile,
 ) -> anyhow::Result<()> {
     let stored = profile.storage.repository(rid)?;
-    let project = stored.project()?;
     let url = radicle::git::Url::from(rid);
     let interactive = args.interactive();
 
@@ -244,13 +247,16 @@ pub fn init_existing(
     )?;
 
     if args.set_upstream {
-        // Setup, e.g. `master` -> `rad/master`
-        radicle::git::set_upstream(
-            &working,
-            &*radicle::rad::REMOTE_NAME,
-            project.default_branch(),
-            radicle::git::refs::workdir::branch(project.default_branch()),
-        )?;
+        match stored.identity_doc()?.default_branch_name() {
+            Err(_) => {
+                term::warning("Failed to set upstream.");
+            }
+            Ok(branch) => {
+                // Setup, e.g. `master` -> `rad/master`
+                let merge = radicle::git::refs::workdir::branch(&branch);
+                radicle::git::set_upstream(&working, &*radicle::rad::REMOTE_NAME, branch, merge)?;
+            }
+        }
     }
 
     if args.setup_signing {

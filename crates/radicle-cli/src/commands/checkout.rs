@@ -6,6 +6,7 @@ use anyhow::Context as _;
 use anyhow::anyhow;
 
 use radicle::git;
+use radicle::identity::doc::GetPayload as _;
 use radicle::node::AliasStore;
 use radicle::prelude::*;
 use radicle::storage::git::transport;
@@ -25,12 +26,24 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
     let storage = &profile.storage;
     let remote = args.remote.unwrap_or(profile.did());
-    let doc = storage
-        .repository(args.repo)?
-        .identity_doc()
+
+    let repo = storage
+        .repository(args.repo)
         .context("repository could not be found in local storage")?;
-    let payload = doc.project()?;
-    let path = PathBuf::from(payload.name());
+
+    let doc = repo.identity_doc()?;
+
+    let default_branch_name = doc.default_branch_name().ok();
+
+    let path = PathBuf::from(
+        doc.project()
+            .transpose()
+            .ok()
+            .flatten()
+            .as_ref()
+            .map(|project| project.name().to_string())
+            .unwrap_or_else(|| repo.id().to_string()),
+    );
 
     transport::local::register(storage.clone());
 
@@ -66,7 +79,7 @@ fn execute(args: Args, profile: &Profile) -> anyhow::Result<PathBuf> {
     setup_remotes(
         project::SetupRemote {
             rid: args.repo,
-            tracking: Some(payload.default_branch().clone()),
+            tracking: default_branch_name,
             repo: &repo,
             fetch: true,
         },

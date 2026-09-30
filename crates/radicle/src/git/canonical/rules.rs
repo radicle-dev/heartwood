@@ -32,9 +32,9 @@ use super::protect::Unprotected;
 
 const ASTERISK: char = '*';
 
-/// Private trait to ensure that not any `Rule` can be deserialized.
-/// Implementations are provided for `Allowed` and `usize` so that `RawRule`s
-/// can be deserialized, while `ValidRule`s cannot – preventing deserialization
+/// Private trait to ensure that not any [`Rule`] can be deserialized.
+/// Implementations are provided for [`Allowed`] and [`usize`] so that [`RawRule`]s
+/// can be deserialized, while [`ValidRule`]s cannot – preventing deserialization
 /// bugs for that type.
 trait Sealed {}
 impl Sealed for Allowed {}
@@ -246,7 +246,13 @@ impl RawRule {
     }
 }
 
-/// A set of `RawRule`s that can be serialized and deserialized.
+/// A set of [`RawRule`]s that can be serialized and deserialized.
+///
+/// Note that matching on the [`RawPattern`]s is deliberately not implemented,
+/// as the [`RawRule`]s are not validated and thus should not be used to
+/// calculate canonical references.
+/// If you want to match on a set of rules, obtain [`Rules`] via
+/// [`Rules::from_raw`], and use [`Rules::matches`] on the result.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawRules {
     /// The reference pattern that this rule applies to.
@@ -284,18 +290,6 @@ impl RawRules {
         self.rules
             .iter()
             .any(|(pattern, _)| pattern.as_str() == refname)
-    }
-
-    /// Check if the `refname` matches any existing rules, including glob
-    /// matches.
-    pub fn matches<'a, 'b>(
-        &self,
-        refname: &Qualified<'b>,
-    ) -> impl Iterator<Item = (&RawPattern, &RawRule)> + use<'a, '_, 'b> {
-        let refname = refname.clone();
-        self.rules
-            .iter()
-            .filter(move |(pattern, _)| matches(pattern, &refname))
     }
 }
 
@@ -434,37 +428,6 @@ impl std::ops::Deref for ResolvedDelegates {
             ResolvedDelegates::Delegates(ds) => ds,
             ResolvedDelegates::Set(ds) => ds,
         }
-    }
-}
-
-/// A reference that has been matched against a [`ValidRule`].
-///
-/// Can be constructed by using [`Rules::matches`].
-#[derive(Debug)]
-pub struct MatchedRule<'a> {
-    refname: Qualified<'a>,
-    rule: ValidRule,
-}
-
-impl MatchedRule<'_> {
-    /// Return the reference name that was used for checking if it was a match.
-    pub fn refname(&self) -> &Qualified<'_> {
-        &self.refname
-    }
-
-    /// Return the rule that was matched.
-    pub fn rule(&self) -> &ValidRule {
-        &self.rule
-    }
-
-    /// Return the allowed DIDs for the matched rule.
-    pub fn allowed(&self) -> &doc::Delegates {
-        self.rule().allowed()
-    }
-
-    /// Return the [`doc::Threshold`] for the matched rule.
-    pub fn threshold(&self) -> &doc::Threshold {
-        self.rule().threshold()
     }
 }
 

@@ -65,7 +65,7 @@ pub struct RepositoryInfo {
     /// Repository identifier.
     pub rid: RepoId,
     /// Head of default branch.
-    pub head: Oid,
+    pub head: Option<Oid>,
     /// Identity document.
     pub doc: Doc,
     /// Information about local signed references.
@@ -521,7 +521,8 @@ pub trait ReadRepository: Sized + ValidateRepository {
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError>;
 
     /// Gets the qualified reference name of the default branch of self,
-    /// according to the project payload in the identity document.
+    /// according to the identity document.
+    #[deprecated]
     fn default_branch(&self) -> Result<Qualified<'_>, RepositoryError> {
         Ok(self.identity_doc()?.default_branch()?.to_owned())
     }
@@ -544,9 +545,6 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get the root commit of the canonical identity branch.
     fn identity_root(&self) -> Result<Oid, RepositoryError>;
-
-    /// Get the root commit of the identity branch of a specific remote.
-    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError>;
 
     /// Load the identity history.
     fn identity(&self) -> Result<Identity, RepositoryError>

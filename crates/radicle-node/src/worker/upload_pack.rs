@@ -61,6 +61,13 @@ where
     let git_dir = paths::repository(storage, &header.repo);
     let mut child = {
         let mut cmd = Command::new("git");
+
+        #[cfg(windows)]
+        std::os::windows::process::CommandExt::creation_flags(
+            &mut cmd,
+            radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
+        );
+
         cmd.current_dir(git_dir)
             .env_clear()
             .envs(std::env::vars().filter(|(key, _)| key == "PATH" || key.starts_with("GIT_TRACE")))

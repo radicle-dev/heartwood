@@ -62,25 +62,39 @@ pub fn start(
     } = LogRotatorFileSystem::from_profile(profile).rotate()?;
 
     if daemon {
-        let child = process::Command::new(cmd)
+        let mut command = process::Command::new(cmd);
+
+        command
             .args(options)
             .envs(envs)
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::from(log_file.try_clone()?))
-            .stderr(process::Stdio::from(log_file))
+            .stderr(process::Stdio::from(log_file));
+
+        #[cfg(windows)]
+        {
+            use radicle_windows::process::creation_flags::*;
+            std::os::windows::process::CommandExt::creation_flags(
+                &mut command,
+                (CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | DETACHED_PROCESS).0,
+            );
+        }
+
+        let child = command
             .spawn()
             .map_err(|e| anyhow!("failed to start node process {cmd:?}: {e}"))?;
+
         let pid = term::format::parens(term::format::dim(child.id()));
 
         if verbose {
             logs(0, Some(time::Duration::from_secs(1)), profile)?;
         } else {
             let started = time::Instant::now();
-            let mut spinner = term::spinner(format!("Node starting.. {pid}"));
+            let mut spinner = term::spinner(format!("Node starting… (Process ID: {pid})"));
 
             loop {
                 if node.is_running() {
-                    spinner.message(format!("Node started {pid}"));
+                    spinner.message(format!("Node started. (Process ID: {pid})"));
                     spinner.finish();
 
                     term::println(term::format::dim(
