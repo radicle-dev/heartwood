@@ -100,7 +100,7 @@ impl ReadStorage for MockStorage {
             .iter()
             .map(|(rid, r)| RepositoryInfo {
                 rid: *rid,
-                head: r.head().unwrap().1,
+                head: Some(r.head().unwrap().1),
                 doc: r.doc.clone().into(),
                 refs: SignedRefsInfo::None,
                 synced_at: None,
@@ -324,10 +324,6 @@ impl ReadRepository for MockRepository {
     }
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {
-        Ok(self.doc.commit)
-    }
-
-    fn identity_root_of(&self, _remote: &RemoteId) -> Result<Oid, RepositoryError> {
         Ok(self.doc.commit)
     }
 

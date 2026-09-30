@@ -227,22 +227,21 @@ impl FromStr for PayloadId {
     }
 }
 
+static CANONICAL_REFS: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.crefs"));
+static PROJECT: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.project"));
+
 impl PayloadId {
-    /// Project payload type.
-    pub fn project() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.project")
-                .expect("PayloadId::project: type name is valid"),
-        )
+    pub fn canonical_refs() -> &'static Self {
+        &CANONICAL_REFS
     }
 
-    pub fn canonical_refs() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.crefs")
-                .expect("PayloadId::canonical_refs: type name is valid"),
-        )
+    pub fn project() -> &'static Self {
+        &PROJECT
+    }
+
+    #[inline]
+    fn new(type_name: &'static str) -> Self {
+        Self::from_str(type_name).expect("type_name is valid")
     }
 }
 
@@ -250,8 +249,6 @@ impl PayloadId {
 pub enum PayloadError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("payload '{0}' not found in identity document")]
-    NotFound(PayloadId),
 }
 
 /// A `Payload` is a free-form JSON value that can be associated with an
@@ -293,6 +290,26 @@ impl Deref for Payload {
 /// Trait for all types that may carry payloads.
 pub trait GetPayload {
     fn get_payload(&self, id: &PayloadId) -> Option<&Payload>;
+
+    fn load_payload<T: de::DeserializeOwned>(
+        &self,
+        id: &PayloadId,
+    ) -> Option<Result<T, PayloadError>> {
+        self.get_payload(id).map(|payload| {
+            serde_json::from_value(payload.deref().clone()).map_err(PayloadError::Json)
+        })
+    }
+
+    /// Get the [`Project`] by deserializing from the payload.
+    fn project(&self) -> Option<Result<Project, PayloadError>> {
+        self.load_payload(PayloadId::project())
+    }
+
+    /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
+    /// (if present).
+    fn raw_canonical_refs(&self) -> Option<Result<RawCanonicalRefs, PayloadError>> {
+        self.load_payload(PayloadId::canonical_refs())
+    }
 }
 
 impl GetPayload for Doc {
@@ -436,7 +453,7 @@ impl RawDoc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates,
             threshold,
             visibility,
@@ -446,17 +463,6 @@ impl RawDoc {
     /// Get the version of the document.
     pub fn version(&self) -> &Version {
         &self.version
-    }
-
-    /// Get the project payload, if it exists and is valid, out of this document.
-    pub fn project(&self) -> Result<Project, PayloadError> {
-        let value = self
-            .payload
-            .get(&PayloadId::project())
-            .ok_or_else(|| PayloadError::NotFound(PayloadId::project()))?;
-        let proj: Project = serde_json::from_value((**value).clone())?;
-
-        Ok(proj)
     }
 
     /// Check if the given `did` is in the set of [`RawDoc::delegates`].
@@ -707,7 +713,7 @@ impl Doc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
             threshold: Threshold(NonZeroUsize::MIN),
             visibility,
@@ -759,17 +765,6 @@ impl Doc {
         &self.payload
     }
 
-    /// Get the project payload, if it exists and is valid, out of this document.
-    pub fn project(&self) -> Result<Project, PayloadError> {
-        let value = self
-            .payload
-            .get(&PayloadId::project())
-            .ok_or_else(|| PayloadError::NotFound(PayloadId::project()))?;
-        let proj: Project = serde_json::from_value((**value).clone())?;
-
-        Ok(proj)
-    }
-
     /// Gets the qualified reference name of the default branch,
     /// according to payloads `xyz.radicle.project` and `xyz.radicle.crefs`
     /// in this document.
@@ -780,6 +775,14 @@ impl Doc {
             .resolve_head()
             .ok_or(DefaultBranchError::MissingHead)?;
         Ok(qualified.to_owned())
+    }
+
+    pub fn default_branch_name(&self) -> Result<git::fmt::RefString, DefaultBranchError> {
+        let qualified = self.default_branch()?;
+        Ok(qualified
+            .strip_prefix(RefString::try_from("refs/heads").expect("valid refstring"))
+            .expect("valid branch")
+            .to_ref_string())
     }
 
     /// Construct the canonical references for this document.
@@ -805,7 +808,11 @@ impl Doc {
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        let mut raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
+        let mut raw_crefs = self
+            .raw_canonical_refs()
+            .transpose()
+            .map_err(CanonicalRefsError::Payload)?
+            .unwrap_or_default();
         let resolve = &mut || self.delegates.clone();
 
         // Determine where `HEAD` comes from. The `resolve_head()` result
@@ -814,7 +821,7 @@ impl Doc {
         let head: Option<Qualified<'static>> = raw_crefs.symbolic().resolve_head().cloned();
 
         match (head, self.project()) {
-            (Some(ref default_branch), Ok(project)) => {
+            (Some(ref default_branch), Some(Ok(project))) => {
                 let project_branch = project.default_branch_qualified();
                 if project_branch != *default_branch {
                     return Err(CanonicalRefsError::DefaultBranchRuleError(
@@ -826,14 +833,17 @@ impl Doc {
                 }
                 self.validate_head_rule(&raw_crefs, default_branch)?;
             }
-            (Some(ref default_branch), Err(_)) => {
+            (Some(ref default_branch), None) => {
                 self.validate_head_rule(&raw_crefs, default_branch)?;
             }
-            (None, Ok(project)) => {
+            (None, Some(Ok(project))) => {
                 self.synthesize_head(&mut raw_crefs, &project)?;
             }
-            (None, Err(err)) => {
-                return Err(CanonicalRefsError::SynthesisPayloadMissing(err));
+            (None, None) => {
+                return Err(CanonicalRefsError::SynthesisPayloadMissing);
+            }
+            (_, Some(Err(err))) => {
+                return Err(CanonicalRefsError::ProjectPayload(err));
             }
         }
 
@@ -898,6 +908,7 @@ impl Doc {
             );
         }
 
+        #[allow(deprecated)]
         raw_crefs
             .symbolic_mut()
             .combine(symbolic::SymbolicRefs::head(project.default_branch()))
@@ -1058,21 +1069,18 @@ impl Doc {
 }
 
 #[derive(Debug, Error)]
-pub enum RawCanonicalRefsError {
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-}
-
-#[derive(Debug, Error)]
 pub enum CanonicalRefsError {
     #[error(transparent)]
-    Raw(#[from] RawCanonicalRefsError),
+    Payload(PayloadError),
 
     #[error(transparent)]
     CanonicalRefs(#[from] crefs::ValidationError),
 
     #[error("could not load `xyz.radicle.project` to get default branch name: {0}")]
-    SynthesisPayloadMissing(PayloadError),
+    ProjectPayload(PayloadError),
+
+    #[error("payload `xyz.radicle.project` is missing")]
+    SynthesisPayloadMissing,
 
     #[error(transparent)]
     DefaultBranchRuleError(#[from] DefaultBranchRuleError),
@@ -1102,22 +1110,6 @@ pub enum DefaultBranchRuleError {
     )]
     HeadMismatch { cref: RefString, project: RefString },
 }
-
-pub trait GetRawCanonicalRefs: GetPayload {
-    /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
-    /// (if present).
-    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, RawCanonicalRefsError> {
-        let Some(value) = self.get_payload(&PayloadId::canonical_refs()) else {
-            return Ok(None);
-        };
-
-        Ok(Some(serde_json::from_value(value.to_owned().into_inner())?))
-    }
-}
-
-impl GetRawCanonicalRefs for Doc {}
-
-impl GetRawCanonicalRefs for RawDoc {}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
@@ -1220,7 +1212,7 @@ mod test {
         // `IDENTITY_VERSION`.
         let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
         let payload = [(
-            PayloadId::project(),
+            PayloadId::project().clone(),
             Payload {
                 value: json!({
                     "name": "heartwood",

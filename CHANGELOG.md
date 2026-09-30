@@ -5,7 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 1.10.2 - 2026-08-26
+
+## Improvements
+
+- `rad node start` now labels the process identifier it prints
+  when executing `radicle-node`.
+- On Windows, when spawning child processes, the "creation flags"
+  are set more carefully. This is to avoid opening of distracting
+  terminal windows (potentially stealing focus) and to detach
+  `radicle-node` from the CLI properly.
+- When `rad auth` loads a key into SSH Agent, it now sets a comment
+  to make clear that the key is used by Radicle and the file it
+  was loaded from.
+
+## Fixes
+
+- The Git remote helper `git-remote-rad` now supports the options
+  `pushcert [if-asked|false]`. This means it will not refuse operation
+  anymore if called via `git push --signed=[if-asked|false]`.
+- `rad patch diff` does not print a deprecation notice about `rad diff`
+  being deprecated anymore. Instead, `rad patch diff` executes `git diff`
+  directly (which is what `rad diff` does anyway).
+- When recomputing the identity of a repository, the resolution of
+  the object identifier of the identity COB was tightened to be stricter,
+  to improve security.
+
+## 1.10.1 - 2026-08-12
+
+## Improvements
+
+- `rad debug` now prints the contents of `/etc/os-release` to help identifying
+  the operating system.
+- `rad debug` now detects HardenedBSD.
+- Signature verification was tightened to use [`ed25519_dalek::VerifyingKey::verify_strict`]
+  (https://docs.rs/ed25519-dalek/2.2.0/ed25519_dalek/struct.VerifyingKey.html#method.verify_strict),
+  refer to the documentation of the function.
+
+## Fixes
+
+- Nodes would leak repository identifiers of private repositories to peers for
+  which the private repository should not be visible. This was fixed.
+- A regression regarding generation of ephemeral keys for communication between
+  nodes was fixed.
+
+## 1.10.0 - 2026-08-05
 
 ## Repository Identity Evaluation
 
@@ -67,6 +111,14 @@ We will note that we found an inconsistency where the concurrent operations
 "redact" and "accept" will produce a different identity document depending on
 which is ordered first. Further analysis of the ordering of pairs of actions is
 required, but is left to future work.
+
+We scanned the network for cases where these changes in evaluation also lead
+to changes in the identity document. There are some cases, but this happens
+rarely: Out of several thousand repositories, only around fifteen showed
+differences.
+
+In case your repository is affected, you might need to run `rad id cache`. This
+re-evaluates the identity COB and updates the `refs/rad/id` reference.
 
 ## Improvements
 

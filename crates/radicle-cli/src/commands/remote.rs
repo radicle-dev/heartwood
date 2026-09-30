@@ -6,7 +6,7 @@ pub mod rm;
 
 mod args;
 
-use radicle::storage::ReadStorage;
+use radicle::storage::{ReadRepository, ReadStorage};
 
 use crate::terminal::Context;
 use crate::terminal::{self as term, args::rid_or_cwd};
@@ -30,13 +30,18 @@ pub fn run(args: Args, ctx: impl Context) -> anyhow::Result<()> {
             fetch,
             sync,
         } => {
-            let proj = profile.storage.repository(rid)?.project()?;
-            let branch = proj.default_branch();
+            let branch = profile
+                .storage
+                .repository(rid)?
+                .identity_doc()?
+                .default_branch_name()
+                .ok();
+
             self::add::run(
                 rid,
                 &nid,
                 name,
-                Some(branch.clone()),
+                branch,
                 &profile,
                 &working,
                 fetch.should_fetch(),

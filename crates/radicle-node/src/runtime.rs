@@ -84,9 +84,6 @@ pub enum Error {
         and restart the node"
     )]
     AlreadyRunning(PathBuf),
-    /// A git version error.
-    #[error("git version error: {0}")]
-    GitVersion(#[from] git::VersionError),
 }
 
 impl From<service::Error> for Error {
