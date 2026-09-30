@@ -172,7 +172,7 @@ impl Glob<Local> {
     /// `Glob<Branch>`.
     ///
     /// # Example
-    /// ```no_run
+    /// ```ignore
     /// Glob::heads(pattern!("features/*"))
     ///     .insert(pattern!("qa/*"))
     ///     .branches()
@@ -246,7 +246,7 @@ impl Glob<Remote> {
     /// `Glob<Branch>`.
     ///
     /// # Example
-    /// ```no_run
+    /// ```ignore
     /// Glob::remotes(pattern!("origin/features/*"))
     ///     .insert(pattern!("origin/qa/*"))
     ///     .branches()

@@ -1258,9 +1258,12 @@ fn session(
         Socks5Session::new(connection, socks5)
     };
 
+    let mut random = [0; 32];
+    getrandom::fill(&mut random).expect("failed get random bytes from the operating system");
+
     let noise = {
         let keyset = Keyset {
-            e: crypto::SigningKey::from_seed(crypto::Seed::new([91; 32])),
+            e: crypto::SigningKey::from_seed(crypto::Seed::new(random)),
             s: Some(secret_key),
             re: None,
             rs: remote_id,

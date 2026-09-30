@@ -132,6 +132,10 @@ impl CanonicalRefs {
     pub fn symbolic(&self) -> &SymbolicRefs {
         &self.symbolic
     }
+
+    pub fn into_raw(self) -> (RawRules, SymbolicRefs) {
+        (self.rules.into(), self.symbolic)
+    }
 }
 
 impl Extend<(rules::RawPattern, rules::RawRule)> for RawCanonicalRefs {

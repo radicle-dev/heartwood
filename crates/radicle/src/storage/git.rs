@@ -13,7 +13,7 @@ use std::{fs, io};
 
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
-use crate::identity::doc::DocError;
+use crate::identity::doc::{DocError, GetPayload as _};
 use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::storage::refs::{FeatureLevel, Refs, SignedRefs};
@@ -159,10 +159,10 @@ impl ReadStorage for Storage {
 
             // For performance reasons, we don't do a full repository check here.
             let head = match repo.head() {
-                Ok((_, head)) => head,
+                Ok((_, head)) => Some(head),
                 Err(e) => {
-                    log::warn!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
-                    continue;
+                    log::debug!(target: "storage", "Repository {rid} is invalid: looking up head: {e}");
+                    None
                 }
             };
             // Nb. This will be `None` if they were not found.
@@ -256,7 +256,7 @@ impl Storage {
     {
         rids.map(|rid| {
             let repo = self.repository(*rid)?;
-            let (_, head) = repo.head()?;
+            let head = repo.head().ok().map(|(_, head)| head);
 
             let refs = SignedRefsInfo::new(refs::SignedRefs::load(self.info.key, &repo))
                 .map_err(|err| Error::Refs(refs::Error::Read(err)))?;
@@ -570,12 +570,14 @@ impl Repository {
     }
 
     /// Get the canonical project information.
-    pub fn project(&self) -> Result<Project, RepositoryError> {
-        let head = self.identity_head()?;
-        let doc = self.identity_doc_at(head)?;
-        let proj = doc.project()?;
-
-        Ok(proj)
+    #[deprecated(note = "Use `Doc::project()` on `Self::identity_doc()`.")]
+    pub fn project(&self) -> Result<Option<Project>, RepositoryError> {
+        self.identity_doc().and_then(|identity| {
+            identity
+                .project()
+                .transpose()
+                .map_err(RepositoryError::Payload)
+        })
     }
 
     pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, DocError> {
@@ -891,39 +893,58 @@ impl ReadRepository for Repository {
         Ok(root.into())
     }
 
-    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        // Remotes that run newer clients will have this reference set. For older clients,
-        // compute the root OID based on the identity head.
-        if let Ok(root) = self.reference_oid(remote, &git::refs::storage::IDENTITY_ROOT) {
-            return Ok(root);
-        }
-        let oid = self.identity_head_of(remote)?;
-        let root = self
-            .revwalk(oid)?
-            .last()
-            .ok_or(RepositoryError::Doc(DocError::Missing))??;
-
-        Ok(root.into())
-    }
-
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
-        for remote in self.remote_ids()? {
-            let remote = remote?;
-            // Nb. A remote may not have an identity document if the user has not contributed
-            // any changes to the identity COB.
-            let Ok(root) = self.identity_root_of(&remote) else {
-                continue;
-            };
-            let blob = Doc::blob_at(root, self)?;
+        let blob = match self.backend.find_blob(self.id.deref().into()) {
+            Ok(blob) => blob,
+            Err(err) if err.is_not_found() => return Err(RepositoryError::Doc(DocError::Missing)),
+            Err(err) => return Err(err.into()),
+        };
 
-            // We've got an identity that goes back to the correct root.
-            if *self.id == blob.id() {
-                let identity = Identity::get(&root.into(), self)?;
+        let doc = Doc::from_blob(&blob)?;
+        let delegates = doc.delegates();
 
-                return Ok(identity.head());
-            }
+        if delegates.len() != 1 {
+            log::debug!(target: "storage", "Root identity document (blob '{}') has {} delegates, expected exactly 1.", self.id, delegates.len());
+            return Err(RepositoryError::Doc(DocError::Missing));
         }
-        Err(DocError::Missing.into())
+
+        let founder = delegates.first();
+
+        let root = match self.reference_oid(founder, &git::refs::storage::IDENTITY_ROOT) {
+            Ok(root) => {
+                log::debug!(target: "storage", "Obtained identity COB root commit '{root}' via reference '{}' in namespace of founder '{founder}' of identity document '{}'.", git::refs::storage::IDENTITY_ROOT.as_str(), self.id);
+                root
+            }
+            Err(err) if err.is_not_found() => {
+                // In case the namespace of the founder does not exist,
+                // or does not have `rad/root`, attempt to find the root
+                // by walking backwards from `rad/id`, which tracks the
+                // head of the identity COB.
+                let root = self.identity_root().map_err(|err| {
+                    if err.is_not_found() {
+                        RepositoryError::Doc(DocError::Missing)
+                    } else {
+                        err
+                    }
+                })?;
+
+                log::debug!(target: "storage", "Obtained identity COB root commit '{root}' via identity root of the repository.");
+                root
+            }
+            Err(err) => {
+                log::debug!(target: "storage", "Failed to find identity root for founder '{founder}' of identity document '{}': {err}", self.id);
+                return Err(RepositoryError::Doc(DocError::Missing));
+            }
+        };
+
+        let doc_at_root = Doc::load_at(root, self)?;
+
+        if doc_at_root.blob != *self.id {
+            log::debug!(target: "storage", "Root identity document (blob '{}') resolved via '{}' does not match the expected identity document (blob '{}').", doc_at_root.blob, CANONICAL_IDENTITY.as_str(), self.id);
+            return Err(RepositoryError::Doc(DocError::Missing));
+        }
+
+        Ok(Identity::get(&root.into(), self)?.head())
     }
 
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error> {

@@ -482,12 +482,22 @@ fn announcement_rebroadcast() {
 }
 
 #[test]
-fn announcement_rebroadcast_duplicates() {
+fn announcement_rebroadcast_deduplicates() {
     let mut cid = Peer::cid();
     let mut amy = Peer::amy();
     let bob = Peer::bob();
     let dan = Peer::dan();
     let rids = arbitrary::set::<RepoId>(3..=3);
+
+    for rid in &rids {
+        let mut repo = r#gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| doc.visibility = Visibility::Public)
+            .unwrap();
+        amy.storage_mut().repos.insert(*rid, repo);
+    }
 
     amy.connect_to(&bob);
     amy.receive(*bob.nid(), cid.node_announcement());
@@ -800,6 +810,68 @@ fn refs_announcement_relay_private() {
             ..
         })),
         "The second ref announcement is relayed to Cid"
+    );
+}
+
+#[test]
+fn refs_announcement_subscribe_private() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Peer::amy();
+    let cid = Peer::with_storage(
+        "cid",
+        CID,
+        Storage::open(tmp.path().join("cid"), fixtures::user()).unwrap(),
+    );
+
+    let bob = {
+        let signer = SigningKey::mock(BOB as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
+
+        Peer::with_storage("bob", BOB, storage)
+    };
+
+    // Amy holds the repo, and it isn't visible to Cid.
+    let repo = {
+        let mut repo = r#gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| {
+                doc.visibility = Visibility::Private {
+                    allow: [(*amy.nid()).into(), (*bob.nid()).into()].into(),
+                };
+            })
+            .unwrap();
+        repo
+    };
+    let private = repo.id;
+
+    amy.seed(&repo.id, policy::Scope::All).unwrap();
+    amy.storage_mut().repos.insert(private, repo);
+
+    amy.connect_to(&bob);
+    amy.connect_to(&cid);
+
+    // Amy stores Bob's announcement *before* Cid subscribes.
+    amy.receive(*bob.nid(), bob.refs_announcement(private));
+    amy.messages(*cid.nid()).for_each(drop);
+
+    // Cid subscribes with the default filter, which matches every repo.
+    amy.receive(*cid.nid(), Message::Subscribe(Subscribe::all()));
+
+    let private_refs_announcement = amy.messages(*cid.nid()).find(|m| {
+        matches!(
+            m,
+            Message::Announcement(Announcement {
+                message: AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }),
+                ..
+            }) if *rid == private
+        )
+    });
+    assert_matches!(
+        private_refs_announcement,
+        None,
+        "The refs announcement for private repo {private} is not sent to Cid"
     );
 }
 

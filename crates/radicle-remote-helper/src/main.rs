@@ -338,6 +338,17 @@ fn run_loop<R: BufRead, W: Write, G: service::GitService, N: service::NodeSessio
                 "progress" => {
                     writeln!(output, "unsupported")?;
                 }
+                "pushcert" => match value {
+                    Some(value) if value == "false" || value == "if-asked" => {
+                        writeln!(output, "ok")?;
+                    }
+                    Some(_) => {
+                        writeln!(output, "unsupported")?;
+                    }
+                    None => {
+                        writeln!(output, "error missing value for pushcert")?;
+                    }
+                },
                 _ => {
                     writeln!(output, "unsupported")?;
                 }

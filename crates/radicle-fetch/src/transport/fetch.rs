@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
@@ -173,7 +174,6 @@ where
         keepfile: None,
     };
     let mut negotiate = Negotiate { wants_haves };
-    let agent = agent_name();
 
     let mut pack_out = None;
     let mut handshake = handshake.clone();
@@ -189,7 +189,7 @@ where
         fetch::Context {
             handshake: &mut handshake,
             transport: &mut conn,
-            user_agent: ("agent", Some(agent.into())),
+            user_agent: ("agent", Some(Cow::Owned(agent_name()))),
             trace_packetlines: false,
         },
         fetch::Options {

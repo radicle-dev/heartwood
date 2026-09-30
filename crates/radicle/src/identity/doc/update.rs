@@ -5,12 +5,11 @@ use std::{collections::BTreeSet, str::FromStr};
 use serde_json as json;
 
 use crate::{
-    git,
     prelude::Did,
     storage::{self, ReadRepository, RepositoryError, refs},
 };
 
-use super::{Doc, PayloadError, PayloadId, RawDoc, Visibility};
+use super::{Doc, GetPayload as _, PayloadError, PayloadId, RawDoc, Visibility};
 
 /// [`EditVisibility`] allows the visibility of a [`RawDoc`] to be edited using
 /// the [`visibility`] function.
@@ -199,11 +198,32 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     // Verify that the project payload is valid
     // TODO(finto): perhaps this should be handled by JSON Schemas instead
     let project = match proposal.project() {
-        Ok(project) => Some(project),
-        Err(PayloadError::NotFound(_)) => None,
-        Err(PayloadError::Json(e)) => {
+        None => None,
+        Some(Ok(project)) => Some(project),
+        Some(Err(PayloadError::Json(e))) => {
             return Err(error::DocVerification::PayloadError {
-                id: PayloadId::project(),
+                id: PayloadId::project().clone(),
+                err: e.to_string(),
+            });
+        }
+    };
+
+    let resolve = &mut || proposal.delegates.clone();
+
+    let crefs = match proposal.raw_canonical_refs() {
+        None => None,
+        Some(Ok(crefs)) => match crefs.try_into_canonical_refs(resolve) {
+            Ok(crefs) => Some(crefs),
+            Err(err) => {
+                return Err(error::DocVerification::PayloadError {
+                    id: PayloadId::canonical_refs().clone(),
+                    err: err.to_string(),
+                });
+            }
+        },
+        Some(Err(PayloadError::Json(e))) => {
+            return Err(error::DocVerification::PayloadError {
+                id: PayloadId::canonical_refs().clone(),
                 err: e.to_string(),
             });
         }
@@ -215,13 +235,11 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
     //     (This rule must be synthesized!)
     //  2. … symbolic reference with the name `HEAD`.
     //     (This reference must be synthesized!)
-    use super::GetRawCanonicalRefs as _;
-    match raw.raw_canonical_refs().map(|rcrefs| rcrefs.zip(project)) {
-        Ok(Some((crefs, project))) => {
-            let default =
-                git::fmt::Qualified::from(git::fmt::lit::refs_heads(project.default_branch()));
+    match crefs.zip(project) {
+        Some((crefs, project)) => {
+            let default = project.default_branch_qualified().to_owned();
             let matches = crefs
-                .raw_rules()
+                .rules()
                 .matches(&default)
                 .map(|(pattern, _)| pattern.to_string())
                 .collect::<Vec<_>>();
@@ -239,13 +257,6 @@ pub fn verify(raw: RawDoc) -> Result<Doc, error::DocVerification> {
         _ => { /* we validate below */ }
     }
 
-    // Verify that the canonical references payload is valid
-    if let Err(e) = proposal.canonical_refs() {
-        return Err(error::DocVerification::PayloadError {
-            id: PayloadId::canonical_refs(),
-            err: e.to_string(),
-        });
-    }
     Ok(proposal)
 }
 
@@ -284,8 +295,8 @@ fn verify_delegates(
 mod test {
     use serde_json::json;
 
+    use super::*;
     use crate::{
-        git,
         identity::doc::{PayloadId, update::error},
         prelude::RawDoc,
         test::arbitrary,
@@ -299,7 +310,7 @@ mod test {
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {
@@ -317,13 +328,12 @@ mod test {
     #[test]
     fn test_cannot_include_default_branch_rule() {
         let raw = arbitrary::r#gen::<RawDoc>(1);
-        let branch = git::fmt::Qualified::from(git::fmt::lit::refs_heads(
-            raw.project().unwrap().default_branch(),
-        ));
+        let project = raw.project().unwrap().unwrap();
+        let branch = project.default_branch_qualified();
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {
@@ -350,13 +360,12 @@ mod test {
     #[test]
     fn test_default_branch_rule_exists_after_verification() {
         let raw = arbitrary::r#gen::<RawDoc>(1);
-        let branch = git::fmt::Qualified::from(git::fmt::lit::refs_heads(
-            raw.project().unwrap().default_branch(),
-        ));
+        let project = raw.project().unwrap().unwrap();
+        let branch = project.default_branch_qualified();
         let raw = super::payload(
             raw,
             [PayloadUpsert {
-                id: PayloadId::canonical_refs(),
+                id: PayloadId::canonical_refs().clone(),
                 key: "rules".to_string(),
                 value: json!({
                     "refs/tags/*": {

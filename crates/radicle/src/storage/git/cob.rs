@@ -365,10 +365,6 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.identity_root()
     }
 
-    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        self.repo.identity_root_of(remote)
-    }
-
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         self.repo.canonical_identity_head()
     }
