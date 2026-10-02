@@ -124,6 +124,8 @@ pub fn init(repo: raw::Repository, args: Args, profile: &profile::Profile) -> an
     } else {
         // TODO(finto): this is interactive without checking `interactive` –
         // this should check if interactive and use the `private` if not
+        warn_private_repo_vulnerability();
+        term::blank();
         let selected = term::select(
             "Visibility",
             &["public", "private"],
@@ -480,6 +482,8 @@ pub fn announce(
             and to peers you explicitly allow.",
         );
         term::blank();
+        warn_private_repo_vulnerability();
+        term::blank();
         term::info!(
             "To make it public, run {}.",
             term::format::command("rad publish")
@@ -487,6 +491,14 @@ pub fn announce(
     }
 
     Ok(())
+}
+
+fn warn_private_repo_vulnerability() {
+    term::warning(
+        "There is a severe vulnerability affecting the network protocol that Radicle uses. \
+         See https://radicle.dev/2026/09/23/disclosure-of-vulnerability-in-network-protocol for details. \
+         Only use private repositories if you understand the risks and want to take them.",
+    );
 }
 
 /// Set up Radicle key as commit signing key in repository.
