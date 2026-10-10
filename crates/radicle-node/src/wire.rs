@@ -33,7 +33,7 @@ use radicle::storage::WriteStorage;
 
 use crate::reactor;
 use crate::reactor::{Listener, Transport};
-use crate::reactor::{NoiseSession, ProtocolArtifact, SessionEvent, Socks5Session};
+use crate::reactor::{NoiseSession, NoiseTransport, ProtocolArtifact, SessionEvent, Socks5Session};
 use crate::reactor::{Token, Tokens};
 use crate::worker;
 use crate::worker::channels::{ChannelEvent, ChannelsConfig};
@@ -1272,7 +1272,11 @@ fn session(
             rs: remote_id,
         };
 
-        NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, remote_id.is_some(), &[], keyset)
+        let is_initiator = remote_id.is_some();
+        let state =
+            NoiseState::initialize::<{ Sha256::OUTPUT_LEN }>(NOISE_XK, is_initiator, &[], keyset);
+
+        NoiseTransport::new(state, is_initiator)
     };
 
     WireSession::new(proxy, noise)
