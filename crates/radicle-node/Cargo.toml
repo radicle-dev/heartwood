@@ -27,7 +27,7 @@ dhat = { version = "0.3.3", optional = true }
 fastrand = { workspace = true }
 getrandom = { workspace = true, features = ["std"] }
 gix-packetline = { workspace = true, features = ["blocking-io"] }
-indexmap = { workspace = true }
+indexmap = { workspace = true, features = ["std"] }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
 mio = { version = "1", features = ["net", "os-poll"] }

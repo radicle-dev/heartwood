@@ -36,7 +36,7 @@ dunce = { workspace = true }
 fast-glob = { version = "0.3.2" }
 fastrand = { workspace = true, features = ["std"] }
 git2 = { workspace = true, features = ["vendored-libgit2"] }
-indexmap = { workspace = true, features = ["serde"] }
+indexmap = { workspace = true, features = ["serde", "std"] }
 log = { workspace = true, features = ["std"] }
 multibase = { workspace = true, features = ["std"] }
 nonempty = { workspace = true, features = ["serialize"] }
