@@ -9,7 +9,10 @@ $ rad config
     "z6MkrLMMsiPWUcNPHcRajuMi9mDfYckSoJyPwwnknocNYPm7@iris.radicle.network:8776"
   ],
   "cli": {
-    "hints": true
+    "hints": true,
+    "issues": {
+      "directory": "issues"
+    }
   },
   "node": {
     "alias": "alice",
@@ -85,7 +88,10 @@ $ rad config schema
       "description": "CLI configuration.",
       "$ref": "#/$defs/CliConfig",
       "default": {
-        "hints": true
+        "hints": true,
+        "issues": {
+          "directory": "issues"
+        }
       }
     },
     "node": {
@@ -177,6 +183,24 @@ $ rad config schema
           "description": "Whether to show hints or not in the CLI.",
           "type": "boolean",
           "default": false
+        },
+        "issues": {
+          "description": "Issue import/export configuration.",
+          "$ref": "#/$defs/Issues",
+          "default": {
+            "directory": "issues"
+          }
+        }
+      }
+    },
+    "Issues": {
+      "description": "Issue import/export CLI configuration.",
+      "type": "object",
+      "properties": {
+        "directory": {
+          "description": "Directory under the repository root where issue markdown files are stored.",
+          "type": "string",
+          "default": "issues"
         }
       }
     },

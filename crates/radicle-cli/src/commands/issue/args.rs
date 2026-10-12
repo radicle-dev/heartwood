@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
@@ -103,6 +104,30 @@ pub(crate) enum Command {
         #[arg(long, short)]
         description: Option<String>,
     },
+    /// Export issues to markdown files in the repository
+    Export {
+        /// Target issues directory, relative to the repository root
+        #[arg(long, value_name = "DIR")]
+        path: Option<PathBuf>,
+
+        /// Show what would change without writing files
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Import issues from markdown files in the repository
+    Import {
+        /// Target issues directory, relative to the repository root
+        #[arg(long, value_name = "DIR")]
+        path: Option<PathBuf>,
+
+        /// Show what would change without writing to issue storage
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Overwrite conflicting internal issue state with file state
+        #[arg(long)]
+        force: bool,
+    },
     /// Delete an issue
     Delete {
         /// ID of the issue
@@ -196,7 +221,11 @@ impl Command {
             // Special handling for `--edit` will be removed in the future.
             | Command::Edit { .. } => true,
             Command::Comment(args) => !args.is_edit(),
-            Command::Cache{..} | Command::Show { .. } | Command::List(_) => false,
+            Command::Cache { .. }
+            | Command::Show { .. }
+            | Command::List(_)
+            | Command::Export { .. }
+            | Command::Import { .. } => false,
         }
     }
 }
