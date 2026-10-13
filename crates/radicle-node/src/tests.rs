@@ -296,8 +296,8 @@ fn inventory_pruning() {
     }
 
     assert!(
-        one_second_more(ONE_WEEK) > PRUNE_INTERVAL,
-        "pruning must be triggered"
+        one_second_more(PRUNE_INTERVAL) < ONE_WEEK,
+        "entries must not expire before pruning is triggered"
     );
 
     struct Test {
@@ -314,7 +314,7 @@ fn inventory_pruning() {
             },
             expected_routing_table_size: 0,
         },
-        // All entries are too young to expire.
+        // All entries are too young to expire, but the size limit removes them.
         Test {
             limits: Limits {
                 routing_max_size: 0.into(),
@@ -332,7 +332,7 @@ fn inventory_pruning() {
             },
             expected_routing_table_size: 5,
         },
-        // All entries remain because the table constraints are so lax.
+        // Half the entries remain because the table is constrained.
         Test {
             limits: Limits {
                 routing_max_size: 25.into(),
@@ -384,8 +384,8 @@ fn inventory_pruning() {
             );
         }
 
-        // Wait for things to happen
-        amy.elapse(one_second_more(ONE_WEEK));
+        // Trigger pruning while entries with a one-week age limit are still young.
+        amy.elapse(one_second_more(PRUNE_INTERVAL));
 
         assert_eq!(
             test.expected_routing_table_size,
