@@ -54,11 +54,6 @@ pub trait Store {
 
     /// Get all the latest gossip messages of all nodes, filtered by inventory filter and
     /// announcement timestamps.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `from` > `to`.
-    ///
     fn filtered<'a>(
         &'a self,
         filter: &'a Filter,
@@ -188,8 +183,6 @@ impl Store for Database {
              WHERE timestamp >= ?1 and timestamp < ?2
              ORDER BY timestamp, node, type",
         )?;
-        assert!(*from <= *to);
-
         stmt.bind((1, &from))?;
         stmt.bind((2, &to))?;
 

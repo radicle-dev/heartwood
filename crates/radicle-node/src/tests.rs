@@ -602,6 +602,27 @@ fn announcement_rebroadcast_timestamp_filtered() {
 }
 
 #[test]
+fn announcement_rebroadcast_inverted_range() {
+    let mut amy = Peer::amy();
+    let bob = Peer::bob();
+    let cid = Peer::cid();
+
+    amy.connect_to(&bob);
+    amy.connect_from(&cid);
+    amy.outbox().for_each(drop);
+
+    amy.receive(
+        *cid.nid(),
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: Timestamp::MAX,
+            until: Timestamp::MIN,
+        }),
+    );
+    assert_eq!(amy.relayed(*cid.nid()).count(), 0);
+}
+
+#[test]
 fn announcement_relay() {
     let mut amy = Peer::amy();
     let mut bob = Peer::bob();
