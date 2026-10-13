@@ -367,9 +367,10 @@ pub fn show(
     };
     // The target may have no reference in storage yet, in which case there is
     // nothing to compare against. Degrade this row rather than the command.
-    let ahead_behind = match patch.target().head(stored)? {
-        Some(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
-        None => term::Line::new(term::format::dim("unknown (target branch unresolvable)")),
+    let ahead_behind = match patch.target().head(stored) {
+        Ok(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
+        Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
+        Err(_) => term::Line::new(term::format::dim("unknown (target branch unresolvable)")),
     };
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile, verbose);

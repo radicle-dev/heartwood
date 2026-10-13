@@ -599,9 +599,9 @@ fn patch_open(
 
     // The target may not be resolvable yet. Report it, but still open the
     // patch: whether the target has commits is not settled at open time.
-    match opts.target.resolvable(stored) {
-        Ok(()) => {}
-        Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
+    match opts.target.head(stored) {
+        Ok(_) => {}
+        Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
         Err(err) => warn(err.to_string()),
     }
 
