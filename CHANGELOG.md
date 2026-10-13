@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Improvements
 
-- Opening a patch with `git push -o patch.target=<branch>` now warns when
+- Opening a patch with `git push -o patch.target=<ref>` now warns when
   the target has no canonical reference rule, or has a rule but no commits
   yet. The push still succeeds, because a branch only becomes a canonical
   reference after a push to it reaches quorum.
