@@ -98,11 +98,6 @@ impl Store for Database {
         nid: &NodeId,
         ann: &Announcement,
     ) -> Result<Option<AnnouncementId>, Error> {
-        assert_ne!(
-            ann.timestamp(),
-            Timestamp::MIN,
-            "Timestamp of {ann:?} must not be zero"
-        );
         let mut stmt = self.db.prepare(
             "INSERT INTO `announcements` (node, repo, type, message, signature, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
