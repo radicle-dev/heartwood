@@ -12,7 +12,7 @@ use crate::terminal as term;
 pub fn run(
     patch_id: &PatchId,
     revision_id: Option<patch::RevisionId>,
-    target: Option<patch::MergeTarget>,
+    target: Option<patch::TargetBranch>,
     message: term::patch::Message,
     profile: &Profile,
     repository: &Repository,
@@ -32,8 +32,8 @@ pub fn run(
             edit_revision(patch, id, title, description)
         }
         None => {
-            // A target that cannot resolve is not settled state, so warn about
-            // it rather than rejecting the edit.
+            let target = target.map(patch::MergeTarget::Branch);
+
             if let Some(target) = &target {
                 match target.head(repository) {
                     Ok(_) => {}
@@ -41,6 +41,7 @@ pub fn run(
                     Err(err) => term::warning(err),
                 }
             }
+
             edit_root(patch, title, description, target)
         }
     }
@@ -59,7 +60,10 @@ fn edit_root(
     description: String,
     target: Option<patch::MergeTarget>,
 ) -> anyhow::Result<()> {
-    let retarget = target.filter(|t| t != patch.target());
+    let retarget = target
+        .as_ref()
+        .is_some_and(|target| target != patch.target());
+
     let title = if title.as_ref() != patch.title() {
         Some(title)
     } else {
@@ -71,7 +75,7 @@ fn edit_root(
         None
     };
 
-    if title.is_none() && description.is_none() && retarget.is_none() {
+    if title.is_none() && description.is_none() && !retarget {
         // Nothing to do.
         return Ok(());
     }
@@ -80,12 +84,12 @@ fn edit_root(
     let embeds = patch.embeds().to_owned();
     // `Action::Edit` carries the title and the target together, so a change to
     // either has to restate both.
-    let edit = if title.is_some() || retarget.is_some() {
+    let edit = if title.is_some() || retarget {
         let title = match title {
             Some(title) => title,
             None => Title::new(patch.title())?,
         };
-        Some((title, retarget.unwrap_or_else(|| patch.target().clone())))
+        Some((title, target.unwrap_or_default()))
     } else {
         None
     };

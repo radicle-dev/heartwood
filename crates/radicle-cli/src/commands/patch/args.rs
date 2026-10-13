@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand};
 use radicle::cob::Label;
 use radicle::git;
 use radicle::git::fmt::RefString;
-use radicle::patch;
 use radicle::patch::Status;
+use radicle::patch::TargetBranch;
 use radicle::patch::Verdict;
 use radicle::prelude::Did;
 use radicle::prelude::RepoId;
@@ -258,8 +258,8 @@ pub(super) enum Command {
 
         /// Branch the patch is meant to be merged into, eg. `refs/heads/main`.
         /// Use `delegates` for the default branch of the delegates.
-        #[arg(long, value_name = "TARGET", value_parser = parse_merge_target)]
-        target: Option<patch::MergeTarget>,
+        #[arg(long, value_name = "TARGET")]
+        target: Option<TargetBranch>,
 
         #[clap(flatten)]
         message: MessageArgs,
@@ -776,12 +776,4 @@ pub(super) struct LabelArgs {
 
 fn parse_refstr(refstr: &str) -> Result<RefString, git::fmt::Error> {
     RefString::try_from(refstr)
-}
-
-/// Parse a merge target, accepting `delegates` for the default branch.
-fn parse_merge_target(target: &str) -> Result<patch::MergeTarget, patch::TargetBranchError> {
-    if target == "delegates" {
-        return Ok(patch::MergeTarget::Delegates);
-    }
-    target.parse().map(patch::MergeTarget::Branch)
 }

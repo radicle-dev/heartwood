@@ -25,7 +25,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 `rad patch edit --target` moves the patch to the default branch:
 
 ```
-$ rad patch edit 5e6384c --target delegates --message "Add new feature" --message "" --no-announce
+$ rad patch edit 5e6384c --target refs/heads/master --message "Add new feature" --message "" --no-announce
 $ rad patch show 5e6384c
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add new feature                                │
