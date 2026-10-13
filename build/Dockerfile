@@ -19,10 +19,21 @@ RUN mkdir -p .cargo && cp build/config.toml .cargo/config.toml
 # Install dependencies.
 RUN apk update && apk add --no-cache \
     asciidoctor \
+    curl \
     git \
+    jq \
     musl-dev \
-    xz \
-    zig=0.16.0-r1
+    xz
+
+# Install a version of Zig that supports macOS TBD v4
+ARG ZIG_VERSION="0.17.0"
+RUN mkdir -p /usr/local/zig && \
+    ZIG_URL=$(\
+        curl -fsSL https://ziglang.org/download/index.json | \
+        jq -er --arg version "$ZIG_VERSION" '.[$version]["x86_64-linux"].tarball' \
+    ) && \
+    curl -fsSL "$ZIG_URL" | tar -xJ -C /usr/local/zig --strip-components=1 && \
+    ln -s /usr/local/zig/zig /usr/local/bin/zig
 
 # Build man pages and strip metadata. Removes all comments, since they include
 # non-reproducible information, such as version numbers.
