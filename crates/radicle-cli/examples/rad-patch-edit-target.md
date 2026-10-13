@@ -16,7 +16,7 @@ $ git commit --allow-empty -m "Add new feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
-warn: target `refs/heads/accepted` has no canonical reference rule
+warn: head of the target branch `refs/heads/accepted` could not be resolved because there is no rule that matches it
 ✓ Patch 5e6384c03a8b964cf5c1d934bf5bdb1cd9169dc2 opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -54,7 +54,7 @@ $ rad id update --title "Add accepted branch" --payload xyz.radicle.crefs rules 
 
 ```
 $ rad patch edit 5e6384c --target refs/heads/accepted --message "Add new feature" --message "" --no-announce
-! Warning: target `refs/heads/accepted` has no commits yet
+! Warning: head of the target branch `refs/heads/accepted` could not be resolved because there is no quorum
 ```
 
 `--target` is rejected with `--revision`, which edits a revision rather than the

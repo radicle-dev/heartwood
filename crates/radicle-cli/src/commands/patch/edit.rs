@@ -35,9 +35,9 @@ pub fn run(
             // A target that cannot resolve is not settled state, so warn about
             // it rather than rejecting the edit.
             if let Some(target) = &target {
-                match target.resolvable(repository) {
-                    Ok(()) => {}
-                    Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
+                match target.head(repository) {
+                    Ok(_) => {}
+                    Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
                     Err(err) => term::warning(err),
                 }
             }
