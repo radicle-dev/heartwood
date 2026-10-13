@@ -370,7 +370,8 @@ pub fn show(
     let ahead_behind = match patch.target().head(stored) {
         Ok(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
         Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
-        Err(_) => term::Line::new(term::format::dim("unknown (target branch unresolvable)")),
+        Err(_) if !verbose => term::Line::new(term::format::dim("unknown")),
+        Err(err) => term::Line::new(term::format::dim(format!("unknown ({})", err))),
     };
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile, verbose);

@@ -2,8 +2,9 @@
 
 `rad patch show` resolves the target head from `refs/heads/<target>` in
 storage. Storage only has that reference when the target is a canonical
-reference of the repository. For any other target, the patch opens and lists,
-but `rad patch show` fails.
+reference of the repository. For any other target, the patch still opens and
+lists. `rad patch show` displays an unknown commit count. With `--verbose`, it also
+shows why the target head cannot be resolved.
 
 ## A target branch that does not exist
 
@@ -48,13 +49,22 @@ $ rad patch show 6b9cd39
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    nonexistent                                    │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
 ├──────────────────────────────────────────────────────────┤
 │ ● Revision 6b9cd39 @ f2de534..2f95362 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
+```
+
+With `--verbose`, the `Commits` row explains why the target cannot be resolved:
+
+```
+$ rad patch show 6b9cd39 --verbose
+...
+│ Commits   unknown (head of the target branch `refs/heads/nonexistent` could not be resolved because there is no rule that matches it) [..]│
+...
 ```
 
 ## A target branch that exists, but is not canonical
@@ -116,7 +126,7 @@ $ rad patch show fd3ecc5
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    sidechain                                      │
 │ Branches  feature/2                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 3071f29 Add second feature                               │

@@ -49,11 +49,20 @@ $ rad patch show 74cbe24
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    accepted                                       │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
 ├──────────────────────────────────────────────────────────┤
 │ ● Revision 74cbe24 @ f2de534..2f95362 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
+```
+
+With `--verbose`, the `Commits` row explains why the target cannot be resolved:
+
+```
+$ rad patch show 74cbe24 --verbose
+...
+│ Commits   unknown (head of the target branch `refs/heads/accepted` could not be resolved because there is no quorum) [..]│
+...
 ```
