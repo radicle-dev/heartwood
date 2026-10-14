@@ -32,7 +32,13 @@ pub fn run(
             edit_revision(patch, id, title, description)
         }
         None => {
-            if let Some(target) = &target {
+            let retarget = target
+                .as_ref()
+                .is_some_and(|target| target != patch.target());
+
+            if let Some(target) = &target
+                && retarget
+            {
                 // Avoid resolving the head of the default target. Doing so
                 // may trigger a canonical head computation, which is
                 // what we must defer while delegates have not yet converged.

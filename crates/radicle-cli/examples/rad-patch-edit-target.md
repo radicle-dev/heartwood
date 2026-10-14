@@ -22,6 +22,12 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
  * [new reference]   HEAD -> refs/patches
 ```
 
+Retargeting to the same branch is a no-op (should not supply a warning):
+
+```
+$ rad patch edit 5e6384c --target refs/heads/accepted --message "Add new feature" --no-announce
+```
+
 `rad patch edit --target` moves the patch to the default branch:
 
 ```
@@ -86,3 +92,4 @@ $ rad patch show 5e6384c
 │ ● Revision 5e6384c @ f2de534..2f95362 by alice (you) now │
 ╰──────────────────────────────────────────────────────────╯
 ```
+
