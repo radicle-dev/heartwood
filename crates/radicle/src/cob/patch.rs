@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
-use storage::{HasRepoId, RepositoryError};
+use storage::{HasRepoId, IdentityDocError, RepositoryError};
 use thiserror::Error;
 
 use crate::cob;
@@ -29,7 +29,7 @@ use crate::cob::{ActorId, Embed, EntryId, ObjectId, TypeName, Uri, op, store};
 use crate::crypto::PublicKey;
 use crate::git;
 use crate::identity::PayloadError;
-use crate::identity::doc::{DefaultBranchError, DocAt, DocError};
+use crate::identity::doc::{DefaultBranchError, DocAt};
 use crate::prelude::*;
 use crate::storage;
 use crate::storage::git::Repository;
@@ -159,7 +159,7 @@ pub enum Error {
     Thread(#[from] thread::Error),
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
-    Doc(#[from] DocError),
+    Doc(#[from] IdentityDocError),
     /// Identity document is missing.
     #[error("missing identity document")]
     MissingIdentity,
@@ -4391,5 +4391,44 @@ mod test {
                 "range": { "start": 4, "end": 8 },
             })
         );
+    }
+
+    #[test]
+    fn test_patch_forged_identity_resource() {
+        let alice = test::setup::NodeWithRepo::default();
+        let eve = SigningKey::mock(31);
+        let assignee = SigningKey::mock(42).did();
+        let checkout = alice.repo.checkout();
+        let branch = checkout.branch_with([("README", b"Hello World!")]);
+        let mut patches = Cache::no_cache(&*alice.repo, &alice.signer).unwrap();
+        let id = patches
+            .create(
+                cob::Title::new("My first patch").unwrap(),
+                "Blah blah blah.",
+                MergeTarget::Delegates,
+                branch.base,
+                branch.oid,
+                &[],
+            )
+            .unwrap()
+            .id;
+        let assign = Action::Assign {
+            assignees: BTreeSet::from([assignee]),
+        };
+
+        // Eve is not a delegate, so the real identity does not allow the action.
+        let identity = alice.repo.identity_head().unwrap();
+        cob::test::store_change::<Patch>(&alice.repo, &eve, identity, &id, &assign);
+        let patch = patches.get(&id).unwrap().unwrap();
+        assert_eq!(patch.assignees().count(), 0);
+
+        // A forged identity document that names Eve as a delegate must not
+        // allow the action either.
+        let mut doc = alice.repo.identity_doc().unwrap().doc.edit();
+        doc.delegate(eve.did());
+        let forged = cob::test::forge_identity(alice.repo.raw(), &doc.verified().unwrap());
+        cob::test::store_change::<Patch>(&alice.repo, &eve, forged, &id, &assign);
+        let patch = patches.get(&id).unwrap().unwrap();
+        assert_eq!(patch.assignees().count(), 0);
     }
 }

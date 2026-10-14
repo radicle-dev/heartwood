@@ -1478,6 +1478,77 @@ mod test {
     }
 
     #[test]
+    fn identity_doc_at_checks_accepted_history() {
+        let NodeWithRepo { node, repo } = NodeWithRepo::default();
+        let bob = SigningKey::mock(103);
+        let mut identity = Identity::load_mut(&*repo, &node.signer).unwrap();
+        let mut doc = identity.doc().clone().edit();
+        let title = Title::new("Identity update").unwrap();
+        let r0 = identity.current;
+
+        doc.delegate(bob.public_key().into());
+        let r1 = identity
+            .update(title.clone(), "", &doc.clone().verified().unwrap())
+            .unwrap();
+        repo.set_identity_head_to(identity.current).unwrap();
+        // With two delegates, this revision stays pending until Bob accepts.
+        doc.visibility = Visibility::private([]);
+        let r2 = identity
+            .update(title, "", &doc.clone().verified().unwrap())
+            .unwrap();
+        let forged = cob::test::forge_identity(repo.raw(), &doc.verified().unwrap());
+
+        assert_eq!(repo.identity_doc_at(r0).unwrap().commit, r0);
+        assert_eq!(repo.identity_doc_at(r1).unwrap().commit, r1);
+        for commit in [r2, forged] {
+            assert_eq!(Doc::load_at(commit, &*repo).unwrap().commit, commit);
+            assert!(matches!(
+                repo.identity_doc_at(commit),
+                Err(crate::storage::IdentityDocError::UnacceptedRevision(id)) if id == commit
+            ));
+        }
+
+        // The current-document lookup also rejects an unaccepted cached head.
+        repo.set_identity_head_to(r2).unwrap();
+        assert!(matches!(
+            repo.identity_doc(),
+            Err(crate::storage::IdentityDocError::UnacceptedRevision(id)) if id == r2
+        ));
+        repo.set_identity_head_to(r1).unwrap();
+
+        let mut identity = Identity::load_mut(&*repo, &bob).unwrap();
+        identity.accept(&r2).unwrap();
+        // Accepted revisions are recognized even ahead of cached `rad/id`.
+        assert_eq!(repo.identity_head().unwrap(), r1);
+        assert_eq!(repo.identity_doc_at(r2).unwrap().commit, r2);
+        assert_eq!(repo.canonical_identity_doc().unwrap().commit, r2);
+        repo.set_identity_head_to(identity.current).unwrap();
+
+        assert_eq!(repo.identity_doc_at(r0).unwrap().commit, r0);
+        assert_eq!(repo.identity_doc_at(r1).unwrap().commit, r1);
+        assert_eq!(repo.identity_doc_at(r2).unwrap().commit, r2);
+    }
+
+    #[test]
+    fn identity_document_lookup_preserves_loading_errors() {
+        let fixture = NodeWithRepo::default();
+        let repo = &fixture.repo;
+        let head = repo.identity_head().unwrap();
+        repo.raw()
+            .find_reference("refs/rad/id")
+            .unwrap()
+            .delete()
+            .unwrap();
+
+        for result in [repo.identity_doc(), repo.identity_doc_at(head)] {
+            let Err(crate::storage::IdentityDocError::Repository(err)) = result else {
+                panic!("expected a repository loading error, got {result:?}");
+            };
+            assert!(err.is_not_found());
+        }
+    }
+
+    #[test]
     fn identity_update_rejected() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = SigningKey::mock(200);
@@ -2663,6 +2734,7 @@ mod test {
 
         let mut eve_identity = Identity::load_mut(&repo, &eve).unwrap();
         eve_identity.accept(&revision).unwrap();
+        repo.set_identity_head_to(eve_identity.current).unwrap();
 
         let identity: Identity = Identity::load(&repo).unwrap();
         let root = repo.identity_root().unwrap();

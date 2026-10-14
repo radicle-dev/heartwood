@@ -9,9 +9,8 @@ use radicle_crypto::PublicKey;
 use crate::cob;
 use crate::cob::Timestamp;
 use crate::git;
-use crate::identity;
 use crate::identity::DocAt;
-use crate::storage::ReadRepository;
+use crate::storage::{IdentityDocError, ReadRepository};
 
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
@@ -112,7 +111,7 @@ impl<A> Op<A> {
     pub fn identity_doc<R: ReadRepository>(
         &self,
         repo: &R,
-    ) -> Result<Option<DocAt>, identity::DocError> {
+    ) -> Result<Option<DocAt>, IdentityDocError> {
         match self.identity {
             None => Ok(None),
             Some(head) => repo.identity_doc_at(head).map(Some),

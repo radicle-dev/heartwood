@@ -64,6 +64,8 @@ pub enum AuthorizationError {
     PolicyStore(#[from] radicle::node::policy::store::Error),
     #[error(transparent)]
     Repository(#[from] radicle::storage::RepositoryError),
+    #[error(transparent)]
+    IdentityDoc(#[from] radicle::storage::IdentityDocError),
 }
 
 /// Fetch job sent to worker thread.

@@ -92,10 +92,11 @@ pub fn seeding(profile: &Profile) -> anyhow::Result<()> {
             Ok(policy::SeedPolicy { rid, policy }) => {
                 let id = rid.to_string();
 
-                let name = match storage
-                    .repository(rid)
-                    .and_then(|repo| repo.identity_doc().map(|identity| identity.project()))
-                {
+                let name = match storage.repository(rid).and_then(|repo| {
+                    repo.identity_doc()
+                        .map(|identity| identity.project())
+                        .map_err(radicle::storage::RepositoryError::from)
+                }) {
                     Ok(Some(Ok(project))) => project.name().to_string().into(),
                     Ok(None) => term::format::dim("No name provided.".to_string()),
                     Err(_) | Ok(Some(Err(_))) => {

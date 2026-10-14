@@ -18,8 +18,8 @@ use crate::identity::{Doc, DocAt, RepoId};
 use crate::identity::{Identity, Project};
 use crate::storage::refs::{FeatureLevel, Refs, SignedRefs};
 use crate::storage::{
-    ReadRepository, ReadStorage, Remote, Remotes, RepositoryInfo, SetHead, SignRepository,
-    WriteRepository, WriteStorage,
+    IdentityDocError, ReadRepository, ReadStorage, Remote, Remotes, RepositoryInfo, SetHead,
+    SignRepository, WriteRepository, WriteStorage,
 };
 use crate::storage::{SignedRefsInfo, refs};
 use crate::{git, git::Oid, node};
@@ -572,12 +572,8 @@ impl Repository {
     /// Get the canonical project information.
     #[deprecated(note = "Use `Doc::project()` on `Self::identity_doc()`.")]
     pub fn project(&self) -> Result<Option<Project>, RepositoryError> {
-        self.identity_doc().and_then(|identity| {
-            identity
-                .project()
-                .transpose()
-                .map_err(RepositoryError::Payload)
-        })
+        let identity = self.identity_doc()?;
+        Ok(identity.project().transpose()?)
     }
 
     pub fn identity_doc_of(&self, remote: &RemoteId) -> Result<Doc, DocError> {
@@ -836,8 +832,12 @@ impl ReadRepository for Repository {
         Ok(refs)
     }
 
-    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError> {
-        Doc::load_at(head, self)
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, IdentityDocError> {
+        let identity = Identity::load(self)?;
+        if !identity.revision(&head).is_some_and(|r| r.is_accepted()) {
+            return Err(IdentityDocError::UnacceptedRevision(head));
+        }
+        Ok(Doc::load_at(head, self)?)
     }
 
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {

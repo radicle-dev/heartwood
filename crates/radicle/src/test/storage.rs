@@ -10,7 +10,7 @@ use crate::crypto::ExtendedSignature;
 pub use crate::git;
 use crate::git::fmt;
 
-use crate::identity::doc::{Doc, DocAt, DocError, RawDoc, RepoId};
+use crate::identity::doc::{Doc, DocAt, RawDoc, RepoId};
 use crate::node::NodeId;
 
 pub use crate::storage::*;
@@ -307,11 +307,11 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn identity_doc(&self) -> Result<crate::identity::DocAt, RepositoryError> {
+    fn identity_doc(&self) -> Result<crate::identity::DocAt, IdentityDocError> {
         Ok(self.doc.clone())
     }
 
-    fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, DocError> {
+    fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, IdentityDocError> {
         Ok(self.doc.clone())
     }
 

@@ -17,7 +17,7 @@ use radicle::prelude::*;
 use radicle::rad;
 use radicle::storage;
 use radicle::storage::RemoteId;
-use radicle::storage::{HasRepoId, RepositoryError};
+use radicle::storage::{HasRepoId, IdentityDocError, RepositoryError};
 
 use crate::commands::checkout;
 use crate::commands::sync;
@@ -330,7 +330,7 @@ impl CloneResult {
 
 #[derive(Debug)]
 pub enum CheckoutFailure {
-    Identity { rid: RepoId, err: RepositoryError },
+    Identity { rid: RepoId, err: IdentityDocError },
     Payload { rid: RepoId, err: doc::PayloadError },
     Exists { rid: RepoId, path: PathBuf },
 }

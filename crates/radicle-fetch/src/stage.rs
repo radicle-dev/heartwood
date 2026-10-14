@@ -38,6 +38,7 @@ use gix_protocol::handshake::Ref;
 use nonempty::NonEmpty;
 use radicle::crypto::PublicKey;
 use radicle::git::fmt::{Component, Namespaced, Qualified, refname};
+use radicle::identity::Doc;
 use radicle::storage::ReadRepository;
 use radicle::storage::git::Repository;
 use radicle::storage::refs::{RefsAt, Special};
@@ -237,15 +238,16 @@ impl ProtocolStage for CanonicalId {
     ) -> Result<Updates<'a>, error::Prepare> {
         // SAFETY: checked by `pre_validate` that the `refs/rad/id`
         // was received
-        let verified = repo
-            .identity_doc_at(
-                *s.canonical_rad_id()
-                    .expect("ensure we got canonical 'rad/id' ref"),
-            )
-            .map_err(|err| error::Prepare::Verification {
-                remote: self.remote,
-                err: Box::new(err),
-            })?;
+        // Bootstrap delegate discovery before the local accepted history exists.
+        let verified = Doc::load_at(
+            *s.canonical_rad_id()
+                .expect("ensure we got canonical 'rad/id' ref"),
+            repo,
+        )
+        .map_err(|err| error::Prepare::Verification {
+            remote: self.remote,
+            err: Box::new(err),
+        })?;
         if verified.is_delegate(&self.remote.into()) {
             let is_delegate = |remote: &PublicKey| verified.is_delegate(&remote.into());
             Ok(Updates::build(
