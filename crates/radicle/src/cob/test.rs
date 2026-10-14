@@ -239,3 +239,53 @@ fn encoded<T: Cob>(
 
     (data, hash.into())
 }
+
+/// Write a commit that holds `doc` as `embeds/radicle.json`.
+/// The commit is not a revision of the repository identity.
+pub fn forge_identity(repo: &git::raw::Repository, doc: &crate::identity::Doc) -> Oid {
+    let (_, bytes) = doc.encode().unwrap();
+    let blob = repo.blob(&bytes).unwrap();
+    let mut embeds = repo.treebuilder(None).unwrap();
+    embeds
+        .insert(*crate::identity::doc::PATH, blob, 0o100644)
+        .unwrap();
+    let embeds = embeds.write().unwrap();
+    let mut tree = repo.treebuilder(None).unwrap();
+    tree.insert("embeds", embeds, 0o040000).unwrap();
+    let tree = repo.find_tree(tree.write().unwrap()).unwrap();
+    let sig =
+        git::raw::Signature::new("forger", "forger@localhost", &git::raw::Time::new(0, 0)).unwrap();
+
+    repo.commit(None, &sig, &sig, "Forged identity", &tree, &[])
+        .unwrap()
+        .into()
+}
+
+/// Store a change by `signer` on the object `id`, with `resource` as its
+/// identity commit. Then point the ref of `signer` for the object at it.
+pub fn store_change<T: CobWithType>(
+    repo: &crate::storage::git::Repository,
+    signer: &impl crypto::Signer,
+    resource: Oid,
+    id: &crate::cob::ObjectId,
+    action: &impl Serialize,
+) {
+    let contents = NonEmpty::new(encoding::encode(action).unwrap());
+    let entry = crate::cob::change::Storage::store(
+        repo,
+        Some(resource),
+        vec![],
+        signer,
+        crate::cob::change::Template {
+            type_name: T::type_name().clone(),
+            tips: vec![**id],
+            message: "Store change".to_owned(),
+            embeds: vec![],
+            contents,
+        },
+    )
+    .unwrap();
+
+    crate::cob::object::Storage::update(repo, signer.public_key(), T::type_name(), id, &entry.id)
+        .unwrap();
+}

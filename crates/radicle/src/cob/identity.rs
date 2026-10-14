@@ -286,6 +286,34 @@ impl Identity {
         Self::get(&oid, repo).map_err(RepositoryError::from)
     }
 
+    /// Check that `commit` is an accepted revision of the identity.
+    ///
+    /// A revision is only adopted if its parent is the current revision, so
+    /// the accepted revisions form a chain from the root to `rad/id`. Walk
+    /// that chain back from `rad/id`.
+    pub fn is_accepted<R: ReadRepository + cob::Store>(
+        repo: &R,
+        commit: Oid,
+    ) -> Result<bool, RepositoryError> {
+        let mut revision = Some(repo.identity_head()?);
+
+        while let Some(id) = revision {
+            if id == commit {
+                return Ok(true);
+            }
+            // Follow the parent of the revision. An op without a revision ends
+            // the chain.
+            revision = Op::load(repo, id)?
+                .actions
+                .into_iter()
+                .find_map(|action| match action {
+                    Action::Revision { parent, .. } => parent,
+                    _ => None,
+                });
+        }
+        Ok(false)
+    }
+
     pub fn load_mut<'a, 'b, Repo, Signer>(
         repo: &'a Repo,
         signer: &'b Signer,
@@ -1464,6 +1492,40 @@ mod test {
             repo.canonical_identity_doc().unwrap().visibility(),
             &Visibility::private([])
         );
+    }
+
+    #[test]
+    fn identity_revision_doc() {
+        let NodeWithRepo { node, repo } = NodeWithRepo::default();
+        let bob = SigningKey::mock(103);
+        let mut identity = Identity::load_mut(&*repo, &node.signer).unwrap();
+        let mut doc = identity.doc().clone().edit();
+        let title = Title::new("Identity update").unwrap();
+        let r0 = identity.current;
+
+        doc.delegate(bob.public_key().into());
+        let r1 = identity
+            .update(title.clone(), "", &doc.clone().verified().unwrap())
+            .unwrap();
+        repo.set_identity_head_to(identity.current).unwrap();
+        // With two delegates, this revision stays pending until Bob accepts.
+        doc.visibility = Visibility::private([]);
+        let r2 = identity
+            .update(title, "", &doc.clone().verified().unwrap())
+            .unwrap();
+        let forged = cob::test::forge_identity(repo.raw(), &doc.verified().unwrap());
+
+        assert!(repo.identity_revision_doc(r0).unwrap().is_some());
+        assert!(repo.identity_revision_doc(r1).unwrap().is_some());
+        assert!(repo.identity_revision_doc(r2).unwrap().is_none());
+        assert!(repo.identity_revision_doc(forged).unwrap().is_none());
+
+        let mut identity = Identity::load_mut(&*repo, &bob).unwrap();
+        identity.accept(&r2).unwrap();
+        repo.set_identity_head_to(identity.current).unwrap();
+
+        assert!(repo.identity_revision_doc(r0).unwrap().is_some());
+        assert!(repo.identity_revision_doc(r2).unwrap().is_some());
     }
 
     #[test]

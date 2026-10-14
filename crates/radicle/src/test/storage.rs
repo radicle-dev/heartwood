@@ -315,6 +315,13 @@ impl ReadRepository for MockRepository {
         Ok(self.doc.clone())
     }
 
+    fn identity_revision_doc(
+        &self,
+        _commit: Oid,
+    ) -> Result<Option<crate::identity::DocAt>, RepositoryError> {
+        Ok(Some(self.doc.clone()))
+    }
+
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
         self.canonical_identity_head()
     }

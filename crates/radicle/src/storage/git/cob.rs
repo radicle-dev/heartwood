@@ -372,6 +372,13 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.identity_doc_at(head)
     }
 
+    fn identity_revision_doc(
+        &self,
+        commit: Oid,
+    ) -> Result<Option<crate::identity::DocAt>, RepositoryError> {
+        self.repo.identity_revision_doc(commit)
+    }
+
     fn identity_head(&self) -> Result<Oid, RepositoryError> {
         self.repo.identity_head()
     }

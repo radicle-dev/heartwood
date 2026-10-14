@@ -155,6 +155,8 @@ pub enum RepositoryError {
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
     FindObjects(#[from] canonical::effects::FindObjectsError),
+    #[error(transparent)]
+    Op(#[from] cob::op::LoadError),
 }
 
 impl From<Error> for RepositoryError {
@@ -626,7 +628,16 @@ pub trait ReadRepository: Sized + ValidateRepository {
     }
 
     /// Get the repository's identity document at a specific commit.
+    ///
+    /// This does not check that `head` is a revision of the repository's
+    /// identity. Any commit with an identity document in its tree is
+    /// accepted, so only pass commits from a trusted source. To check an
+    /// untrusted commit, use [`ReadRepository::identity_revision_doc`].
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError>;
+
+    /// Get the identity document of `commit`, if it is an accepted revision
+    /// of the repository's identity.
+    fn identity_revision_doc(&self, commit: Oid) -> Result<Option<DocAt>, RepositoryError>;
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error>;

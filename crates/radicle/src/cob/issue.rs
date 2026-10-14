@@ -16,7 +16,6 @@ use crate::cob::store::{Cob, CobAction};
 use crate::cob::thread::{Comment, CommentId, Thread};
 use crate::cob::{ActorId, Embed, EntryId, ObjectId, TypeName, op, store};
 use crate::cob::{TitleError, thread};
-use crate::identity::doc::DocError;
 use crate::node::NodeId;
 use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage;
@@ -48,7 +47,7 @@ impl<'a> IssueStream<'a> {
 pub enum Error {
     /// Error loading the identity document.
     #[error("identity doc failed to load: {0}")]
-    Doc(#[from] DocError),
+    Doc(#[from] RepositoryError),
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
     #[error("store: {0}")]
@@ -1844,5 +1843,42 @@ mod test {
         assert_eq!(eve_issue.comments().count(), 3);
         assert_eq!(cob.history.len(), 3);
         assert_eq!(cob.object.len(), 3);
+    }
+
+    #[test]
+    fn test_issue_forged_identity_resource() {
+        use crate::cob::test::SignerOpExt as _;
+
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let eve = SigningKey::mock(31);
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+        let id = issues
+            .create(
+                cob::Title::new("My first issue").unwrap(),
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap()
+            .id;
+        let label = Action::Label {
+            labels: BTreeSet::from([Label::new("bug").unwrap()]),
+        };
+
+        // Eve is not a delegate, so the real identity does not allow the action.
+        let identity = repo.identity_head().unwrap();
+        cob::test::store_change::<Issue>(&repo, &eve, identity, &id, &label);
+        let issue = issues.get(&id).unwrap().unwrap();
+        assert_eq!(issue.labels().count(), 0);
+
+        // A forged identity document that names Eve as a delegate must not
+        // allow the action either.
+        let mut doc = repo.identity_doc().unwrap().doc.edit();
+        doc.delegate(eve.did());
+        let forged = cob::test::forge_identity(repo.raw(), &doc.verified().unwrap());
+        cob::test::store_change::<Issue>(&repo, &eve, forged, &id, &label);
+        let issue = issues.get(&id).unwrap().unwrap();
+        assert_eq!(issue.labels().count(), 0);
     }
 }

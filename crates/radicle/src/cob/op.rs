@@ -9,9 +9,8 @@ use radicle_crypto::PublicKey;
 use crate::cob;
 use crate::cob::Timestamp;
 use crate::git;
-use crate::identity;
 use crate::identity::DocAt;
-use crate::storage::ReadRepository;
+use crate::storage::{ReadRepository, RepositoryError};
 
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
@@ -112,11 +111,13 @@ impl<A> Op<A> {
     pub fn identity_doc<R: ReadRepository>(
         &self,
         repo: &R,
-    ) -> Result<Option<DocAt>, identity::DocError> {
-        match self.identity {
-            None => Ok(None),
-            Some(head) => repo.identity_doc_at(head).map(Some),
-        }
+    ) -> Result<Option<DocAt>, RepositoryError> {
+        let Some(head) = self.identity else {
+            return Ok(None);
+        };
+        // Any user can write a commit with a document that names them as a
+        // delegate, so only accept revisions of the repository identity.
+        repo.identity_revision_doc(head)
     }
 
     pub fn manifest_of<S>(store: &S, id: &git::Oid) -> Result<Manifest, ManifestError>
