@@ -527,11 +527,13 @@ impl TargetBranch {
 
 /// Why the head of a [`MergeTarget`] has no reference in storage.
 #[derive(Debug, Error)]
-pub enum UnresolvableTarget {
-    #[error("target `{0}` has no commits yet")]
-    NoCommits(TargetBranch),
-    #[error("target `{0}` has no canonical reference rule")]
-    NoRule(TargetBranch),
+pub enum UnresolvableHead {
+    #[error("head of the target branch `{0}` could not be resolved because there is no quorum")]
+    Quorum(TargetBranch),
+    #[error(
+        "head of the target branch `{0}` could not be resolved because there is no rule that matches it"
+    )]
+    Rule(TargetBranch),
     #[error(transparent)]
     Repository(#[from] RepositoryError),
 }
@@ -551,33 +553,21 @@ pub enum MergeTarget {
 }
 
 impl MergeTarget {
-    /// Get the head of the target branch.
+    /// Resolve the OID of the commit at the head of the target branch.
     ///
-    /// Returns `None` if the target has no reference in `repo`. A
-    /// [`MergeTarget::Branch`] only gets a top-level reference once a push to
-    /// it reaches quorum, so a target that names a branch with no canonical
-    /// rule, or one whose rule has no commits yet, is not resolvable.
-    pub fn head(&self, repo: &Repository) -> Result<Option<git::Oid>, RepositoryError> {
-        match self {
-            MergeTarget::Delegates => {
-                let (_, target) = repo.head()?;
-                Ok(Some(target))
-            }
-            MergeTarget::Branch(branch) => match repo.backend.refname_to_id(branch.as_str()) {
-                Ok(oid) => Ok(Some(oid.into())),
-                Err(err) if err.is_not_found() => Ok(None),
-                Err(err) => Err(err.into()),
-            },
-        }
-    }
-
-    /// Check that the target has a reference in `repo`.
-    pub fn resolvable(&self, repo: &Repository) -> Result<(), UnresolvableTarget> {
-        let MergeTarget::Branch(branch) = self else {
-            return Ok(());
+    /// If the target branch cannot be resolved, an error is returned.
+    ///
+    /// The reference referred to by [`MergeTarget::Branch`] only resolves to
+    /// a commit if there is quorum for the corresponding canonical reference.
+    pub fn head(&self, repo: &Repository) -> Result<git::Oid, UnresolvableHead> {
+        let branch = match self {
+            MergeTarget::Delegates => return Ok(repo.head()?.1),
+            MergeTarget::Branch(branch) => branch,
         };
-        if self.head(repo)?.is_some() {
-            return Ok(());
+        match repo.backend.refname_to_id(branch.as_str()) {
+            Ok(oid) => return Ok(oid.into()),
+            Err(err) if err.is_not_found() => {}
+            Err(err) => return Err(RepositoryError::from(err).into()),
         }
 
         let doc = repo.identity_doc()?;
@@ -589,9 +579,9 @@ impl MergeTarget {
             .is_some();
 
         if has_rule {
-            Err(UnresolvableTarget::NoCommits(branch.clone()))
+            Err(UnresolvableHead::Quorum(branch.clone()))
         } else {
-            Err(UnresolvableTarget::NoRule(branch.clone()))
+            Err(UnresolvableHead::Rule(branch.clone()))
         }
     }
 }
