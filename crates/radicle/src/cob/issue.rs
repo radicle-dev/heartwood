@@ -1771,6 +1771,63 @@ mod test {
         assert!(issues.get(&id).unwrap().is_none());
     }
 
+    /// Entries written before the `Rad-Related` trailer have code commits as parents.
+    /// Such a parent is not a COB parent, and the entry applies.
+    #[test]
+    fn entry_with_an_unloadable_parent_is_applied() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+        let a = issues
+            .create(cob::Title::new("A").unwrap(), "A", &[], &[], [])
+            .unwrap()
+            .id;
+
+        // Maya's comment on A, with a parent that is not a COB entry.
+        let comment = store_entry(
+            &repo,
+            &node.signer,
+            vec![*a, plain_commit(&repo)],
+            Action::Comment {
+                body: String::from("Hello"),
+                reply_to: Some(*a),
+                embeds: vec![],
+            },
+        );
+        write_cob_ref(&repo, &node.signer, &a, comment);
+
+        let issue = issues.get(&a).unwrap().unwrap();
+        assert_eq!(issue.comments().count(), 2);
+    }
+
+    /// A root written before the `Rad-Related` trailer has code commits as parents.
+    #[test]
+    fn root_with_unloadable_parents_loads() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+
+        let root = store_entry(
+            &repo,
+            &node.signer,
+            vec![plain_commit(&repo), plain_commit(&repo)],
+            Action::Comment {
+                body: String::from("Hello"),
+                reply_to: None,
+                embeds: vec![],
+            },
+        );
+        let id = IssueId::from(root);
+        write_cob_ref(&repo, &node.signer, &id, root);
+
+        let issue = issues.get(&id).unwrap().unwrap();
+        assert_eq!(issue.comments().count(), 1);
+        let reply = issues
+            .get_mut(&id)
+            .unwrap()
+            .comment("Reply", root, vec![])
+            .unwrap();
+        assert_eq!(repo.load(reply).unwrap().parents, vec![root]);
+    }
+
     #[test]
     fn embeds() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();

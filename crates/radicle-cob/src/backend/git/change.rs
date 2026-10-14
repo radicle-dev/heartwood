@@ -180,6 +180,12 @@ impl change::Storage for git2::Repository {
             .parents()
             .map(Oid::from)
             .filter(|p| !resources.contains(p) && !related.contains(p))
+            .filter(|p| {
+                // Before `a46bcb22`, operations on `xyz.radicle.patch` had parents
+                // that were not COB operations but commits in the underlying
+                // repository, i.e. "code commits".
+                !matches!(self.manifest_of(p), Err(error::Load::NoManifest(_)))
+            })
             .collect();
         let mut signatures = Signatures::try_from(&*commit)?
             .into_iter()
