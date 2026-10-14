@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   announcements after its direct link to that node dropped.
 - A node no longer relays an inventory announcement back to peers that
   already sent it the same version, which reduces duplicate gossip traffic.
+- A collaborative object now keeps only the entries that descend from
+  its root, and applies an entry only when every parent was applied. A
+  root with parents does not load. New entries build on the applied
+  tips only, so a reference that points at another object's history no
+  longer joins the two objects.
+
+  This is not a breaking change. The data format does not change, and
+  honest clients already write a parentless root and build every entry
+  on the object's own tips, so existing issues and patches evaluate as
+  before. Only objects that carry foreign entries read differently:
+  those entries, and everything built on them, are now dropped. Nodes
+  without this fix still show them until they upgrade.
+
+  Nothing marks an affected object, so there is no way to tell which
+  repositories you are seeding may carry such entries without 
+  re-evaluating them. After upgrading, run `rad issue cache --storage` and
+  `rad patch cache --storage` once to re-evaluate every object in
+  storage, or `rad issue cache` and `rad patch cache` inside one
+  repository.
 
 ## 1.10.3 - 2026-09-07
 
