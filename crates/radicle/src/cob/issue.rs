@@ -1471,6 +1471,90 @@ mod test {
         assert_eq!(issue.state(), &State::Open);
     }
 
+    /// Point `mallory`'s ref for `issue` at a blob instead of a commit.
+    fn write_non_commit_cob_ref(repo: &storage::git::Repository, issue: &IssueId) {
+        let mallory = SigningKey::mock(!1);
+        let blob = repo.backend.blob(b"not a commit").unwrap();
+        let name = crate::git::refs::storage::cob(mallory.public_key(), &TYPENAME, issue);
+
+        repo.backend
+            .reference(name.as_str(), blob, true, "mallory")
+            .unwrap();
+    }
+
+    #[test]
+    fn issue_get_ignores_non_commit_ref() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+        let issue = issues
+            .create(
+                cob::Title::new("My first issue").unwrap(),
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let id = issue.id;
+
+        write_non_commit_cob_ref(&repo, &id);
+
+        let issue = issues.get(&id).unwrap().unwrap();
+        assert_eq!(issue.title(), "My first issue");
+    }
+
+    #[test]
+    fn issue_list_ignores_non_commit_ref() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+        let issue = issues
+            .create(
+                cob::Title::new("My first issue").unwrap(),
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let id = issue.id;
+
+        write_non_commit_cob_ref(&repo, &id);
+
+        let listed = issues
+            .list()
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].0, id);
+    }
+
+    #[test]
+    fn issue_get_with_only_non_commit_ref_is_not_found() {
+        let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
+        let mut issues = Cache::no_cache(&*repo, &node.signer).unwrap();
+        let issue = issues
+            .create(
+                cob::Title::new("My first issue").unwrap(),
+                "Blah blah blah.",
+                &[],
+                &[],
+                [],
+            )
+            .unwrap();
+        let id = issue.id;
+
+        let own = crate::git::refs::storage::cob(node.signer.public_key(), &TYPENAME, &id);
+        repo.backend
+            .find_reference(own.as_str())
+            .unwrap()
+            .delete()
+            .unwrap();
+        write_non_commit_cob_ref(&repo, &id);
+
+        assert!(issues.get(&id).unwrap().is_none());
+    }
+
     #[test]
     fn embeds() {
         let test::setup::NodeWithRepo { node, repo, .. } = test::setup::NodeWithRepo::default();
