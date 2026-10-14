@@ -32,8 +32,6 @@ pub fn run(
             edit_revision(patch, id, title, description)
         }
         None => {
-            // A target that cannot resolve is not settled state, so warn about
-            // it rather than rejecting the edit.
             if let Some(target) = &target {
                 match target.resolvable(repository) {
                     Ok(()) => {}

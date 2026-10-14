@@ -3,9 +3,10 @@ use core::result::Result::Err;
 use clap::{Parser, Subcommand};
 
 use radicle::cob::Label;
+use radicle::cob::patch::TargetBranch;
 use radicle::git;
 use radicle::git::fmt::RefString;
-use radicle::patch;
+use radicle::patch::MergeTarget;
 use radicle::patch::Status;
 use radicle::patch::Verdict;
 use radicle::prelude::Did;
@@ -256,10 +257,10 @@ pub(super) enum Command {
         #[arg(long, value_name = "REVISION_ID")]
         revision: Option<Rev>,
 
-        /// Branch the patch is meant to be merged into, eg. `refs/heads/main`.
-        /// Use `delegates` for the default branch of the delegates.
-        #[arg(long, value_name = "TARGET", value_parser = parse_merge_target)]
-        target: Option<patch::MergeTarget>,
+        /// The special value `delegates` selects the default branch of the
+        /// repository delegates.
+        #[arg(long, value_name = "TARGET", value_parser = parse_target)]
+        target: Option<MergeTarget>,
 
         #[clap(flatten)]
         message: MessageArgs,
@@ -777,11 +778,12 @@ pub(super) struct LabelArgs {
 fn parse_refstr(refstr: &str) -> Result<RefString, git::fmt::Error> {
     RefString::try_from(refstr)
 }
-
-/// Parse a merge target, accepting `delegates` for the default branch.
-fn parse_merge_target(target: &str) -> Result<patch::MergeTarget, patch::TargetBranchError> {
+fn parse_target(target: &str) -> Result<MergeTarget, String> {
     if target == "delegates" {
-        return Ok(patch::MergeTarget::Delegates);
+        Ok(MergeTarget::Delegates)
+    } else {
+        TargetBranch::try_from(target)
+            .map(MergeTarget::Branch)
+            .map_err(|e| e.to_string())
     }
-    target.parse().map(patch::MergeTarget::Branch)
 }
