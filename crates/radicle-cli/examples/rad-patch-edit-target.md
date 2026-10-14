@@ -25,7 +25,7 @@ To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkE
 `rad patch edit --target` moves the patch to the default branch:
 
 ```
-$ rad patch edit 5e6384c --target delegates --message "Add new feature" --message "" --no-announce
+$ rad patch edit 5e6384c --target refs/heads/master --no-announce
 $ rad patch show 5e6384c
 ╭──────────────────────────────────────────────────────────╮
 │ Title     Add new feature                                │
@@ -53,7 +53,7 @@ $ rad id update --title "Add accepted branch" --payload xyz.radicle.crefs rules 
 ```
 
 ```
-$ rad patch edit 5e6384c --target refs/heads/accepted --message "Add new feature" --message "" --no-announce
+$ rad patch edit 5e6384c --target refs/heads/accepted --message "Add new feature" --no-announce
 ! Warning: target `refs/heads/accepted` has no commits yet
 ```
 
@@ -61,6 +61,28 @@ $ rad patch edit 5e6384c --target refs/heads/accepted --message "Add new feature
 patch:
 
 ``` (fail)
-$ rad patch edit 5e6384c --revision 5e6384c --target delegates --message "x" --message "" --no-announce
+$ rad patch edit 5e6384c --revision 5e6384c --target delegates --message "x" --no-announce
 ✗ Error: `--target` cannot be used with `--revision`
+```
+
+Editing only the title leaves the target unchanged:
+
+```
+$ rad patch edit 5e6384c --message "Better title" --no-announce
+$ rad patch show 5e6384c
+╭──────────────────────────────────────────────────────────╮
+│ Title     Better title                                   │
+│ Patch     5e6384c03a8b964cf5c1d934bf5bdb1cd9169dc2       │
+│ Author    alice (you)                                    │
+│ Head      2f953624221d06c4c1e7a97637c758509a8558dd       │
+│ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
+│ Target    accepted                                       │
+│ Branches  feature/1                                      │
+│ Commits   unknown (target branch unresolvable)           │
+│ Status    open                                           │
+├──────────────────────────────────────────────────────────┤
+│ 2f95362 Add new feature                                  │
+├──────────────────────────────────────────────────────────┤
+│ ● Revision 5e6384c @ f2de534..2f95362 by alice (you) now │
+╰──────────────────────────────────────────────────────────╯
 ```
