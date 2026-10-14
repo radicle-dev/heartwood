@@ -76,12 +76,13 @@ The revision to edit.
 Comment message to the patch or revision. If omitted, Radicle will prompt for
 a comment string via *$EDITOR*.
 
-*--target <target>*::
-The branch the patch is meant to be merged into, eg. *refs/heads/main*. Use
-*delegates* for the default branch of the delegates. Cannot be given with
-*--revision*. A branch only becomes a canonical reference after a push to it
-reaches quorum, so a target that does not resolve yet gives a warning, but is
-still accepted.
+*--target <ref>*::
+The branch the patch is meant to be merged into, either a qualified reference
+such as *refs/heads/main*, or the special value *delegates* to target the
+default branch of the repository delegates.
+If omitted, the patch's current target is left unchanged. Cannot be given
+with *--revision*. If no corresponding canonical reference exists, a warning is
+given, but this does not prevent editing.
 
 === list
 
