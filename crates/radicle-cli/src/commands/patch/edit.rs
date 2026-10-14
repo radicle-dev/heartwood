@@ -33,10 +33,19 @@ pub fn run(
         }
         None => {
             if let Some(target) = &target {
-                match target.resolvable(repository) {
-                    Ok(()) => {}
-                    Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
-                    Err(err) => term::warning(err),
+                // Avoid resolving the head of the default target. Doing so
+                // may trigger a canonical head computation, which is
+                // what we must defer while delegates have not yet converged.
+                // This mirrors the behavior when opening a patch with an
+                // explicit base, and only explicit branch targets should warn
+                // about an unresolvable head.
+                match target {
+                    patch::MergeTarget::Delegates => {}
+                    patch::MergeTarget::Branch(_) => match target.head(repository) {
+                        Ok(_) => {}
+                        Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
+                        Err(err) => term::warning(err),
+                    },
                 }
             }
             edit_root(patch, title, description, target)

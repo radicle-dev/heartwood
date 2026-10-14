@@ -154,6 +154,49 @@ fn git_push_force_with_lease() {
 }
 
 #[test]
+fn git_push_patch_open_base_no_canonical_head() {
+    let mut environment = Environment::new();
+    let alice = environment.node("alice");
+    let bob = environment.node("bob");
+    let acme = RepoId::from_str("z42hL2jL4XNk6K8oHQaSWfMgCL7ji").unwrap();
+
+    environment.repository(&alice);
+
+    test(
+        "examples/rad-init.md",
+        environment.work(&alice),
+        Some(&alice.home),
+        [],
+    )
+    .unwrap();
+
+    let alice = alice.spawn();
+    let mut bob = bob.spawn();
+
+    bob.connect(&alice).converge([&alice]);
+    bob.fork(acme, environment.work(&bob)).unwrap();
+    alice.has_remote_of(&acme, &bob.id);
+
+    formula(
+        &environment.tempdir(),
+        "examples/git/git-push-patch-base-no-canonical-head.md",
+    )
+    .unwrap()
+    .home(
+        "alice",
+        environment.work(&alice),
+        [("RAD_HOME", alice.home.path().display())],
+    )
+    .home(
+        "bob",
+        environment.work(&bob).join("heartwood"),
+        [("RAD_HOME", bob.home.path().display())],
+    )
+    .run()
+    .unwrap();
+}
+
+#[test]
 fn git_push_rollback() {
     let mut environment = Environment::new();
     let alice = environment.node("alice");

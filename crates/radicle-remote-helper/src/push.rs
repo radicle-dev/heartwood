@@ -599,10 +599,20 @@ fn patch_open(
 
     // The target may not be resolvable yet. Report it, but still open the
     // patch: whether the target has commits is not settled at open time.
-    match opts.target.resolvable(stored) {
-        Ok(()) => {}
-        Err(patch::UnresolvableTarget::Repository(err)) => return Err(err.into()),
-        Err(err) => warn(err.to_string()),
+    //
+    // However, for `MergeTarget::Delegates`, resolving the target calls
+    // `Repository::head`, which falls back to computing the canonical head
+    // when storage `HEAD` is absent. That computation is deliberately avoided
+    // when an explicit base is provided, to allow opening patches while
+    // delegates are still converging. Therefore, only resolve explicit
+    // branch targets here.
+    match &opts.target {
+        patch::MergeTarget::Delegates => {}
+        patch::MergeTarget::Branch(_) => match opts.target.head(stored) {
+            Ok(_) => {}
+            Err(patch::UnresolvableHead::Repository(err)) => return Err(err.into()),
+            Err(err) => warn(err.to_string()),
+        },
     }
 
     let (title, description) = cli::terminal::patch::get_create_message(

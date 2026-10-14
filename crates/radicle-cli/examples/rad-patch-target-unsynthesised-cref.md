@@ -22,7 +22,7 @@ $ git commit --allow-empty -m "Add new feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add new feature" -o patch.target="refs/heads/accepted" rad HEAD:refs/patches
-warn: target `refs/heads/accepted` has no commits yet
+warn: head of the target branch `refs/heads/accepted` could not be resolved because there is no quorum
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches

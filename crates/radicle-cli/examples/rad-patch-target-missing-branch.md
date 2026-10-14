@@ -19,7 +19,7 @@ $ git commit --allow-empty -m "Add new feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add new feature" -o patch.target="refs/heads/nonexistent" rad HEAD:refs/patches
-warn: target `refs/heads/nonexistent` has no canonical reference rule
+warn: head of the target branch `refs/heads/nonexistent` could not be resolved because there is no rule that matches it
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
@@ -88,7 +88,7 @@ $ git commit --allow-empty -m "Add second feature"
 
 ``` (stderr)
 $ git push -o patch.message="Add second feature" -o patch.target="refs/heads/sidechain" rad HEAD:refs/patches
-warn: target `refs/heads/sidechain` has no canonical reference rule
+warn: head of the target branch `refs/heads/sidechain` could not be resolved because there is no rule that matches it
 ✓ Patch [..] opened
 To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
  * [new reference]   HEAD -> refs/patches
