@@ -27,6 +27,18 @@ pub fn signed_refs_at(g: &mut qcheck::Gen, root: Oid, signer: &impl crypto::Sign
     }
 }
 
+pub fn signed_refs(refs: Refs, root: Oid, signer: &impl crypto::Signer) -> SignedRefs {
+    let signature = crypto::signature::Signer::sign(signer, &refs.canonical());
+    SignedRefs {
+        refs,
+        signature,
+        id: *signer.public_key(),
+        level: FeatureLevel::None,
+        parent: None,
+        at: root,
+    }
+}
+
 impl Arbitrary for Refs {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let names = &[
