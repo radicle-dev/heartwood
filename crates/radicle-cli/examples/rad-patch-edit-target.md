@@ -84,7 +84,7 @@ $ rad patch show 5e6384c
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    accepted                                       │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │

@@ -48,7 +48,7 @@ $ rad patch show 6b9cd39
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    nonexistent                                    │
 │ Branches  feature/1                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 2f95362 Add new feature                                  │
@@ -116,7 +116,7 @@ $ rad patch show fd3ecc5
 │ Base      f2de534b5e81d7c6e2dcaf58c3dd91573c0a0354       │
 │ Target    sidechain                                      │
 │ Branches  feature/2                                      │
-│ Commits   unknown (target branch unresolvable)           │
+│ Commits   unknown                                        │
 │ Status    open                                           │
 ├──────────────────────────────────────────────────────────┤
 │ 3071f29 Add second feature                               │

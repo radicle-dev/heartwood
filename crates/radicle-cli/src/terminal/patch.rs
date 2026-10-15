@@ -365,12 +365,17 @@ pub fn show(
     } else {
         vec![]
     };
-    // The target may have no reference in storage yet, in which case there is
-    // nothing to compare against. Degrade this row rather than the command.
-    let ahead_behind = match patch.target().head(stored)? {
-        Some(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
-        None => term::Line::new(term::format::dim("unknown (target branch unresolvable)")),
+    // An explicit target may not be resolvable yet. Warn and continue for
+    // rule/quorum failures, since the target may get commits later. Other
+    // repository errors are fatal for explicit branch targets.
+    //
+    // For `MergeTarget::Delegates`, don't resolve the head here at all.
+    let ahead_behind = match patch.target().head(stored) {
+        Ok(target) => common::ahead_behind(stored.raw(), revision.head(), target)?,
+        Err(_) if !verbose => term::Line::new(term::format::dim("unknown")),
+        Err(err) => term::Line::new(term::format::dim(format!("unknown ({})", err))),
     };
+
     let author = patch.author();
     let author = term::format::Author::new(author.id(), profile, verbose);
     let labels = patch.labels().map(|l| l.to_string()).collect::<Vec<_>>();
