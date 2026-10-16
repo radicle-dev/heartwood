@@ -213,6 +213,26 @@ impl<S: Session> Transport<S> {
             return;
         }
 
+        // If our own write_buffer is empty but the session is still sitting
+        // on bytes it couldn't finish flushing last time (see
+        // has_pending_write), the loop below would never call
+        // self.session.write() at all -- an empty write_buffer makes its
+        // very first slice check empty and it breaks immediately, before
+        // ever touching the session. That would strand those bytes: we'd
+        // keep getting WRITABLE events (write_intent correctly stays true)
+        // but never actually act on them. A zero-length write is a no-op
+        // for a session with nothing pending, so there's no harm giving
+        // this a try whether or not we actually need to.
+        if self.write_buffer.is_empty() && self.session.has_pending_write() {
+            match self.session.write(&[]) {
+                Err(err) if !matches!(err.kind(), WouldBlock | Interrupted | WriteZero) => {
+                    events.push(self.terminate(err));
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         self.write_buffer.make_contiguous();
         let n = self.write_buffer.len();
 
@@ -278,7 +298,14 @@ impl<S: Session> Transport<S> {
             n
         );
 
-        self.write_intent = n > written.n;
+        // Also check the session's own hidden backlog, not just whether we
+        // drained our own write_buffer: a session can report "I accepted
+        // all your bytes" while still holding some of them unflushed
+        // internally (e.g. a partially-sent encrypted frame it can't
+        // safely re-derive on retry). Without this, write_intent would go
+        // false and we'd stop asking for WRITABLE events with those bytes
+        // still stuck one layer down.
+        self.write_intent = n > written.n || self.session.has_pending_write();
 
         if self.write_intent {
             log::debug!(target: "transport", "Resource {} was able to consume only a part of the buffered data ({} of {n} bytes)", written.n, self.display());
