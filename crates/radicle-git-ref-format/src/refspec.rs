@@ -39,12 +39,16 @@ impl PatternStr {
     where
         R: AsRef<RefStr>,
     {
-        self._join(other.as_ref())
+        self._join(&other.as_ref())
     }
 
-    fn _join(&self, other: &RefStr) -> PatternString {
+    pub fn join_pattern(&self, other: &PatternStr) -> PatternString {
+        self._join(&other)
+    }
+
+    fn _join(&self, other: &impl AsRef<str>) -> PatternString {
         let mut buf = self.to_owned();
-        buf.push(other);
+        buf._push(other);
         buf
     }
 
@@ -153,7 +157,7 @@ impl PatternString {
     where
         R: AsRef<RefStr>,
     {
-        self._push(other.as_ref());
+        self._push(&other.as_ref());
         self
     }
 
@@ -162,12 +166,12 @@ impl PatternString {
     where
         R: AsRef<RefStr>,
     {
-        self._push(other.as_ref())
+        self._push(&other.as_ref())
     }
 
-    fn _push(&mut self, other: &RefStr) {
+    fn _push(&mut self, other: &impl AsRef<str>) {
         self.0.push('/');
-        self.0.push_str(other.as_str());
+        self.0.push_str(other.as_ref());
     }
 
     #[inline]
