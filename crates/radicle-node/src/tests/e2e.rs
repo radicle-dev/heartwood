@@ -1614,7 +1614,7 @@ fn missing_delegate_default_branch() {
         "Further investigation into delegates",
     );
     let assert_bobs_issue_exists = |repo: &Repository| {
-        let issue_ref = radicle::git::refs::storage::cob(
+        let issue_ref = radicle::git::refs::storage::cob_with_namespace(
             bob.signer.public_key(),
             &radicle::cob::issue::TYPENAME,
             &issue,

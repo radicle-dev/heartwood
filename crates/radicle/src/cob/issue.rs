@@ -1475,7 +1475,8 @@ mod test {
     fn write_non_commit_cob_ref(repo: &storage::git::Repository, issue: &IssueId) {
         let mallory = SigningKey::mock(!1);
         let blob = repo.backend.blob(b"not a commit").unwrap();
-        let name = crate::git::refs::storage::cob(mallory.public_key(), &TYPENAME, issue);
+        let name =
+            crate::git::refs::storage::cob_with_namespace(mallory.public_key(), &TYPENAME, issue);
 
         repo.backend
             .reference(name.as_str(), blob, true, "mallory")
@@ -1544,7 +1545,8 @@ mod test {
             .unwrap();
         let id = issue.id;
 
-        let own = crate::git::refs::storage::cob(node.signer.public_key(), &TYPENAME, &id);
+        let own =
+            crate::git::refs::storage::cob_with_namespace(node.signer.public_key(), &TYPENAME, &id);
         repo.backend
             .find_reference(own.as_str())
             .unwrap()

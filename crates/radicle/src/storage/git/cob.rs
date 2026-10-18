@@ -113,7 +113,7 @@ impl cob::object::Storage for Repository {
         object_id: &cob::ObjectId,
     ) -> Result<cob::object::Objects, Self::ObjectsError> {
         self.backend
-            .references_glob(git::refs::storage::cobs(typename, object_id).as_str())?
+            .references_glob(&git::refs::storage::cob(typename, object_id))?
             .try_fold(cob::object::Objects::default(), |mut objects, reference| {
                 if let Some(reference) = cob_reference(reference?)? {
                     objects.push(reference);
@@ -173,7 +173,7 @@ impl cob::object::Storage for Repository {
         entry: &cob::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
-            git::refs::storage::cob(namespace, typename, object_id).as_str(),
+            git::refs::storage::cob_with_namespace(namespace, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(
@@ -190,9 +190,9 @@ impl cob::object::Storage for Repository {
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
-        let mut reference = self
-            .backend
-            .find_reference(git::refs::storage::cob(namespace, typename, object_id).as_str())?;
+        let mut reference = self.backend.find_reference(
+            git::refs::storage::cob_with_namespace(namespace, typename, object_id).as_str(),
+        )?;
 
         reference.delete()
     }
@@ -415,7 +415,7 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
         // First get the signed COB tips of all remotes for this object.
         let signed = self
             .repo
-            .references_glob(&git::refs::storage::cobs(typename, object_id))?;
+            .references_glob(&git::refs::storage::cob(typename, object_id))?;
 
         for (r, id) in signed {
             let r = cob::object::Reference {

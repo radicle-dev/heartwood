@@ -245,7 +245,7 @@ pub mod refs {
         ///
         /// `refs/namespaces/<remote>/refs/cobs/<typename>/<object_id>`
         ///
-        pub fn cob<'a>(
+        pub fn cob_with_namespace<'a>(
             remote: &RemoteId,
             typename: &cob::TypeName,
             object_id: &cob::ObjectId,
@@ -262,11 +262,22 @@ pub mod refs {
         ///
         /// `refs/namespaces/*/refs/cobs/<typename>/<object_id>`
         ///
-        pub fn cobs(typename: &cob::TypeName, object_id: &cob::ObjectId) -> refspec::PatternString {
+        pub fn cob(typename: &cob::TypeName, object_id: &cob::ObjectId) -> refspec::PatternString {
             pattern!("refs/namespaces/*")
                 .join(refname!("refs/cobs"))
                 .join(Component::from(typename))
                 .join(Component::from(object_id))
+        }
+
+        /// All collaborative objects, identified by `typename`, for all remotes.
+        ///
+        /// `refs/namespaces/*/refs/cobs/<typename>/<object_id>`
+        ///
+        pub fn cobs(typename: &cob::TypeName) -> refspec::PatternString {
+            pattern!("refs/namespaces/*")
+                .join(refname!("refs/cobs"))
+                .join(Component::from(typename))
+                .join_pattern(refspec::STAR)
         }
 
         /// Draft references.

@@ -1061,7 +1061,11 @@ impl Doc {
         let cob = identity::Identity::initialize(self, repo, signer)?;
         let public_key = signer.public_key();
         let id_ref = git::refs::storage::id(public_key);
-        let cob_ref = git::refs::storage::cob(public_key, &crate::cob::identity::TYPENAME, &cob.id);
+        let cob_ref = git::refs::storage::cob_with_namespace(
+            public_key,
+            &crate::cob::identity::TYPENAME,
+            &cob.id,
+        );
         // Set `…/refs/rad/id` -> `…/refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),

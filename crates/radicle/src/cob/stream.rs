@@ -69,7 +69,7 @@ impl CobRange {
     /// The range will be from the root, given by the [`ObjectId`], to the
     /// reference tips of all remote namespaces.
     pub fn new(typename: &TypeName, object_id: &ObjectId) -> Self {
-        let glob = crate::storage::refs::cobs(typename, object_id);
+        let glob = crate::storage::refs::cob(typename, object_id);
         Self {
             root: **object_id,
             until: iter::Until::Glob(glob),
