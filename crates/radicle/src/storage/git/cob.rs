@@ -126,19 +126,15 @@ impl cob::object::Storage for Repository {
         &self,
         typename: &cob::TypeName,
     ) -> Result<BTreeMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
-        // TODO: Use glob here.
         self.backend
-            .references()?
+            .references_glob(&git::refs::storage::cobs(typename))?
             .filter_map(Result::ok)
             .filter_map(
                 |reference| match RefStr::try_from_str(reference.name().ok()?) {
                     Ok(name) => {
                         let (ty, object_id) = cob::object::parse_refstr(&name)?;
-                        if ty == *typename {
-                            Some(Ok((object_id, reference)))
-                        } else {
-                            None
-                        }
+                        debug_assert_eq!(ty, *typename);
+                        Some(Ok((object_id, reference)))
                     }
                     Err(err) => Some(Err(err.into())),
                 },
