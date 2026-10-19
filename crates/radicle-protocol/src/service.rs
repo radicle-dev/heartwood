@@ -65,8 +65,7 @@ use radicle::node::PROTOCOL_VERSION;
 use crate::bounded::BoundedVec;
 use crate::service::filter::Filter;
 pub use crate::service::message::{Message, ZeroBytes};
-pub use crate::service::session::{QueuedFetch, Session};
-use crate::worker::FetchError;
+pub use crate::service::session::{ConnectionId, QueuedFetch, Session};
 use radicle::node::events::{Event, Events};
 use radicle::node::{Config, NodeId};
 
@@ -343,6 +342,8 @@ pub struct Service<D, S> {
     policies: policy::Config<Write>,
     /// Peer sessions, currently or recently connected.
     sessions: Sessions,
+    /// Peers explicitly disconnected by the user, until a new connect command.
+    user_disconnected: HashSet<NodeId>,
     /// Clock. Tells the time.
     clock: LocalTime,
     /// Who relayed what announcement to us. We keep track of this to ensure that
@@ -587,6 +588,7 @@ where
             outbox: Outbox::default(),
             limiter,
             sessions,
+            user_disconnected: HashSet::new(),
             fetcher,
             filter: Filter::empty(),
             relayed_by: HashMap::default(),
@@ -811,6 +813,7 @@ where
 
         match cmd {
             Command::Connect(nid, addr, opts) => {
+                self.user_disconnected.remove(&nid);
                 if opts.persistent {
                     self.config
                         .connect
@@ -832,7 +835,7 @@ where
                 }
             }
             Command::Disconnect(nid) => {
-                self.outbox.disconnect(nid, DisconnectReason::Command);
+                self.disconnect(nid, DisconnectReason::Command);
             }
             Command::Config(resp) => {
                 resp.ok(self.config.clone()).ok();
@@ -903,7 +906,7 @@ where
                     .set_follow_policy(&id, policy::Policy::Block)
                     .expect("Service::command: error blocking node");
                 if updated {
-                    self.outbox.disconnect(id, DisconnectReason::Policy);
+                    self.disconnect(id, DisconnectReason::Policy);
                 }
                 resp.ok(updated).ok();
             }
@@ -1231,10 +1234,11 @@ where
         debug!(target: "service", "Attempted connection to {nid} ({addr})");
 
         if let Some(sess) = self.sessions.get_mut(&nid) {
-            sess.to_attempted();
+            if sess.is_initial() {
+                sess.to_attempted();
+            }
         } else {
-            #[cfg(debug_assertions)]
-            panic!("Service::attempted: unknown session {nid}@{addr}");
+            trace!(target: "service", "Ignoring connection attempt for disconnected peer {nid}");
         }
     }
 
@@ -1244,15 +1248,34 @@ where
         self.listening.push(local_addr);
     }
 
-    pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
+    pub fn connected(
+        &mut self,
+        remote: NodeId,
+        connection_id: ConnectionId,
+        addr: Address,
+        link: Link,
+    ) {
+        if link.is_outbound() && self.user_disconnected.contains(&remote) {
+            self.outbox
+                .disconnect(remote, Some(connection_id), DisconnectReason::Command);
+            return;
+        }
         if let Ok(true) = self.policies.is_blocked(&remote) {
             self.emitter.emit(Event::PeerDisconnected {
                 nid: remote,
                 reason: format!("{remote} is blocked"),
             });
             info!(target: "service", "Disconnecting blocked inbound peer {remote}");
-            self.outbox.disconnect(remote, DisconnectReason::Policy);
+            self.outbox
+                .disconnect(remote, Some(connection_id), DisconnectReason::Policy);
             return;
+        }
+
+        if let Some(session) = self.sessions.get(&remote)
+            && let Some(current) = &session.connection_id
+            && current != &connection_id
+        {
+            debug!(target: "service", "Peer {remote} connected with an unexpected connection ID (session: {current:?}, connected: {connection_id:?})");
         }
 
         info!(target: "service", "Connected to {remote} ({addr}) ({link:?})");
@@ -1261,29 +1284,32 @@ where
         let msgs = self.initial(link);
 
         if link.is_outbound() {
-            if let Some(peer) = self.sessions.get_mut(&remote) {
-                peer.to_connected(self.clock);
-                self.outbox.write_all(peer, msgs);
-            }
+            // A previous connection may have ended before networking reports
+            // its selected replacement, removing the original session entry.
+            let peer = self.sessions.entry(remote).or_insert_with(|| {
+                Session::outbound(
+                    remote,
+                    addr,
+                    self.config.is_persistent(&remote),
+                    self.rng.clone(),
+                )
+            });
+            peer.link = link;
+            peer.to_connected(connection_id, self.clock);
+            self.outbox.write_all(peer, msgs);
         } else {
             match self.sessions.entry(remote) {
                 Entry::Occupied(mut e) => {
-                    // In this scenario, it's possible that our peer is persistent, and
-                    // disconnected. We get an inbound connection before we attempt a re-connection,
-                    // and therefore we treat it as a regular inbound connection.
-                    //
-                    // It's also possible that a disconnection hasn't gone through yet and our
-                    // peer is still in connected state here, while a new inbound connection from
-                    // that same peer is made. This results in a new connection from a peer that is
-                    // already connected from the perspective of the service. This appears to be
-                    // a bug in the underlying networking library.
+                    // Networking may select an inbound connection while an outbound
+                    // attempt or an older connection still occupies this session.
+                    // Notifications for the old connection are ignored by identity.
                     let peer = e.get_mut();
                     debug!(
                         target: "service",
                         "Connecting peer {remote} already has a session open ({peer})"
                     );
                     peer.link = link;
-                    peer.to_connected(self.clock);
+                    peer.to_connected(connection_id, self.clock);
                     self.outbox.write_all(peer, msgs);
                 }
                 Entry::Vacant(e) => {
@@ -1298,6 +1324,7 @@ where
                     }
                     let peer = e.insert(Session::inbound(
                         remote,
+                        connection_id,
                         addr,
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
@@ -1309,19 +1336,79 @@ where
         }
     }
 
-    pub fn disconnected(&mut self, remote: NodeId, link: Link, reason: &DisconnectReason) {
-        let since = self.local_time();
-        let Some(session) = self.sessions.get_mut(&remote) else {
+    /// An outbound connection attempt failed before a session was established.
+    pub fn connect_failed(&mut self, remote: NodeId, reason: &ConnectError) {
+        let Some(session) = self.sessions.get(&remote) else {
+            return;
+        };
+        // A concurrent inbound connection may have superseded this attempt.
+        if !session.link.is_outbound() || !(session.is_initial() || session.is_connecting()) {
+            return;
+        }
+        let severity = match reason {
+            ConnectError::Dial(_) => Severity::Medium,
+            ConnectError::SelfConnection => Severity::Low,
+        };
+        self.session_closed(remote, reason, severity);
+    }
+
+    /// Intentionally disconnect a peer and immediately update the service state.
+    /// A user command suppresses local automatic reconnects until another connect
+    /// command. Incoming connections are still accepted.
+    pub fn disconnect(&mut self, remote: NodeId, reason: DisconnectReason) {
+        if matches!(reason, DisconnectReason::Command) {
+            self.user_disconnected.insert(remote);
+        }
+        let Some(session) = self.sessions.get(&remote) else {
+            return;
+        };
+        if session.is_disconnected() {
+            if self.user_disconnected.contains(&remote) {
+                self.sessions.remove(&remote);
+            }
+            return;
+        }
+        let severity = match &reason {
+            DisconnectReason::Session(err) => err.severity(),
+            DisconnectReason::Command | DisconnectReason::Policy => Severity::Low,
+        };
+        let message = reason.to_string();
+        let connection_id = session.connection_id.clone();
+        // Queue the close before maintenance can enqueue any new connection attempts.
+        self.outbox.disconnect(remote, connection_id, reason);
+        self.session_closed(remote, &message, severity);
+    }
+
+    /// An established connection was closed outside the service.
+    pub fn disconnected(
+        &mut self,
+        remote: NodeId,
+        connection_id: &ConnectionId,
+        reason: &DisconnectError,
+    ) {
+        let Some(session) = self.sessions.get(&remote) else {
             // Since we sometimes disconnect the service eagerly, it's not unusual to get a second
             // disconnection event once the transport is dropped.
             trace!(target: "service", "Redundant disconnection for {remote} ({reason})");
             return;
         };
-        // In cases of connection conflicts, there may be disconnections of one of the two
-        // connections. In that case we don't want the service to remove the session.
-        if session.link != link {
+        if session.connection_id.as_ref() != Some(connection_id) || !session.is_connected() {
             return;
         }
+
+        let severity = match reason {
+            DisconnectError::Connection(_) => Severity::Medium,
+            DisconnectError::Session(err) => err.severity(),
+        };
+        self.session_closed(remote, reason, severity);
+    }
+
+    /// Finish a local disconnect, lost connection, or failed connection attempt.
+    fn session_closed(&mut self, remote: NodeId, reason: &dyn fmt::Display, severity: Severity) {
+        let since = self.local_time();
+        let Some(session) = self.sessions.get_mut(&remote) else {
+            return;
+        };
 
         info!(target: "service", "Disconnected from {remote} ({reason})");
         self.emitter.emit(Event::PeerDisconnected {
@@ -1333,7 +1420,7 @@ where
         let addr = session.addr.clone();
 
         // Attempt to re-connect to persistent peers.
-        if self.config.is_persistent(&remote) {
+        if self.config.is_persistent(&remote) && !self.user_disconnected.contains(&remote) {
             let delay = LocalDuration::from_secs(2u64.saturating_pow(session.attempts() as u32))
                 .clamp(MIN_RECONNECTION_DELTA, MAX_RECONNECTION_DELTA);
 
@@ -1348,23 +1435,10 @@ where
             debug!(target: "service", "Dropping peer {remote}..");
             self.sessions.remove(&remote);
 
-            let severity = match reason {
-                DisconnectReason::Dial(_)
-                | DisconnectReason::Fetch(_)
-                | DisconnectReason::Connection(_) => {
-                    if self.is_online() {
-                        // If we're "online", there's something wrong with this
-                        // peer connection specifically.
-                        Severity::Medium
-                    } else {
-                        Severity::Low
-                    }
-                }
-                DisconnectReason::Session(e) => e.severity(),
-                DisconnectReason::Command
-                | DisconnectReason::Conflict
-                | DisconnectReason::Policy
-                | DisconnectReason::SelfConnection => Severity::Low,
+            let severity = match severity {
+                // A transport failure carries less information when we're offline.
+                Severity::Medium if !self.is_online() => Severity::Low,
+                severity => severity,
             };
 
             if let Err(e) = self
@@ -1390,15 +1464,16 @@ where
         }
     }
 
-    pub fn received_message(&mut self, remote: NodeId, message: Message) {
-        if let Err(err) = self.handle_message(&remote, message) {
+    pub fn received_message(
+        &mut self,
+        remote: NodeId,
+        connection_id: &ConnectionId,
+        message: Message,
+    ) {
+        if let Err(err) = self.handle_message(&remote, connection_id, message) {
             // If there's an error, stop processing messages from this peer.
             // However, we still relay messages returned up to this point.
-            self.outbox
-                .disconnect(remote, DisconnectReason::Session(err));
-
-            // FIXME: The peer should be set in a state such that we don't
-            // process further messages.
+            self.disconnect(remote, DisconnectReason::Session(err));
         }
     }
 
@@ -1723,6 +1798,7 @@ where
     pub fn handle_message(
         &mut self,
         remote: &NodeId,
+        connection_id: &ConnectionId,
         message: Message,
     ) -> Result<(), session::Error> {
         let local = *self.nid();
@@ -1731,6 +1807,14 @@ where
             debug!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
+        if peer
+            .connection_id
+            .as_ref()
+            .is_some_and(|current| current != connection_id)
+        {
+            trace!(target: "service", "Ignoring message from superseded connection to {remote}");
+            return Ok(());
+        }
         peer.last_active = self.clock;
 
         let limit: RateLimit = match peer.link {
@@ -1746,28 +1830,18 @@ where
         }
         message.log(log::Level::Debug, remote, Link::Inbound);
 
-        let connected = match &mut peer.state {
+        let (ping, latencies) = match &mut peer.state {
             session::State::Disconnected { .. } => {
                 debug!(target: "service", "Ignoring message from disconnected peer {}", peer.id);
                 return Ok(());
             }
-            // In case of a discrepancy between the service state and the state of the underlying
-            // wire protocol, we may receive a message from a peer that we consider not fully connected
-            // at the service level. To remedy this, we simply transition the peer to a connected state.
-            //
-            // This is not ideal, but until the wire protocol and service are unified, it's the simplest
-            // solution to converge towards the same state.
             session::State::Attempted | session::State::Initial => {
-                debug!(target: "service", "Received unexpected message from connecting peer {}", peer.id);
-                debug!(target: "service", "Transitioning peer {} to 'connected' state", peer.id);
-
-                peer.to_connected(self.clock);
-
-                None
+                debug!(target: "service", "Ignoring unexpected message from connecting peer {}", peer.id);
+                return Ok(());
             }
             session::State::Connected {
                 ping, latencies, ..
-            } => Some((ping, latencies)),
+            } => (ping, latencies),
         };
 
         trace!(target: "service", "Received message {message:?} from {remote}");
@@ -1858,11 +1932,10 @@ where
                 );
             }
             Message::Pong { zeroes } => {
-                if let Some((ping, latencies)) = connected
-                    && let session::PingState::AwaitingResponse {
-                        len: ponglen,
-                        since,
-                    } = *ping
+                if let session::PingState::AwaitingResponse {
+                    len: ponglen,
+                    since,
+                } = *ping
                     && (ponglen as usize) == zeroes.len()
                 {
                     *ping = session::PingState::Ok;
@@ -2390,21 +2463,16 @@ where
     }
 
     fn disconnect_unresponsive_peers(&mut self, now: &LocalTime) {
-        let stale = self
+        let stale: Vec<_> = self
             .sessions
             .connected()
-            .filter(|(_, session)| *now - session.last_active >= STALE_CONNECTION_TIMEOUT);
+            .filter(|(_, session)| *now - session.last_active >= STALE_CONNECTION_TIMEOUT)
+            .map(|(id, _)| *id)
+            .collect();
 
-        for (_, session) in stale {
-            debug!(target: "service", "Disconnecting unresponsive peer {}..", session.id);
-
-            // TODO: Should we switch the session state to "disconnected" even before receiving
-            // an official "disconnect"? Otherwise we keep pinging until we get the disconnection.
-
-            self.outbox.disconnect(
-                session.id,
-                DisconnectReason::Session(session::Error::Timeout),
-            );
+        for remote in stale {
+            debug!(target: "service", "Disconnecting unresponsive peer {remote}..");
+            self.disconnect(remote, DisconnectReason::Session(session::Error::Timeout));
         }
     }
 
@@ -2431,6 +2499,7 @@ where
                     .filter(|entry| !entry.address.banned)
                     .filter(|entry| !entry.penalty.is_connect_threshold_reached())
                     .filter(|entry| !self.sessions.contains_key(&entry.node))
+                    .filter(|entry| !self.user_disconnected.contains(&entry.node))
                     .filter(|entry| !self.policies.is_blocked(&entry.node).unwrap_or(false))
                     .filter(|entry| !self.config.external_addresses.contains(&entry.address.addr))
                     .filter(|entry| &entry.node != self.nid())
@@ -2598,7 +2667,7 @@ where
         let mut reconnect = Vec::new();
 
         for (nid, session) in self.sessions.iter_mut() {
-            if self.config.is_persistent(nid) {
+            if self.config.is_persistent(nid) && !self.user_disconnected.contains(nid) {
                 if self.policies.is_blocked(nid).unwrap_or(false) {
                     continue;
                 }
@@ -2732,58 +2801,41 @@ where
     }
 }
 
-/// Disconnect reason.
-#[derive(Debug)]
-pub enum DisconnectReason {
-    /// Error while dialing the remote. This error occurs before a connection is
-    /// even established. Errors of this kind are usually not transient.
+/// Failure of an outbound connection attempt.
+#[derive(thiserror::Error, Debug)]
+pub enum ConnectError {
+    /// Dialing, authentication, or gossip stream setup failed before the
+    /// service established a session with the remote.
+    #[error("{0}")]
     Dial(Arc<dyn std::error::Error + Sync + Send>),
-    /// Error with an underlying established connection. Sometimes, reconnecting
-    /// after such an error is possible.
-    Connection(Arc<dyn std::error::Error + Sync + Send>),
-    /// Error with a fetch.
-    Fetch(FetchError),
-    /// Session error.
-    Session(session::Error),
-    /// Session conflicts with existing session.
-    Conflict,
-    /// Connection to self.
+    /// The transport rejected a connection to ourselves.
+    #[error("self-connection")]
     SelfConnection,
+}
+
+/// Failure of an established connection, reported by the transport.
+#[derive(thiserror::Error, Debug)]
+pub enum DisconnectError {
+    /// The peer closed the connection or the underlying transport failed.
+    #[error("{0}")]
+    Connection(Arc<dyn std::error::Error + Sync + Send>),
+    /// The transport closed the connection after invalid protocol input.
+    #[error("{0}")]
+    Session(session::Error),
+}
+
+/// Reason for intentionally closing a peer connection.
+#[derive(thiserror::Error, Debug)]
+pub enum DisconnectReason {
+    /// Session error.
+    #[error("{0}")]
+    Session(session::Error),
     /// Peer is blocked by policy
+    #[error("policy")]
     Policy,
     /// User requested disconnect
+    #[error("command")]
     Command,
-}
-
-impl DisconnectReason {
-    pub fn is_dial_err(&self) -> bool {
-        matches!(self, Self::Dial(_))
-    }
-
-    pub fn is_connection_err(&self) -> bool {
-        matches!(self, Self::Connection(_))
-    }
-
-    pub fn connection() -> Self {
-        DisconnectReason::Connection(Arc::new(std::io::Error::from(
-            std::io::ErrorKind::ConnectionReset,
-        )))
-    }
-}
-
-impl fmt::Display for DisconnectReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Dial(err) => write!(f, "{err}"),
-            Self::Connection(err) => write!(f, "{err}"),
-            Self::Command => write!(f, "command"),
-            Self::SelfConnection => write!(f, "self-connection"),
-            Self::Conflict => write!(f, "conflict"),
-            Self::Policy => write!(f, "policy"),
-            Self::Session(err) => write!(f, "{err}"),
-            Self::Fetch(err) => write!(f, "fetch: {err}"),
-        }
-    }
 }
 
 /// Result of a project lookup.

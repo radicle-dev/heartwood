@@ -1182,7 +1182,9 @@ fn connection_crossing() {
             |other| other.id,
             |node, id| {
                 let sessions = node.handle.sessions().unwrap();
-                assert_eq!(sessions.len(), 1);
+                // The losing connection can end before its replacement is
+                // reported. Allow that gap while waiting for the selected link.
+                assert!(sessions.len() <= 1);
 
                 sessions.iter().find(|s| s.nid == id).cloned()
             },
@@ -2107,6 +2109,68 @@ fn non_fast_forward_identity_doc() {
     let identity = Identity::load_mut(&repo, &bob.signer).unwrap();
     assert_eq!(identity.current, next);
     assert_eq!(identity.parent, Some(prev));
+}
+
+#[test]
+fn intentional_disconnect_and_explicit_reconnect() {
+    let tmp = tempfile::tempdir().unwrap();
+    let alice = Node::init(tmp.path(), config::relay("alice"), 13);
+    let bob = Node::init(tmp.path(), config::relay("bob"), 37);
+    let mut alice = alice.spawn();
+    let bob = bob.spawn();
+
+    let result = alice
+        .handle
+        .connect(
+            bob.id,
+            bob.addr.into(),
+            ConnectOptions {
+                persistent: true,
+                ..ConnectOptions::default()
+            },
+        )
+        .unwrap();
+    assert_matches!(result, ConnectResult::Connected);
+    alice.connect(&bob);
+    let local_events = alice.handle.events();
+    let remote_events = bob.handle.events();
+
+    alice.handle.disconnect(bob.id).unwrap();
+    local_events.wait(
+        |e| matches!(e, Event::PeerDisconnected { nid, reason } if *nid == bob.id && reason == "command").then_some(()),
+        DEFAULT_TIMEOUT,
+    ).unwrap();
+    remote_events
+        .wait(
+            |e| matches!(e, Event::PeerDisconnected { nid, .. } if *nid == alice.id).then_some(()),
+            DEFAULT_TIMEOUT,
+        )
+        .unwrap();
+    assert!(
+        alice
+            .handle
+            .sessions()
+            .unwrap()
+            .iter()
+            .all(|s| s.nid != bob.id)
+    );
+    assert!(
+        bob.handle
+            .sessions()
+            .unwrap()
+            .iter()
+            .all(|s| s.nid != alice.id)
+    );
+
+    alice.connect(&bob);
+    assert!(
+        alice
+            .handle
+            .sessions()
+            .unwrap()
+            .iter()
+            .any(|s| s.nid == bob.id && s.state.is_connected())
+    );
 }
 
 #[test]
