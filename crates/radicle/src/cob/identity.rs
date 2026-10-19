@@ -165,6 +165,8 @@ pub enum Error {
     Doc(#[from] DocError),
     #[error("revision {0} was not found")]
     NotFound(RevisionId),
+    #[error(transparent)]
+    Repository(#[from] RepositoryError),
 }
 
 /// An evolving identity document.
@@ -1215,8 +1217,17 @@ where
         let mut tx = Transaction::default();
         operations(&mut tx, self.store.as_ref())?;
 
+        self.commit(tx, message)
+    }
+
+    fn commit(&mut self, tx: Transaction<Identity, Repo>, message: &str) -> Result<EntryId, Error> {
         let (doc, commit) = tx.commit(message, self.id, &mut self.store)?;
         self.identity = doc;
+        // Keep `rad/id` at the current revision, which can change on any
+        // write, e.g. when an accept also adopts a queued child.
+        self.store
+            .as_ref()
+            .set_identity_head_to(self.identity.current)?;
 
         Ok(commit)
     }
@@ -1253,10 +1264,7 @@ where
             let repo = self.store.repo();
             Transaction::new_revision(title, description, doc, parent, repo, signer)?
         };
-        let (doc, commit) = tx.commit("Propose revision", self.id, &mut self.store)?;
-        self.identity = doc;
-
-        Ok(commit)
+        self.commit(tx, "Propose revision")
     }
 
     /// Accept an active revision.
@@ -2754,6 +2762,27 @@ mod test {
 
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.current, b1);
+        // `rad/id` follows the adopted child, not the accepted revision.
+        assert_eq!(bob.repo.identity_head().unwrap(), b1);
+    }
+
+    #[test]
+    fn identity_update_moves_identity_head() {
+        let NodeWithRepo { node, repo } = NodeWithRepo::default();
+        let mut identity = Identity::load_mut(&*repo, &node.signer).unwrap();
+        let mut doc = identity.doc().clone().edit();
+        doc.visibility = Visibility::private([]);
+        let revision = identity
+            .update(
+                Title::new("Make private").unwrap(),
+                "",
+                &doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // The only delegate adopts the revision at once, so `rad/id` moves.
+        assert_eq!(identity.current, revision);
+        assert_eq!(repo.identity_head().unwrap(), revision);
     }
 
     /// When a revision is adopted that changes the delegate set, the majority

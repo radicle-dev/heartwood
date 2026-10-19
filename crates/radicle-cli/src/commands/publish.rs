@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use radicle::cob;
 use radicle::identity::{Identity, Visibility};
 use radicle::node::Handle as _;
-use radicle::storage::{SignRepository, ValidateRepository, WriteRepository, WriteStorage};
+use radicle::storage::{SignRepository, ValidateRepository, WriteStorage};
 
 use crate::terminal as term;
 use crate::terminal::args::rid_or_cwd;
@@ -50,7 +50,6 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     #[allow(clippy::unwrap_used)]
     identity.update(cob::Title::new("Publish repository").unwrap(), "", &doc)?;
     repo.sign_refs(&signer)?;
-    repo.set_identity_head()?;
     let validations = repo.validate()?;
 
     if !validations.is_empty() {
