@@ -51,7 +51,7 @@ impl TryFrom<u16> for MessageType {
 }
 
 impl Message {
-    /// The maximum supported message size in bytes.
+    /// Maximum ping/pong payload size in bytes, excluding the message type.
     pub const MAX_SIZE: wire::Size =
         wire::Size::MAX - (mem::size_of::<MessageType>() as wire::Size);
 
@@ -191,7 +191,11 @@ impl wire::Decode for Info {
 
 impl wire::Encode for Message {
     fn encode(&self, buf: &mut impl BufMut) {
-        let buf = &mut buf.limit(wire::Size::MAX as usize);
+        let limit = match self {
+            Self::Ping(_) | Self::Pong { .. } => wire::Size::MAX as usize,
+            _ => wire::MAX_MESSAGE_SIZE,
+        };
+        let buf = &mut buf.limit(limit);
 
         self.type_id().encode(buf);
 
@@ -411,7 +415,7 @@ mod tests {
     #[test]
     fn refs_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(235);
-        let refs: [RefsAt; REF_REMOTE_LIMIT] = arbitrary::r#gen(1);
+        let refs: Vec<RefsAt> = arbitrary::vec(REF_REMOTE_LIMIT);
         let ann = AnnouncementMessage::Refs(RefsAnnouncement {
             rid: arbitrary::r#gen(1),
             refs: BoundedVec::collect_from(&mut refs.into_iter()),
@@ -421,13 +425,13 @@ mod tests {
         let msg = Message::Announcement(ann);
         let data = msg.encode_to_vec();
 
-        assert!(data.len() < wire::Size::MAX as usize);
+        assert!(data.len() < wire::MAX_MESSAGE_SIZE);
     }
 
     #[test]
     fn inv_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(147);
-        let inv: [RepoId; INVENTORY_LIMIT] = arbitrary::r#gen(1);
+        let inv: Vec<RepoId> = arbitrary::vec(INVENTORY_LIMIT);
         let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
             inventory: BoundedVec::collect_from(&mut inv.into_iter()),
             timestamp: arbitrary::r#gen(1),
@@ -436,7 +440,7 @@ mod tests {
         let msg = Message::Announcement(ann);
         let data = msg.encode_to_vec();
 
-        assert!(data.len() < wire::Size::MAX as usize);
+        assert!(data.len() < wire::MAX_MESSAGE_SIZE);
     }
 
     #[test]

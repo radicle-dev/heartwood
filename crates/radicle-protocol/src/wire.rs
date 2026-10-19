@@ -26,11 +26,13 @@ use crate::service::filter;
 
 /// The default type we use to represent sizes on the wire.
 ///
-/// Since wire messages are limited to 64KB by the transport layer,
-/// two bytes is enough to represent any message.
+/// Two bytes represent collection lengths and ping/pong padding lengths.
 ///
 /// Note that in certain cases, we may use a smaller type.
 pub type Size = u16;
+
+/// Maximum encoded message size, including the message type.
+pub const MAX_MESSAGE_SIZE: usize = 1 << 20;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Invalid {
