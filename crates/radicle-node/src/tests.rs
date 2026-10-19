@@ -128,6 +128,37 @@ fn ping_response() {
 }
 
 #[test]
+fn unexpected_message_does_not_establish_session() {
+    let bob = Peer::bob();
+    for attempted in [false, true] {
+        let mut amy = Peer::amy();
+        amy.command(Command::Connect(
+            *bob.nid(),
+            bob.address(),
+            ConnectOptions::default(),
+        ));
+        if attempted {
+            amy.attempted(*bob.nid(), bob.address());
+        }
+        amy.outbox().for_each(drop);
+        let state = amy.sessions().get(bob.nid()).unwrap().state.clone();
+        let ping = Message::Ping(Ping {
+            ponglen: 42,
+            zeroes: ZeroBytes::new(0),
+        });
+
+        amy.received_message(*bob.nid(), ping.clone());
+        assert_eq!(amy.sessions().get(bob.nid()).unwrap().state, state);
+        assert!(amy.outbox().next().is_none(), "ignore the premature ping");
+
+        amy.connected(*bob.nid(), bob.address(), Link::Outbound);
+        amy.outbox().for_each(drop);
+        amy.received_message(*bob.nid(), ping);
+        assert_matches!(amy.messages(*bob.nid()).next(), Some(Message::Pong { zeroes }) if zeroes.len() == 42);
+    }
+}
+
+#[test]
 fn disconnecting_unresponsive_peer() {
     let mut amy = Peer::amy();
     let bob = Peer::bob();

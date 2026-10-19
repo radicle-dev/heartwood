@@ -1789,28 +1789,18 @@ where
         }
         message.log(log::Level::Debug, remote, Link::Inbound);
 
-        let connected = match &mut peer.state {
+        let (ping, latencies) = match &mut peer.state {
             session::State::Disconnected { .. } => {
                 debug!(target: "service", "Ignoring message from disconnected peer {}", peer.id);
                 return Ok(());
             }
-            // In case of a discrepancy between the service state and the state of the underlying
-            // wire protocol, we may receive a message from a peer that we consider not fully connected
-            // at the service level. To remedy this, we simply transition the peer to a connected state.
-            //
-            // This is not ideal, but until the wire protocol and service are unified, it's the simplest
-            // solution to converge towards the same state.
             session::State::Attempted | session::State::Initial => {
-                debug!(target: "service", "Received unexpected message from connecting peer {}", peer.id);
-                debug!(target: "service", "Transitioning peer {} to 'connected' state", peer.id);
-
-                peer.to_connected(self.clock);
-
-                None
+                debug!(target: "service", "Ignoring unexpected message from connecting peer {}", peer.id);
+                return Ok(());
             }
             session::State::Connected {
                 ping, latencies, ..
-            } => Some((ping, latencies)),
+            } => (ping, latencies),
         };
 
         trace!(target: "service", "Received message {message:?} from {remote}");
@@ -1901,11 +1891,10 @@ where
                 );
             }
             Message::Pong { zeroes } => {
-                if let Some((ping, latencies)) = connected
-                    && let session::PingState::AwaitingResponse {
-                        len: ponglen,
-                        since,
-                    } = *ping
+                if let session::PingState::AwaitingResponse {
+                    len: ponglen,
+                    since,
+                } = *ping
                     && (ponglen as usize) == zeroes.len()
                 {
                     *ping = session::PingState::Ok;
