@@ -609,13 +609,18 @@ impl<'a> Writer<'a> {
 mod test {
     use super::*;
 
-    #[test]
-    fn diff_encode_decode_diff() {
-        let diff_a = diff::Diff::parse(include_str!(concat!(
+    fn fixture_diff() -> Diff {
+        let diff = git::raw::Diff::from_buffer(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/data/diff.diff"
         )))
         .unwrap();
+        Diff::try_from(diff).unwrap()
+    }
+
+    #[test]
+    fn diff_encode_decode_diff() {
+        let diff_a = fixture_diff();
         // Lines are expected to match but line ending might differ depending
         // on the platform.
         assert!(
@@ -627,11 +632,8 @@ mod test {
 
     #[test]
     fn diff_content_encode_decode_content() {
-        let diff_content = diff::DiffContent::parse(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/data/diff_body.diff"
-        )))
-        .unwrap();
+        let diff = fixture_diff();
+        let diff_content = &diff.modified().next().unwrap().diff;
         // Lines are expected to match but line ending might differ depending
         // on the platform.
         assert!(
