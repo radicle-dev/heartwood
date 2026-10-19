@@ -1271,6 +1271,13 @@ where
             return;
         }
 
+        if let Some(session) = self.sessions.get(&remote)
+            && let Some(current) = &session.connection_id
+            && current != &connection_id
+        {
+            debug!(target: "service", "Peer {remote} connected with an unexpected connection ID (session: {current:?}, connected: {connection_id:?})");
+        }
+
         info!(target: "service", "Connected to {remote} ({addr}) ({link:?})");
         self.emitter.emit(Event::PeerConnected { nid: remote });
 
