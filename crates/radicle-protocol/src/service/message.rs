@@ -19,7 +19,7 @@ use crate::service::{Link, NodeId, Timestamp};
 use crate::wire;
 use crate::wire::Encode as _;
 
-const BLOAT: usize = (2 ^ 20) / (65 * (2 ^ 10));
+const BLOAT: usize = (1 << 20) / (65 * (1 << 10));
 
 /// Maximum number of addresses which can be announced to other nodes.
 pub const ADDRESS_LIMIT: usize = 16;
@@ -694,6 +694,7 @@ mod tests {
 
     #[test]
     fn ref_remote_limit() {
+        assert!(REF_REMOTE_LIMIT >= 1024);
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
         let signer = SigningKey::mock(18);
         let at = git::Oid::ZERO_SHA1;
@@ -726,6 +727,7 @@ mod tests {
 
     #[test]
     fn inventory_limit() {
+        assert!(INVENTORY_LIMIT >= 2973);
         let msg = Message::inventory(
             InventoryAnnouncement {
                 inventory: arbitrary::vec(INVENTORY_LIMIT)
