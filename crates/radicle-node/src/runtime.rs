@@ -70,6 +70,7 @@ pub(crate) enum ServiceInput {
     Worker(TaskResult),
     Attempted(NodeId, Address),
     Connected(NodeId, Address, Link),
+    ConnectFailed(NodeId, protocol::service::ConnectError),
     Disconnected(NodeId, Link, DisconnectReason),
     Message(NodeId, service::Message),
     Listening(net::SocketAddr),
@@ -550,6 +551,7 @@ fn run_service<D, S>(
             },
             Ok(ServiceInput::Attempted(nid, addr)) => service.attempted(nid, addr),
             Ok(ServiceInput::Connected(nid, addr, link)) => service.connected(nid, addr, link),
+            Ok(ServiceInput::ConnectFailed(nid, err)) => service.connect_failed(nid, &err),
             Ok(ServiceInput::Disconnected(nid, link, reason)) => {
                 service.disconnected(nid, link, &reason)
             }
@@ -636,10 +638,9 @@ async fn dispatch(
                 let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
                     Ok(id) => id,
                     Err(err) => {
-                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                        let _ = shared.controller.send(ServiceInput::ConnectFailed(
                             remote.clone(),
-                            Link::Outbound,
-                            DisconnectReason::Dial(Arc::new(err)),
+                            protocol::service::ConnectError::Dial(Arc::new(err)),
                         ));
                         return;
                     }
@@ -671,10 +672,9 @@ async fn dispatch(
                         ));
                     }
                     Err(err) => {
-                        let _ = shared.controller.send(ServiceInput::Disconnected(
+                        let _ = shared.controller.send(ServiceInput::ConnectFailed(
                             remote,
-                            Link::Outbound,
-                            DisconnectReason::Dial(Arc::new(err)),
+                            protocol::service::ConnectError::Dial(Arc::new(err)),
                         ));
                     }
                 }
@@ -737,10 +737,9 @@ async fn run_outgoing_git(
     let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
         Ok(id) => id,
         Err(err) => {
-            let _ = shared.controller.send(ServiceInput::Disconnected(
+            let _ = shared.controller.send(ServiceInput::ConnectFailed(
                 remote,
-                Link::Outbound,
-                DisconnectReason::Dial(Arc::new(err)),
+                protocol::service::ConnectError::Dial(Arc::new(err)),
             ));
             return Err("invalid remote node ID".to_owned());
         }

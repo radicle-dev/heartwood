@@ -1397,7 +1397,8 @@ fn maintain_connections_same_second_loop() {
 
     let bob = Peer::bob();
     let mut amy = Peer::amy();
-    let reason = DisconnectReason::Dial(Arc::new(io::Error::from(io::ErrorKind::HostUnreachable)));
+    let reason =
+        DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
 
     amy.connect_to(&bob);
 

@@ -1309,6 +1309,10 @@ where
         }
     }
 
+    pub fn connect_failed(&mut self, _remote: NodeId, _reason: &ConnectError) {
+        todo!()
+    }
+
     pub fn disconnected(&mut self, remote: NodeId, link: Link, reason: &DisconnectReason) {
         let since = self.local_time();
         let Some(session) = self.sessions.get_mut(&remote) else {
@@ -1349,8 +1353,7 @@ where
             self.sessions.remove(&remote);
 
             let severity = match reason {
-                DisconnectReason::Dial(_)
-                | DisconnectReason::Fetch(_)
+                DisconnectReason::Fetch(_)
                 | DisconnectReason::Connection(_) => {
                     if self.is_online() {
                         // If we're "online", there's something wrong with this
@@ -2732,12 +2735,16 @@ where
     }
 }
 
-/// Disconnect reason.
 #[derive(Debug)]
-pub enum DisconnectReason {
+pub enum ConnectError {
     /// Error while dialing the remote. This error occurs before a connection is
     /// even established. Errors of this kind are usually not transient.
     Dial(Arc<dyn std::error::Error + Sync + Send>),
+}
+
+/// Disconnect reason.
+#[derive(Debug)]
+pub enum DisconnectReason {
     /// Error with an underlying established connection. Sometimes, reconnecting
     /// after such an error is possible.
     Connection(Arc<dyn std::error::Error + Sync + Send>),
@@ -2756,10 +2763,6 @@ pub enum DisconnectReason {
 }
 
 impl DisconnectReason {
-    pub fn is_dial_err(&self) -> bool {
-        matches!(self, Self::Dial(_))
-    }
-
     pub fn is_connection_err(&self) -> bool {
         matches!(self, Self::Connection(_))
     }
@@ -2774,7 +2777,6 @@ impl DisconnectReason {
 impl fmt::Display for DisconnectReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Dial(err) => write!(f, "{err}"),
             Self::Connection(err) => write!(f, "{err}"),
             Self::Command => write!(f, "command"),
             Self::SelfConnection => write!(f, "self-connection"),
