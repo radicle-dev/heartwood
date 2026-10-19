@@ -1188,6 +1188,11 @@ impl<Repo: WriteRepository> store::Transaction<Identity, Repo> {
     }
 }
 
+/// A writable identity COB.
+///
+/// Writes persist the COB but do not update the repository's `rad/id` ref.
+/// Callers must synchronize that ref with the resulting [`Identity::current`],
+/// which can differ from the revision being accepted if a queued child is adopted.
 pub struct IdentityMut<'a, 'b, Repo, Signer: crypto::Signer> {
     pub id: ObjectId,
 
@@ -1226,6 +1231,10 @@ where
         let mut tx = Transaction::default();
         operations(&mut tx, self.store.as_ref())?;
 
+        self.commit(tx, message)
+    }
+
+    fn commit(&mut self, tx: Transaction<Identity, Repo>, message: &str) -> Result<EntryId, Error> {
         let (doc, commit) = tx.commit(message, self.id, &mut self.store)?;
         self.identity = doc;
 
@@ -1264,10 +1273,7 @@ where
             let repo = self.store.repo();
             Transaction::new_revision(title, description, doc, parent, repo, signer)?
         };
-        let (doc, commit) = tx.commit("Propose revision", self.id, &mut self.store)?;
-        self.identity = doc;
-
-        Ok(commit)
+        self.commit(tx, "Propose revision")
     }
 
     /// Accept an active revision.
@@ -2759,12 +2765,39 @@ mod test {
         //     a1   [Accepted, 2/2 votes]
         //     |
         //     a0   [Accepted]
+        let head = bob.repo.identity_head().unwrap();
         bob_identity.accept(&a1).unwrap();
 
         assert_eq!(bob_identity.revision(&a1).unwrap().state, State::Accepted);
 
         assert_eq!(bob_identity.revision(&b1).unwrap().state, State::Accepted);
         assert_eq!(bob_identity.current, b1);
+        assert_eq!(bob.repo.identity_head().unwrap(), head);
+        // The caller synchronizes `rad/id` with the adopted child, not A1.
+        bob.repo.set_identity_head_to(bob_identity.current).unwrap();
+        assert_eq!(bob.repo.identity_head().unwrap(), b1);
+    }
+
+    #[test]
+    fn identity_update_leaves_identity_head_unchanged() {
+        let NodeWithRepo { node, repo } = NodeWithRepo::default();
+        let mut identity = Identity::load_mut(&*repo, &node.signer).unwrap();
+        let head = repo.identity_head().unwrap();
+        let mut doc = identity.doc().clone().edit();
+        doc.visibility = Visibility::private([]);
+        let revision = identity
+            .update(
+                Title::new("Make private").unwrap(),
+                "",
+                &doc.verified().unwrap(),
+            )
+            .unwrap();
+
+        // Adoption changes the COB state; updating `rad/id` is up to the caller.
+        assert_eq!(identity.current, revision);
+        assert_eq!(repo.identity_head().unwrap(), head);
+        repo.set_identity_head_to(identity.current).unwrap();
+        assert_eq!(repo.identity_head().unwrap(), revision);
     }
 
     /// When a revision is adopted that changes the delegate set, the majority

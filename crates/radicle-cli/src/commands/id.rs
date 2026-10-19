@@ -50,12 +50,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
             if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
                 identity.accept(&revision.id)?;
+                // Accepting a revision may also adopt a queued child.
+                repo.set_identity_head_to(identity.current)?;
 
                 if let Some(revision) = identity.revision(&id) {
-                    // Update the canonical head to point to the latest accepted revision.
-                    if revision.is_accepted() && revision.id == identity.current {
-                        repo.set_identity_head_to(revision.id)?;
-                    }
                     // TODO: Different output if canonical changed?
 
                     if !args.quiet {
@@ -187,11 +185,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 return Ok(());
             }
             let revision = update(title, description, proposal, &mut identity, &profile)?;
+            repo.set_identity_head_to(identity.current)?;
 
-            if revision.is_accepted() && revision.parent == Some(current.id) {
-                // Update the canonical head to point to the latest accepted revision.
-                repo.set_identity_head_to(revision.id)?;
-            }
             if args.quiet {
                 term::println(revision.id);
             } else {

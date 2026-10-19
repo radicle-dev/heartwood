@@ -49,8 +49,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
     // contain `\n` or `\r`.
     #[allow(clippy::unwrap_used)]
     identity.update(cob::Title::new("Publish repository").unwrap(), "", &doc)?;
+    repo.set_identity_head_to(identity.current)?;
     repo.sign_refs(&signer)?;
-    repo.set_identity_head()?;
     let validations = repo.validate()?;
 
     if !validations.is_empty() {
