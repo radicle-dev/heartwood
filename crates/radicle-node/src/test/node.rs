@@ -16,6 +16,7 @@ use radicle::cob::issue;
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git;
 use radicle::git::fmt::refname;
+use radicle::identity::doc::GetPayload as _;
 use radicle::identity::{RepoId, Visibility};
 use radicle::node::Config;
 use radicle::node::Event;
@@ -284,10 +285,13 @@ impl NodeHandle {
             .map_err(io::Error::other)?
             .ok_or_else(|| io::Error::other(format!("repository {rid} was not found")))?;
 
-        let project = doc.project().map_err(io::Error::other)?;
+        let project = doc
+            .project()
+            .ok_or_else(|| io::Error::other("missing project payload"))?
+            .map_err(io::Error::other)?;
         let working =
             git::raw::Repository::open(cwd.join(project.name())).map_err(io::Error::other)?;
-        let branch = git::fmt::Qualified::from(git::fmt::lit::refs_heads(project.default_branch()));
+        let branch = doc.default_branch().map_err(io::Error::other)?;
 
         transport::local::register(self.storage.clone());
         git::push(&working, &rad::REMOTE_NAME, [(&branch, &branch)]).map_err(io::Error::other)?;

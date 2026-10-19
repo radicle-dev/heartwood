@@ -787,7 +787,7 @@ fn clone_without_founder_namespace() {
         doc
     };
 
-    let amy = amy.spawn();
+    let mut amy = amy.spawn();
     let mut bob = bob.spawn();
     bob.connect(&amy);
     bob.handle.seed(rid, Scope::All).unwrap();
@@ -801,9 +801,12 @@ fn clone_without_founder_namespace() {
 
     // Have Bob fork Amy's namespace, so that the default branch remains
     // well defined.
-    rad::fork_remote(rid, &amy.id, &bob.signer, &bob.storage).unwrap();
+    bob.storage
+        .repository(rid)
+        .unwrap()
+        .initialize_namespace(&amy.id, &bob.signer);
 
-    bob.disconnect(&amy);
+    bob.disconnect(&mut amy);
 
     let founder = amy.id;
     drop(amy);
