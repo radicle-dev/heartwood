@@ -472,7 +472,8 @@ impl Repository {
     #[cfg(any(test, feature = "test"))]
     #[allow(clippy::unwrap_used)]
     pub fn initialize_namespace(&self, source: &RemoteId, signer: &impl crate::crypto::Signer) {
-        let default_branch = self.identity_doc().unwrap().default_branch().unwrap();
+        let identity = self.identity_doc().unwrap();
+        let default_branch = identity.default_branch().unwrap();
 
         let (source, target) = (
             default_branch.with_namespace(source.into()),
