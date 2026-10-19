@@ -216,8 +216,14 @@ impl From<NamespacesError> for Error {
     }
 }
 
+/// Errors that prevent connecting to a peer, even before dialing.
+/// This occurs when it is clear that making the connection will fail.
+/// Two particular cases are when such connections are forbidden by
+/// configuration (e.g. outbound connection limit, see
+/// [`ConnectAttemptError::LimitReached`]) or policy (e.g. the peer is blocked,
+/// see [`ConnectAttemptError::Blocked`]).
 #[derive(thiserror::Error, Debug)]
-pub enum ConnectError {
+pub enum ConnectAttemptError {
     #[error("attempted connection to peer {nid} which already has a session")]
     SessionExists { nid: NodeId },
     #[error("attempted connection to self")]
@@ -812,7 +818,7 @@ where
                 }
                 if let Err(e) = self.connect(nid, addr) {
                     match e {
-                        ConnectError::SessionExists { nid } => {
+                        ConnectAttemptError::SessionExists { nid } => {
                             self.emitter.emit(Event::PeerConnected { nid });
                         }
                         e => {
@@ -2183,23 +2189,23 @@ where
         false
     }
 
-    fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), ConnectError> {
+    fn connect(&mut self, nid: NodeId, addr: Address) -> Result<(), ConnectAttemptError> {
         debug!(target: "service", "Connecting to {nid} ({addr})..");
 
         if nid == *self.nid() {
-            return Err(ConnectError::SelfConnection);
+            return Err(ConnectAttemptError::SelfConnection);
         }
         if let Ok(true) = self.policies.is_blocked(&nid) {
-            return Err(ConnectError::Blocked { nid });
+            return Err(ConnectAttemptError::Blocked { nid });
         }
         if !self.is_supported_address(&addr) {
-            return Err(ConnectError::UnsupportedAddress { nid, addr });
+            return Err(ConnectAttemptError::UnsupportedAddress { nid, addr });
         }
         if self.sessions.contains_key(&nid) {
-            return Err(ConnectError::SessionExists { nid });
+            return Err(ConnectAttemptError::SessionExists { nid });
         }
         if self.sessions.outbound().count() >= self.config.limits.connection.outbound.into() {
-            return Err(ConnectError::LimitReached { nid, addr });
+            return Err(ConnectAttemptError::LimitReached { nid, addr });
         }
         let persistent = self.config.is_persistent(&nid);
         let timestamp: Timestamp = self.clock.into();
