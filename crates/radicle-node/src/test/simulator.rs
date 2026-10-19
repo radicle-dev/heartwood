@@ -12,7 +12,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use protocol::service::ServiceState as _;
 use protocol::service::io::Io;
-use protocol::service::{ConnectError, DisconnectError, Message, Metrics};
+use protocol::service::{ConnectError, ConnectionId, DisconnectError, Message, Metrics};
 use protocol::worker::FetchError;
 use protocol::worker::fetch::FetchResult;
 use radicle::identity::RepoId;
@@ -43,6 +43,8 @@ pub enum Input {
     Connected {
         /// Remote peer id.
         id: NodeId,
+        /// Opaque transport connection identity.
+        connection_id: ConnectionId,
         /// Remote peer address.
         addr: Address,
         /// Link direction.
@@ -51,9 +53,9 @@ pub enum Input {
     /// An outbound connection attempt failed.
     ConnectFailed(NodeId, Rc<ConnectError>),
     /// Disconnected from peer.
-    Disconnected(NodeId, Rc<DisconnectError>),
+    Disconnected(NodeId, ConnectionId, Rc<DisconnectError>),
     /// Received messages from a remote peer.
-    Received(NodeId, Vec<Message>),
+    Received(NodeId, ConnectionId, Vec<Message>),
     /// Fetch completed for a node.
     Fetched(RepoId, NodeId, Rc<Result<FetchResult, FetchError>>),
     /// Used to advance the state machine after some wall time has passed.
@@ -75,7 +77,7 @@ pub struct Scheduled {
 impl fmt::Display for Scheduled {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.input {
-            Input::Received(from, msgs) => {
+            Input::Received(from, _, msgs) => {
                 write!(f, "{} <- {} ({:?})", self.node, from, msgs)
             }
             Input::Connected {
@@ -91,7 +93,7 @@ impl fmt::Display for Scheduled {
             Input::Connecting { id, .. } => {
                 write!(f, "{} => {}: Connecting", self.node, id)
             }
-            Input::Disconnected(addr, reason) => {
+            Input::Disconnected(addr, _, reason) => {
                 write!(f, "{} =/= {}: Disconnected: {}", self.node, addr, reason)
             }
             Input::ConnectFailed(id, reason) => {
@@ -174,7 +176,7 @@ pub struct Simulation<S> {
     /// Network partitions between two nodes.
     partitions: BTreeSet<(NodeId, NodeId)>,
     /// Set of existing connections between nodes.
-    connections: BTreeSet<(NodeId, NodeId)>,
+    connections: BTreeMap<(NodeId, NodeId), ConnectionId>,
     /// Set of connection attempts.
     attempts: BTreeSet<(NodeId, NodeId)>,
     /// Simulation options.
@@ -208,7 +210,7 @@ where
             messages: Vec::new(),
             partitions: BTreeSet::new(),
             latencies: BTreeMap::new(),
-            connections: BTreeSet::new(),
+            connections: BTreeMap::new(),
             attempts: BTreeSet::new(),
             opts,
             start_time: time,
@@ -341,12 +343,19 @@ where
                             p.attempted(id, addr);
                         }
                     }
-                    Input::Connected { id, addr, link } => {
+                    Input::Connected {
+                        id,
+                        connection_id,
+                        addr,
+                        link,
+                    } => {
                         let conn = (node, id);
 
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
-                        if (attempted || link.is_inbound()) && self.connections.insert(conn) {
-                            p.connected(id, addr, link);
+                        if (attempted || link.is_inbound()) && !self.connections.contains_key(&conn)
+                        {
+                            self.connections.insert(conn, connection_id.clone());
+                            p.connected(id, connection_id, addr, link);
                         }
                     }
                     Input::ConnectFailed(id, reason) => {
@@ -354,24 +363,17 @@ where
                             p.connect_failed(id, &reason);
                         }
                     }
-                    Input::Disconnected(id, reason) => {
+                    Input::Disconnected(id, connection_id, reason) => {
                         let conn = (node, id);
-                        let attempt = self.attempts.remove(&conn);
-                        let connection = self.connections.remove(&conn);
-
-                        // FIXME: This shouldn't happen, but it does when latency is introduced.
-                        if attempt && connection {
-                            log::error!(target: "sim", "Connection is attempted and connected at the same time");
+                        if self.connections.get(&conn) == Some(&connection_id) {
+                            self.connections.remove(&conn);
                         }
-                        if attempt || connection {
-                            p.disconnected(id, Link::Inbound, &reason);
-                            p.disconnected(id, Link::Outbound, &reason);
-                        }
+                        p.disconnected(id, &connection_id, &reason);
                     }
                     Input::Wake => p.wake(),
-                    Input::Received(from, msgs) => {
+                    Input::Received(from, connection_id, msgs) => {
                         for msg in msgs.clone() {
-                            p.received_message(from, msg);
+                            p.received_message(from, &connection_id, msg);
                         }
                         self.messages
                             .extend(msgs.into_iter().map(|m| (from, *p.nid(), m)));
@@ -422,15 +424,20 @@ where
         let node = *node;
 
         match out {
-            Io::Write(receiver, msgs) => {
+            Io::Write(receiver, connection_id, msgs) => {
                 if msgs.is_empty() {
                     return;
                 }
                 // If the other end has disconnected the sender with some latency, there may not be
                 // a connection remaining to use.
-                if !self.connections.contains(&(node, receiver)) {
+                if self.connections.get(&(node, receiver)) != Some(&connection_id) {
                     return;
                 }
+                let receiving_id = self
+                    .connections
+                    .get(&(receiver, node))
+                    .cloned()
+                    .unwrap_or(connection_id);
                 let sender = node;
 
                 if self.is_partitioned(sender, receiver) {
@@ -465,12 +472,13 @@ where
                     Scheduled {
                         remote: sender,
                         node: receiver,
-                        input: Input::Received(sender, msgs),
+                        input: Input::Received(sender, receiving_id, msgs),
                     },
                 );
             }
             Io::Connect(remote, addr) => {
                 assert!(remote != node, "self-connections are not allowed");
+                let connection_id = super::peer::connection_id();
 
                 self.inbox.insert(
                     self.time + MIN_LATENCY,
@@ -517,6 +525,7 @@ where
                         remote: node,
                         input: Input::Connected {
                             id: node,
+                            connection_id: connection_id.clone(),
                             addr: Address::from(std::net::SocketAddr::from(([0, 0, 0, 0], 0))),
                             link: Link::Inbound,
                         },
@@ -530,22 +539,30 @@ where
                         node,
                         input: Input::Connected {
                             id: remote,
+                            connection_id,
                             addr,
                             link: Link::Outbound,
                         },
                     },
                 );
             }
-            Io::Disconnect(remote, _) => {
-                self.attempts.remove(&(node, remote));
+            Io::Disconnect(remote, connection_id, _) => {
+                if connection_id.is_none() {
+                    self.attempts.remove(&(node, remote));
+                    return;
+                }
                 // Nb. It's possible for disconnects to happen simultaneously from both ends, hence
                 // it can be that a node will try to disconnect a remote that is already
                 // disconnected from the other side.
                 //
                 // It's also possible that the connection was only attempted and never succeeded,
                 // in which case we would return here.
-                if !self.connections.remove(&(node, remote)) {
+                if self.connections.get(&(node, remote)) != connection_id.as_ref() {
                     debug!(target: "sim", "Ignoring disconnect of {remote} from {node}");
+                    return;
+                };
+                self.connections.remove(&(node, remote));
+                let Some(receiving_id) = self.connections.get(&(remote, node)).cloned() else {
                     return;
                 };
                 let latency = self.latency(node, remote);
@@ -558,6 +575,7 @@ where
                         remote: node,
                         input: Input::Disconnected(
                             node,
+                            receiving_id,
                             Rc::new(DisconnectError::Connection(Arc::new(io::Error::from(
                                 io::ErrorKind::ConnectionReset,
                             )))),

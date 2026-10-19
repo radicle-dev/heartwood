@@ -3,6 +3,7 @@ use std::iter;
 use std::net;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -46,6 +47,12 @@ pub const BOB: u8 = 0x0B;
 pub const CID: u8 = 0x0C;
 pub const DAN: u8 = 0x0D;
 pub const EVE: u8 = 0x0E;
+
+/// Give each simulated transport connection a distinct opaque identity.
+pub fn connection_id() -> ConnectionId {
+    static NEXT: AtomicUsize = AtomicUsize::new(1);
+    ConnectionId::new(NEXT.fetch_add(1, Ordering::Relaxed), ())
+}
 
 #[derive(Debug)]
 pub struct Peer<S> {
@@ -274,8 +281,20 @@ where
     }
 
     pub fn receive(&mut self, peer: NodeId, msg: Message) -> &mut Self {
-        self.service.received_message(peer, msg);
+        let id = self
+            .sessions()
+            .get(&peer)
+            .and_then(|s| s.connection_id.clone())
+            .unwrap_or_else(connection_id);
+        self.service.received_message(peer, &id, msg);
         self
+    }
+
+    pub fn connection_id(&self, peer: NodeId) -> ConnectionId {
+        self.sessions()
+            .get(&peer)
+            .and_then(|s| s.connection_id.clone())
+            .expect("peer has an established connection")
     }
 
     pub fn inventory_announcement(&self) -> Message {
@@ -345,11 +364,12 @@ where
 
     pub fn connect_from(&mut self, peer: &Self) {
         let remote_id = *peer.nid();
+        let id = connection_id();
 
         self.service
-            .connected(remote_id, peer.address(), Link::Inbound);
+            .connected(remote_id, id.clone(), peer.address(), Link::Inbound);
         self.service
-            .received_message(remote_id, peer.node_announcement());
+            .received_message(remote_id, &id, peer.node_announcement());
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {
@@ -367,6 +387,7 @@ where
     pub fn connect_to<T: WriteStorage + 'static>(&mut self, peer: &Peer<T>) {
         let remote_id = *peer.nid();
         let remote_addr = peer.address();
+        let id = connection_id();
 
         self.service.command(Command::Connect(
             remote_id,
@@ -380,9 +401,9 @@ where
 
         self.service.attempted(remote_id, remote_addr.clone());
         self.service
-            .connected(remote_id, remote_addr, Link::Outbound);
+            .connected(remote_id, id.clone(), remote_addr, Link::Outbound);
         self.service
-            .received_message(remote_id, peer.node_announcement());
+            .received_message(remote_id, &id, peer.node_announcement());
 
         let mut msgs = self.messages(remote_id);
         msgs.find(|m| {
@@ -409,7 +430,7 @@ where
         Service::outbox(&mut self.service)
             .queue()
             .retain(|o| match o {
-                Io::Write(a, messages) if *a == remote => {
+                Io::Write(a, _, messages) if *a == remote => {
                     msgs.extend(messages.clone());
                     false
                 }
@@ -427,7 +448,7 @@ where
 
         for o in Service::outbox(&mut self.service).queue() {
             match o {
-                Io::Write(a, messages) if *a == remote => {
+                Io::Write(a, _, messages) if *a == remote => {
                     let (relayed, other): (Vec<Message>, _) =
                         messages.iter().cloned().partition(|m| {
                             matches!(
@@ -452,7 +473,7 @@ where
 
         for o in Service::outbox(&mut self.service).queue() {
             match o {
-                Io::Write(a, messages) if *a == remote => {
+                Io::Write(a, _, messages) if *a == remote => {
                     let (inventories, other): (Vec<Message>, _) =
                         messages.iter().cloned().partition(|m| {
                             MessageType::try_from(m.type_id())

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::{fmt, time};
 
@@ -15,6 +16,41 @@ use crate::service::{Address, LocalDuration, LocalTime, NodeId, Outbox, RepoId, 
 pub const CONNECTION_STABLE_THRESHOLD: LocalDuration = LocalDuration::from_mins(1);
 /// Maximum items in the fetch queue.
 pub const MAX_FETCH_QUEUE_SIZE: usize = 128;
+
+/// Opaque identity of an established transport connection.
+///
+/// The transport supplies a value unique among live connection allocations and
+/// an owner that reserves it until queued notifications and I/O have been handled.
+#[derive(Clone)]
+pub struct ConnectionId {
+    value: usize,
+    _owner: Arc<dyn Send + Sync>,
+}
+
+impl ConnectionId {
+    /// Wrap a transport's connection identity and retain its allocation owner.
+    /// The owner must prevent reuse of `value` until it is dropped.
+    pub fn new(value: usize, owner: impl Send + Sync + 'static) -> Self {
+        Self {
+            value,
+            _owner: Arc::new(owner),
+        }
+    }
+}
+
+impl fmt::Debug for ConnectionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("ConnectionId").field(&self.value).finish()
+    }
+}
+
+impl PartialEq for ConnectionId {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl Eq for ConnectionId {}
 
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
@@ -113,6 +149,8 @@ pub struct Session {
     pub addr: Address,
     /// Connection direction.
     pub link: Link,
+    /// Established connection, if the session has completed connecting.
+    pub connection_id: Option<ConnectionId>,
     /// Whether we should attempt to re-connect
     /// to this peer upon disconnection.
     pub persistent: bool,
@@ -167,6 +205,7 @@ impl Session {
             addr,
             state: State::Initial,
             link: Link::Outbound,
+            connection_id: None,
             subscribe: None,
             persistent,
             last_active: LocalTime::default(),
@@ -175,7 +214,14 @@ impl Session {
         }
     }
 
-    pub fn inbound(id: NodeId, addr: Address, persistent: bool, rng: Rng, time: LocalTime) -> Self {
+    pub fn inbound(
+        id: NodeId,
+        connection_id: ConnectionId,
+        addr: Address,
+        persistent: bool,
+        rng: Rng,
+        time: LocalTime,
+    ) -> Self {
         Self {
             id,
             addr,
@@ -186,6 +232,7 @@ impl Session {
                 stable: false,
             },
             link: Link::Inbound,
+            connection_id: Some(connection_id),
             subscribe: None,
             persistent,
             last_active: time,
@@ -243,7 +290,8 @@ impl Session {
         self.attempts += 1;
     }
 
-    pub fn to_connected(&mut self, since: LocalTime) {
+    pub fn to_connected(&mut self, connection_id: ConnectionId, since: LocalTime) {
+        self.connection_id = Some(connection_id);
         self.last_active = since;
 
         if let State::Connected { .. } = &self.state {
@@ -260,6 +308,7 @@ impl Session {
     /// Move the session state to "disconnected". Returns any pending RID
     /// that was requested.
     pub fn to_disconnected(&mut self, since: LocalTime, retry_at: LocalTime) {
+        self.connection_id = None;
         self.state = State::Disconnected { since, retry_at };
     }
 

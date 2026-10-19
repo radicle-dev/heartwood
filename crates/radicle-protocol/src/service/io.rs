@@ -12,7 +12,7 @@ use crate::fetcher;
 use crate::service::DisconnectReason;
 use crate::service::Link;
 use crate::service::message::Message;
-use crate::service::session::Session;
+use crate::service::session::{ConnectionId, Session};
 
 use super::gossip;
 use super::message::{Announcement, AnnouncementMessage};
@@ -21,11 +21,12 @@ use super::message::{Announcement, AnnouncementMessage};
 #[derive(Debug)]
 pub enum Io {
     /// There are some messages ready to be sent to a peer.
-    Write(NodeId, Vec<Message>),
+    Write(NodeId, ConnectionId, Vec<Message>),
     /// Connect to a peer.
     Connect(NodeId, Address),
-    /// Disconnect from a peer.
-    Disconnect(NodeId, DisconnectReason),
+    /// Close the specified connection, or cancel a pending outbound attempt
+    /// when no established connection identity is available.
+    Disconnect(NodeId, Option<ConnectionId>, DisconnectReason),
     /// Fetch repository data from a peer.
     Fetch {
         /// Repo being fetched.
@@ -59,12 +60,20 @@ impl Outbox {
         self.io.push_back(Io::Connect(id, addr));
     }
 
-    /// Disconnect a peer.
-    pub fn disconnect(&mut self, id: NodeId, reason: DisconnectReason) {
-        self.io.push_back(Io::Disconnect(id, reason));
+    /// Close a specific established connection, or cancel a pending attempt.
+    pub fn disconnect(
+        &mut self,
+        id: NodeId,
+        connection_id: Option<ConnectionId>,
+        reason: DisconnectReason,
+    ) {
+        self.io.push_back(Io::Disconnect(id, connection_id, reason));
     }
 
     pub fn write(&mut self, remote: &Session, msg: Message) {
+        let Some(connection_id) = remote.connection_id.clone() else {
+            return;
+        };
         let level = match &msg {
             Message::Ping(_) | Message::Pong { .. } => log::Level::Trace,
             _ => log::Level::Debug,
@@ -72,7 +81,8 @@ impl Outbox {
         msg.log(level, &remote.id, Link::Outbound);
         trace!(target: "service", "Write {:?} to {}", msg, remote);
 
-        self.io.push_back(Io::Write(remote.id, vec![msg]));
+        self.io
+            .push_back(Io::Write(remote.id, connection_id, vec![msg]));
     }
 
     /// Announce something to a peer. This is meant for our own announcement messages.
@@ -113,6 +123,9 @@ impl Outbox {
     }
 
     pub fn write_all(&mut self, remote: &Session, msgs: impl IntoIterator<Item = Message>) {
+        let Some(connection_id) = remote.connection_id.clone() else {
+            return;
+        };
         let msgs = msgs.into_iter().collect::<Vec<_>>();
 
         for (ix, msg) in msgs.iter().enumerate() {
@@ -126,7 +139,7 @@ impl Outbox {
             );
             msg.log(log::Level::Trace, &remote.id, Link::Outbound);
         }
-        self.io.push_back(Io::Write(remote.id, msgs));
+        self.io.push_back(Io::Write(remote.id, connection_id, msgs));
     }
 
     pub fn wakeup(&mut self, after: LocalDuration) {

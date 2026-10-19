@@ -1182,7 +1182,9 @@ fn connection_crossing() {
             |other| other.id,
             |node, id| {
                 let sessions = node.handle.sessions().unwrap();
-                assert_eq!(sessions.len(), 1);
+                // The losing connection can end before its replacement is
+                // reported. Allow that gap while waiting for the selected link.
+                assert!(sessions.len() <= 1);
 
                 sessions.iter().find(|s| s.nid == id).cloned()
             },

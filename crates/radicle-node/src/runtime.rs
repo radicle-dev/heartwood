@@ -25,7 +25,7 @@ use localtime::LocalTime;
 use protocol::service;
 use protocol::service::Metrics;
 use protocol::service::session;
-use protocol::service::{DisconnectError, DisconnectReason, ServiceState as _};
+use protocol::service::{ConnectionId, DisconnectError, DisconnectReason};
 use radicle::cob::migrate;
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::node::address::Store as _;
@@ -67,11 +67,10 @@ pub(crate) enum ServiceInput {
     User(service::Command),
     Worker(TaskResult),
     Attempted(NodeId, Address),
-    Connected(NodeId, Address, Link),
+    Connected(NodeId, ConnectionId, Address, Link),
     ConnectFailed(NodeId, protocol::service::ConnectError),
-    Disconnect(NodeId, Link, DisconnectReason),
-    Disconnected(NodeId, Link, DisconnectError),
-    Message(NodeId, service::Message),
+    Disconnected(NodeId, ConnectionId, DisconnectError),
+    Message(NodeId, ConnectionId, service::Message),
     Listening(net::SocketAddr),
     FetchFailed {
         rid: radicle::identity::RepoId,
@@ -399,7 +398,6 @@ impl Runtime {
             controller: self.controller.clone(),
             peers: tokio::sync::Mutex::new(HashMap::new()),
             outbound_tasks: tokio::sync::Mutex::new(HashMap::new()),
-            jobs: AtomicU64::new(1),
             shutdown: shutdown_rx,
         });
 
@@ -550,21 +548,16 @@ fn run_service<D, S>(
                 }
             },
             Ok(ServiceInput::Attempted(nid, addr)) => service.attempted(nid, addr),
-            Ok(ServiceInput::Connected(nid, addr, link)) => service.connected(nid, addr, link),
+            Ok(ServiceInput::Connected(nid, connection_id, addr, link)) => {
+                service.connected(nid, connection_id, addr, link)
+            }
             Ok(ServiceInput::ConnectFailed(nid, err)) => service.connect_failed(nid, &err),
-            Ok(ServiceInput::Disconnect(nid, link, reason)) => {
-                if service
-                    .sessions()
-                    .get(&nid)
-                    .is_some_and(|s| s.link == link && s.is_connected())
-                {
-                    service.disconnect(nid, reason);
-                }
+            Ok(ServiceInput::Disconnected(nid, connection_id, reason)) => {
+                service.disconnected(nid, &connection_id, &reason)
             }
-            Ok(ServiceInput::Disconnected(nid, link, reason)) => {
-                service.disconnected(nid, link, &reason)
+            Ok(ServiceInput::Message(nid, connection_id, message)) => {
+                service.received_message(nid, &connection_id, message)
             }
-            Ok(ServiceInput::Message(nid, message)) => service.received_message(nid, message),
             Ok(ServiceInput::Listening(addr)) => service.listening(addr),
             Ok(ServiceInput::FetchFailed { rid, remote, error }) => service.fetched(
                 rid,
@@ -591,10 +584,15 @@ fn run_service<D, S>(
 }
 
 struct GossipPeer {
-    job: u64,
+    id: ConnectionId,
     link: Link,
     connection: Connection,
     sender: mpsc::tokio::Sender<Vec<service::Message>>,
+}
+
+struct OutboundTask {
+    task: tokio::task::AbortHandle,
+    connection_id: Option<ConnectionId>,
 }
 
 struct SharedForWorker {
@@ -615,9 +613,37 @@ struct SharedForGossip {
     controller: Controller,
     peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
     /// Outbound dials and their gossip handlers, so disconnect can cancel a dial.
-    outbound_tasks: tokio::sync::Mutex<HashMap<NodeId, tokio::task::AbortHandle>>,
-    jobs: AtomicU64,
+    outbound_tasks: tokio::sync::Mutex<HashMap<NodeId, OutboundTask>>,
     shutdown: watch::Receiver<bool>,
+}
+
+impl SharedForGossip {
+    async fn disconnect(
+        &self,
+        remote: NodeId,
+        connection_id: Option<ConnectionId>,
+        reason: DisconnectReason,
+    ) {
+        // Prevent a cancelled dial from installing a peer while we close it.
+        let mut peers = self.peers.lock().await;
+        let mut outbound = self.outbound_tasks.lock().await;
+        let cancel = outbound
+            .get(&remote)
+            .is_some_and(|task| connection_id.is_none() || task.connection_id == connection_id);
+        let mut target = connection_id;
+        if cancel && let Some(task) = outbound.remove(&remote) {
+            task.task.abort();
+            target = target.or(task.connection_id);
+        }
+        if let Some(target) = target
+            && peers.get(&remote).is_some_and(|peer| peer.id == target)
+            && let Some(peer) = peers.remove(&remote)
+        {
+            // TODO: Use standard error code and reason.
+            peer.connection
+                .close(0u32.into(), reason.to_string().as_bytes());
+        }
+    }
 }
 
 async fn dispatch(
@@ -628,12 +654,13 @@ async fn dispatch(
     tasks: &mut JoinSet<()>,
 ) {
     match io {
-        Io::Write(remote, messages) => {
+        Io::Write(remote, connection_id, messages) => {
             let sender = gossip
                 .peers
                 .lock()
                 .await
                 .get(&remote)
+                .filter(|p| p.id == connection_id)
                 .map(|p| p.sender.clone());
             if let Some(sender) = sender {
                 let _ = sender.send(messages).await;
@@ -683,26 +710,23 @@ async fn dispatch(
                 let mut outbound = shared.outbound_tasks.lock().await;
                 if outbound
                     .get(&remote)
-                    .is_some_and(|task| task.id() == tokio::task::id())
+                    .is_some_and(|task| task.task.id() == tokio::task::id())
                 {
                     outbound.remove(&remote);
                 }
             });
-            if let Some(previous) = outbound.insert(remote, task) {
-                previous.abort();
+            if let Some(previous) = outbound.insert(
+                remote,
+                OutboundTask {
+                    task,
+                    connection_id: None,
+                },
+            ) {
+                previous.task.abort();
             }
         }
-        Io::Disconnect(remote, reason) => {
-            // Prevent a cancelled dial from installing a peer while we close it.
-            let mut peers = gossip.peers.lock().await;
-            if let Some(task) = gossip.outbound_tasks.lock().await.remove(&remote) {
-                task.abort();
-            }
-            if let Some(peer) = peers.remove(&remote) {
-                // TODO: Use standard error code and reason.
-                peer.connection
-                    .close(0u32.into(), reason.to_string().as_bytes());
-            }
+        Io::Disconnect(remote, connection_id, reason) => {
+            gossip.disconnect(remote, connection_id, reason).await;
         }
         Io::Fetch {
             rid,
@@ -825,6 +849,15 @@ struct GossipProtocolHandler {
 impl GossipProtocolHandler {
     async fn run(&self, connection: Connection, link: Link) {
         let remote = NodeId::from_bytes(*connection.remote_id());
+        let connection_id = ConnectionId::new(connection.stable_id(), connection.clone());
+        if link.is_outbound() {
+            let mut outbound = self.shared.outbound_tasks.lock().await;
+            if let Some(task) = outbound.get_mut(&remote)
+                && task.task.id() == tokio::task::id()
+            {
+                task.connection_id = Some(connection_id.clone());
+            }
+        }
 
         // For gossip, we only allow one bidirectional stream per connection,
         // as multiple streams do not meaningfully map to the gossip protocol.
@@ -871,8 +904,6 @@ impl GossipProtocolHandler {
             }
         };
 
-        let job = self.shared.jobs.fetch_add(1, Ordering::Relaxed);
-
         let (tx, mut rx) = mpsc::tokio::channel(32);
         {
             let mut peers = self.shared.peers.lock().await;
@@ -891,21 +922,20 @@ impl GossipProtocolHandler {
             peers.insert(
                 remote,
                 GossipPeer {
-                    job,
+                    id: connection_id.clone(),
                     link,
                     connection: connection.clone(),
                     sender: tx,
                 },
             );
+            // Report installations in the same order as updates to the peer registry.
+            let _ = self.shared.controller.send(ServiceInput::Connected(
+                remote,
+                connection_id.clone(),
+                Address::Iroh,
+                link,
+            ));
         }
-        let addr = Address::Iroh;
-
-        let _ = self
-            .shared
-            .controller
-            .send(ServiceInput::Connected(remote, addr, link));
-
-        let mut disconnect = None;
         let mut error = None;
         let mut shutdown = self.shared.shutdown.clone();
 
@@ -913,11 +943,11 @@ impl GossipProtocolHandler {
             loop {
                 match crate::wire::read_message(&mut recv).await {
                     Ok((message, _bytes)) => {
-                        match self
-                            .shared
-                            .controller
-                            .send(ServiceInput::Message(remote, message))
-                        {
+                        match self.shared.controller.send(ServiceInput::Message(
+                            remote,
+                            connection_id.clone(),
+                            message,
+                        )) {
                             Ok(_) => {}
                             Err(err) => {
                                 log::warn!(target: "gossip", "Unable to send gossip message from {remote} to service: {err}");
@@ -954,7 +984,7 @@ impl GossipProtocolHandler {
                         | crate::wire::Error::Decode(_)
                         | crate::wire::Error::Trailing(_) => {
                             log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
-                            disconnect = Some(DisconnectReason::Session(session::Error::Misbehavior));
+                            error = Some(DisconnectError::Session(session::Error::Misbehavior));
                             // TODO: Use standard error code and reason.
                             connection.close(0u32.into(), b"invalid gossip");
                         }
@@ -973,30 +1003,26 @@ impl GossipProtocolHandler {
             _ = connection.closed() => {}
         }
 
-        let removed = {
+        {
             let mut peers = self.shared.peers.lock().await;
-            if peers.get(&remote).is_some_and(|peer| peer.job == job) {
+            if peers
+                .get(&remote)
+                .is_some_and(|peer| peer.id == connection_id)
+            {
                 peers.remove(&remote);
-                true
-            } else {
-                false
             }
-        };
-
-        if removed {
-            let input = if let Some(reason) = disconnect {
-                ServiceInput::Disconnect(remote, link, reason)
-            } else {
-                let error = error.unwrap_or_else(|| {
-                    DisconnectError::Connection(match connection.close_reason() {
-                        Some(err) => Arc::new(err),
-                        None => Arc::new(io::Error::from(io::ErrorKind::UnexpectedEof)),
-                    })
-                });
-                ServiceInput::Disconnected(remote, link, error)
-            };
-            let _ = self.shared.controller.send(input);
         }
+        let error = error.unwrap_or_else(|| {
+            DisconnectError::Connection(match connection.close_reason() {
+                Some(err) => Arc::new(err),
+                None => Arc::new(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            })
+        });
+        let _ = self.shared.controller.send(ServiceInput::Disconnected(
+            remote,
+            connection_id.clone(),
+            error,
+        ));
     }
 }
 
@@ -1053,5 +1079,140 @@ impl iroh::protocol::ProtocolHandler for GitProtocolHandler {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         self.run(connection).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn endpoint() -> Endpoint {
+        Endpoint::builder(presets::Minimal)
+            .relay_mode(RelayMode::Disabled)
+            .alpns(vec![ALPN_GOSSIP.to_vec()])
+            .bind()
+            .await
+            .unwrap()
+    }
+
+    async fn connect(local: &Endpoint, remote: &Endpoint) -> (Connection, Connection) {
+        let (local, remote) = tokio::join!(local.connect(remote.addr(), ALPN_GOSSIP), async {
+            remote.accept().await.unwrap().await.unwrap()
+        },);
+        (local.unwrap(), remote)
+    }
+
+    fn gossip(
+        endpoint: Endpoint,
+    ) -> (
+        Arc<SharedForGossip>,
+        mpsc::std::Receiver<ServiceInput>,
+        watch::Sender<bool>,
+    ) {
+        let (sender, receiver) = mpsc::std::channel();
+        let (shutdown_sender, shutdown) = watch::channel(false);
+        let shared = Arc::new(SharedForGossip {
+            local: NodeId::from_bytes(*endpoint.id()),
+            endpoint,
+            address_lookup: Default::default(),
+            controller: Controller(sender),
+            peers: Default::default(),
+            outbound_tasks: Default::default(),
+            shutdown,
+        });
+        (shared, receiver, shutdown_sender)
+    }
+
+    #[tokio::test]
+    async fn invalid_gossip_reports_closed_connection() {
+        let local = endpoint().await;
+        let remote = endpoint().await;
+        let (local_connection, remote_connection) = connect(&local, &remote).await;
+        let remote_id = NodeId::from_bytes(*remote.id());
+        let id = ConnectionId::new(local_connection.stable_id(), local_connection.clone());
+        let (shared, receiver, _shutdown) = gossip(local.clone());
+        let task = tokio::spawn(async move {
+            GossipProtocolHandler { shared }
+                .run(local_connection, Link::Inbound)
+                .await;
+        });
+
+        let (mut send, _recv) = remote_connection.open_bi().await.unwrap();
+        // A one-byte record with an invalid message type.
+        send.write_all(&[1, 255]).await.unwrap();
+        tokio::time::timeout(time::Duration::from_secs(5), task)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(
+            matches!(receiver.try_recv(), Ok(ServiceInput::Connected(nid, current, _, Link::Inbound)) if nid == remote_id && current == id)
+        );
+        assert!(
+            matches!(receiver.try_recv(), Ok(ServiceInput::Disconnected(nid, current, DisconnectError::Session(session::Error::Misbehavior))) if nid == remote_id && current == id)
+        );
+        assert!(receiver.try_recv().is_err());
+        local.close().await;
+        remote.close().await;
+    }
+
+    #[tokio::test]
+    async fn delayed_disconnect_preserves_replacement_connection_and_task() {
+        let local = endpoint().await;
+        let remote = endpoint().await;
+        let (old, old_remote) = connect(&local, &remote).await;
+        let old_id = ConnectionId::new(old.stable_id(), old.clone());
+        old.close(0u32.into(), b"replace connection");
+        tokio::time::timeout(time::Duration::from_secs(5), old_remote.closed())
+            .await
+            .unwrap();
+        let (current, _current_remote) = connect(&local, &remote).await;
+        let current_id = ConnectionId::new(current.stable_id(), current.clone());
+        assert_ne!(old_id, current_id);
+        let remote_id = NodeId::from_bytes(*remote.id());
+        let (shared, _receiver, _shutdown) = gossip(local.clone());
+        let (sender, _messages) = mpsc::tokio::channel(1);
+        shared.peers.lock().await.insert(
+            remote_id,
+            GossipPeer {
+                id: current_id.clone(),
+                link: Link::Outbound,
+                connection: current.clone(),
+                sender,
+            },
+        );
+        let task = tokio::spawn(std::future::pending::<()>());
+        shared.outbound_tasks.lock().await.insert(
+            remote_id,
+            OutboundTask {
+                task: task.abort_handle(),
+                connection_id: Some(current_id.clone()),
+            },
+        );
+
+        shared
+            .disconnect(
+                remote_id,
+                Some(old_id),
+                DisconnectReason::Session(session::Error::Timeout),
+            )
+            .await;
+        assert_eq!(
+            shared.peers.lock().await.get(&remote_id).unwrap().id,
+            current_id
+        );
+        assert!(current.close_reason().is_none());
+        assert!(!task.is_finished());
+        assert!(shared.outbound_tasks.lock().await.contains_key(&remote_id));
+
+        shared
+            .disconnect(remote_id, Some(current_id), DisconnectReason::Command)
+            .await;
+        assert!(shared.peers.lock().await.is_empty());
+        assert!(shared.outbound_tasks.lock().await.is_empty());
+        assert!(current.close_reason().is_some());
+        assert!(task.await.unwrap_err().is_cancelled());
+        local.close().await;
+        remote.close().await;
     }
 }

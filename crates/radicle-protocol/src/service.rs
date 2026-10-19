@@ -65,7 +65,7 @@ use radicle::node::PROTOCOL_VERSION;
 use crate::bounded::BoundedVec;
 use crate::service::filter::Filter;
 pub use crate::service::message::{Message, ZeroBytes};
-pub use crate::service::session::{QueuedFetch, Session};
+pub use crate::service::session::{ConnectionId, QueuedFetch, Session};
 use radicle::node::events::{Event, Events};
 use radicle::node::{Config, NodeId};
 
@@ -1248,9 +1248,16 @@ where
         self.listening.push(local_addr);
     }
 
-    pub fn connected(&mut self, remote: NodeId, addr: Address, link: Link) {
+    pub fn connected(
+        &mut self,
+        remote: NodeId,
+        connection_id: ConnectionId,
+        addr: Address,
+        link: Link,
+    ) {
         if link.is_outbound() && self.user_disconnected.contains(&remote) {
-            self.outbox.disconnect(remote, DisconnectReason::Command);
+            self.outbox
+                .disconnect(remote, Some(connection_id), DisconnectReason::Command);
             return;
         }
         if let Ok(true) = self.policies.is_blocked(&remote) {
@@ -1259,7 +1266,8 @@ where
                 reason: format!("{remote} is blocked"),
             });
             info!(target: "service", "Disconnecting blocked inbound peer {remote}");
-            self.outbox.disconnect(remote, DisconnectReason::Policy);
+            self.outbox
+                .disconnect(remote, Some(connection_id), DisconnectReason::Policy);
             return;
         }
 
@@ -1269,29 +1277,32 @@ where
         let msgs = self.initial(link);
 
         if link.is_outbound() {
-            if let Some(peer) = self.sessions.get_mut(&remote) {
-                peer.to_connected(self.clock);
-                self.outbox.write_all(peer, msgs);
-            }
+            // A previous connection may have ended before networking reports
+            // its selected replacement, removing the original session entry.
+            let peer = self.sessions.entry(remote).or_insert_with(|| {
+                Session::outbound(
+                    remote,
+                    addr,
+                    self.config.is_persistent(&remote),
+                    self.rng.clone(),
+                )
+            });
+            peer.link = link;
+            peer.to_connected(connection_id, self.clock);
+            self.outbox.write_all(peer, msgs);
         } else {
             match self.sessions.entry(remote) {
                 Entry::Occupied(mut e) => {
-                    // In this scenario, it's possible that our peer is persistent, and
-                    // disconnected. We get an inbound connection before we attempt a re-connection,
-                    // and therefore we treat it as a regular inbound connection.
-                    //
-                    // It's also possible that a disconnection hasn't gone through yet and our
-                    // peer is still in connected state here, while a new inbound connection from
-                    // that same peer is made. This results in a new connection from a peer that is
-                    // already connected from the perspective of the service. This appears to be
-                    // a bug in the underlying networking library.
+                    // Networking may select an inbound connection while an outbound
+                    // attempt or an older connection still occupies this session.
+                    // Notifications for the old connection are ignored by identity.
                     let peer = e.get_mut();
                     debug!(
                         target: "service",
                         "Connecting peer {remote} already has a session open ({peer})"
                     );
                     peer.link = link;
-                    peer.to_connected(self.clock);
+                    peer.to_connected(connection_id, self.clock);
                     self.outbox.write_all(peer, msgs);
                 }
                 Entry::Vacant(e) => {
@@ -1306,6 +1317,7 @@ where
                     }
                     let peer = e.insert(Session::inbound(
                         remote,
+                        connection_id,
                         addr,
                         self.config.is_persistent(&remote),
                         self.rng.clone(),
@@ -1354,26 +1366,34 @@ where
             DisconnectReason::Command | DisconnectReason::Policy => Severity::Low,
         };
         let message = reason.to_string();
+        let connection_id = session.connection_id.clone();
         // Queue the close before maintenance can enqueue any new connection attempts.
-        self.outbox.disconnect(remote, reason);
+        self.outbox.disconnect(remote, connection_id, reason);
         self.session_closed(remote, &message, severity);
     }
 
     /// An established connection was closed outside the service.
-    pub fn disconnected(&mut self, remote: NodeId, link: Link, reason: &DisconnectError) {
+    pub fn disconnected(
+        &mut self,
+        remote: NodeId,
+        connection_id: &ConnectionId,
+        reason: &DisconnectError,
+    ) {
         let Some(session) = self.sessions.get(&remote) else {
             // Since we sometimes disconnect the service eagerly, it's not unusual to get a second
             // disconnection event once the transport is dropped.
             trace!(target: "service", "Redundant disconnection for {remote} ({reason})");
             return;
         };
-        // In cases of connection conflicts, there may be disconnections of one of the two
-        // connections. In that case we don't want the service to remove the session.
-        if session.link != link || !session.is_connected() {
+        if session.connection_id.as_ref() != Some(connection_id) || !session.is_connected() {
             return;
         }
 
-        self.session_closed(remote, reason, Severity::Medium);
+        let severity = match reason {
+            DisconnectError::Connection(_) => Severity::Medium,
+            DisconnectError::Session(err) => err.severity(),
+        };
+        self.session_closed(remote, reason, severity);
     }
 
     /// Finish a local disconnect, lost connection, or failed connection attempt.
@@ -1437,8 +1457,13 @@ where
         }
     }
 
-    pub fn received_message(&mut self, remote: NodeId, message: Message) {
-        if let Err(err) = self.handle_message(&remote, message) {
+    pub fn received_message(
+        &mut self,
+        remote: NodeId,
+        connection_id: &ConnectionId,
+        message: Message,
+    ) {
+        if let Err(err) = self.handle_message(&remote, connection_id, message) {
             // If there's an error, stop processing messages from this peer.
             // However, we still relay messages returned up to this point.
             self.disconnect(remote, DisconnectReason::Session(err));
@@ -1766,6 +1791,7 @@ where
     pub fn handle_message(
         &mut self,
         remote: &NodeId,
+        connection_id: &ConnectionId,
         message: Message,
     ) -> Result<(), session::Error> {
         let local = *self.nid();
@@ -1774,6 +1800,14 @@ where
             debug!(target: "service", "Session not found for {remote}");
             return Ok(());
         };
+        if peer
+            .connection_id
+            .as_ref()
+            .is_some_and(|current| current != connection_id)
+        {
+            trace!(target: "service", "Ignoring message from superseded connection to {remote}");
+            return Ok(());
+        }
         peer.last_active = self.clock;
 
         let limit: RateLimit = match peer.link {
@@ -2778,6 +2812,9 @@ pub enum DisconnectError {
     /// The peer closed the connection or the underlying transport failed.
     #[error("{0}")]
     Connection(Arc<dyn std::error::Error + Sync + Send>),
+    /// The transport closed the connection after invalid protocol input.
+    #[error("{0}")]
+    Session(session::Error),
 }
 
 /// Reason for intentionally closing a peer connection.
