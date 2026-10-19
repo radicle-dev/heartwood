@@ -12,7 +12,7 @@ use localtime::{LocalDuration, LocalTime};
 use log::*;
 use protocol::service::ServiceState as _;
 use protocol::service::io::Io;
-use protocol::service::{DisconnectReason, Message, Metrics};
+use protocol::service::{ConnectError, DisconnectError, Message, Metrics};
 use protocol::worker::FetchError;
 use protocol::worker::fetch::FetchResult;
 use radicle::identity::RepoId;
@@ -48,8 +48,10 @@ pub enum Input {
         /// Link direction.
         link: Link,
     },
+    /// An outbound connection attempt failed.
+    ConnectFailed(NodeId, Rc<ConnectError>),
     /// Disconnected from peer.
-    Disconnected(NodeId, Rc<DisconnectReason>),
+    Disconnected(NodeId, Rc<DisconnectError>),
     /// Received messages from a remote peer.
     Received(NodeId, Vec<Message>),
     /// Fetch completed for a node.
@@ -91,6 +93,9 @@ impl fmt::Display for Scheduled {
             }
             Input::Disconnected(addr, reason) => {
                 write!(f, "{} =/= {}: Disconnected: {}", self.node, addr, reason)
+            }
+            Input::ConnectFailed(id, reason) => {
+                write!(f, "{} =/=> {}: Connect failed: {}", self.node, id, reason)
             }
             Input::Wake => {
                 write!(f, "{}: Tock", self.node)
@@ -164,8 +169,6 @@ pub struct Simulation<S> {
     events: BTreeMap<NodeId, VecDeque<Event>>,
     /// Messages received during simulation.
     messages: Vec<(NodeId, NodeId, Message)>,
-    /// Priority events that should happen immediately.
-    priority: VecDeque<Scheduled>,
     /// Simulated latencies between nodes.
     latencies: BTreeMap<(NodeId, NodeId), LocalDuration>,
     /// Network partitions between two nodes.
@@ -203,7 +206,6 @@ where
             },
             events: BTreeMap::new(),
             messages: Vec::new(),
-            priority: VecDeque::new(),
             partitions: BTreeSet::new(),
             latencies: BTreeMap::new(),
             connections: BTreeSet::new(),
@@ -312,10 +314,7 @@ where
                 self.schedule(&id, o);
             }
         }
-        // Next high-priority message.
-        let priority = self.priority.pop_front().map(|s| (self.time, s));
-
-        if let Some((time, next)) = priority.or_else(|| self.inbox.next()) {
+        if let Some((time, next)) = self.inbox.next() {
             let elapsed = (time - self.start_time).as_millis();
             if matches!(next.input, Input::Wake) {
                 trace!(target: "sim", "{elapsed:05} {next}");
@@ -348,6 +347,11 @@ where
                         let attempted = link.is_outbound() && self.attempts.remove(&conn);
                         if (attempted || link.is_inbound()) && self.connections.insert(conn) {
                             p.connected(id, addr, link);
+                        }
+                    }
+                    Input::ConnectFailed(id, reason) => {
+                        if self.attempts.remove(&(node, id)) {
+                            p.connect_failed(id, &reason);
                         }
                     }
                     Input::Disconnected(id, reason) => {
@@ -491,11 +495,11 @@ where
                             Scheduled {
                                 node,
                                 remote,
-                                input: Input::Disconnected(
+                                input: Input::ConnectFailed(
                                     remote,
-                                    Rc::new(DisconnectReason::Connection(Arc::new(
-                                        io::Error::from(io::ErrorKind::UnexpectedEof),
-                                    ))),
+                                    Rc::new(ConnectError::Dial(Arc::new(io::Error::from(
+                                        io::ErrorKind::UnexpectedEof,
+                                    )))),
                                 ),
                             },
                         );
@@ -532,21 +536,15 @@ where
                     },
                 );
             }
-            Io::Disconnect(remote, reason) => {
-                // The local node is immediately disconnected.
-                self.priority.push_back(Scheduled {
-                    remote,
-                    node,
-                    input: Input::Disconnected(remote, Rc::new(reason)),
-                });
-
+            Io::Disconnect(remote, _) => {
+                self.attempts.remove(&(node, remote));
                 // Nb. It's possible for disconnects to happen simultaneously from both ends, hence
                 // it can be that a node will try to disconnect a remote that is already
                 // disconnected from the other side.
                 //
                 // It's also possible that the connection was only attempted and never succeeded,
                 // in which case we would return here.
-                if !self.connections.contains(&(node, remote)) {
+                if !self.connections.remove(&(node, remote)) {
                     debug!(target: "sim", "Ignoring disconnect of {remote} from {node}");
                     return;
                 };
@@ -560,7 +558,7 @@ where
                         remote: node,
                         input: Input::Disconnected(
                             node,
-                            Rc::new(DisconnectReason::Connection(Arc::new(io::Error::from(
+                            Rc::new(DisconnectError::Connection(Arc::new(io::Error::from(
                                 io::ErrorKind::ConnectionReset,
                             )))),
                         ),

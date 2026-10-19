@@ -18,16 +18,14 @@ use crate::control;
 use crate::worker::TaskResult;
 use crate::worker::{self, Worker};
 use handle::Handle;
-use iroh::endpoint::{
-    ConnectError, ConnectWithOptsError, Connection, RecvStream, SendStream, presets,
-};
+use iroh::endpoint::{Connection, RecvStream, SendStream, presets};
 use iroh::protocol::{AcceptError, Router};
 use iroh::{Endpoint, RelayMode};
 use localtime::LocalTime;
 use protocol::service;
-use protocol::service::DisconnectReason;
 use protocol::service::Metrics;
 use protocol::service::session;
+use protocol::service::{DisconnectError, DisconnectReason, ServiceState as _};
 use radicle::cob::migrate;
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::node::address::Store as _;
@@ -71,7 +69,8 @@ pub(crate) enum ServiceInput {
     Attempted(NodeId, Address),
     Connected(NodeId, Address, Link),
     ConnectFailed(NodeId, protocol::service::ConnectError),
-    Disconnected(NodeId, Link, DisconnectReason),
+    Disconnect(NodeId, Link, DisconnectReason),
+    Disconnected(NodeId, Link, DisconnectError),
     Message(NodeId, service::Message),
     Listening(net::SocketAddr),
     FetchFailed {
@@ -399,6 +398,7 @@ impl Runtime {
             address_lookup: address_discovery.lookup(),
             controller: self.controller.clone(),
             peers: tokio::sync::Mutex::new(HashMap::new()),
+            outbound_tasks: tokio::sync::Mutex::new(HashMap::new()),
             jobs: AtomicU64::new(1),
             shutdown: shutdown_rx,
         });
@@ -450,7 +450,7 @@ impl Runtime {
                     RuntimeOutput::Shutdown => break Ok(()),
                 },
                 Some(result) = tasks.join_next(), if !tasks.is_empty() => {
-                    if let Err(err) = result {
+                    if let Err(err) = result && !err.is_cancelled() {
                         log::warn!(target: "node", "Network task failed: {err}");
                     }
                 }
@@ -552,6 +552,15 @@ fn run_service<D, S>(
             Ok(ServiceInput::Attempted(nid, addr)) => service.attempted(nid, addr),
             Ok(ServiceInput::Connected(nid, addr, link)) => service.connected(nid, addr, link),
             Ok(ServiceInput::ConnectFailed(nid, err)) => service.connect_failed(nid, &err),
+            Ok(ServiceInput::Disconnect(nid, link, reason)) => {
+                if service
+                    .sessions()
+                    .get(&nid)
+                    .is_some_and(|s| s.link == link && s.is_connected())
+                {
+                    service.disconnect(nid, reason);
+                }
+            }
             Ok(ServiceInput::Disconnected(nid, link, reason)) => {
                 service.disconnected(nid, link, &reason)
             }
@@ -605,6 +614,8 @@ struct SharedForGossip {
     address_lookup: iroh::address_lookup::memory::MemoryLookup,
     controller: Controller,
     peers: tokio::sync::Mutex<HashMap<NodeId, GossipPeer>>,
+    /// Outbound dials and their gossip handlers, so disconnect can cancel a dial.
+    outbound_tasks: tokio::sync::Mutex<HashMap<NodeId, tokio::task::AbortHandle>>,
     jobs: AtomicU64,
     shutdown: watch::Receiver<bool>,
 }
@@ -630,63 +641,67 @@ async fn dispatch(
         }
         Io::Connect(remote, addr) => {
             let shared = gossip.clone();
-            tasks.spawn(async move {
+            // Register before the task can finish and try to remove itself.
+            let mut outbound = gossip.outbound_tasks.lock().await;
+            let task = tasks.spawn(async move {
                 let _ = shared
                     .controller
                     .send(ServiceInput::Attempted(remote, addr.clone()));
+                let connection = async {
+                    let id = iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote))
+                        .map_err(|err| service::ConnectError::Dial(Arc::new(err)))?;
+                    crate::iroh::address_discovery::add(&shared.address_lookup, remote, &[addr])
+                        .await;
+                    shared
+                        .endpoint
+                        .connect(id, ALPN_GOSSIP)
+                        .await
+                        .map_err(|err| match err {
+                            iroh::endpoint::ConnectError::Connect {
+                                source: iroh::endpoint::ConnectWithOptsError::SelfConnect { .. },
+                                ..
+                            } => service::ConnectError::SelfConnection,
+                            err => service::ConnectError::Dial(Arc::new(err)),
+                        })
+                }
+                .await;
 
-                let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
-                    Ok(id) => id,
-                    Err(err) => {
-                        let _ = shared.controller.send(ServiceInput::ConnectFailed(
-                            remote.clone(),
-                            protocol::service::ConnectError::Dial(Arc::new(err)),
-                        ));
-                        return;
-                    }
-                };
-
-                crate::iroh::address_discovery::add(&shared.address_lookup, remote, &[addr]).await;
-
-                match shared.endpoint.connect(id, ALPN_GOSSIP).await {
+                match connection {
                     Ok(connection) => {
-                        GossipProtocolHandler { shared }
-                            .run(connection, Link::Outbound)
-                            .await
-                    }
-                    Err(ConnectError::Connect {
-                        source: ConnectWithOptsError::SelfConnect { .. },
-                        ..
-                    }) => {
-                        let _ = shared.controller.send(ServiceInput::Disconnected(
-                            remote,
-                            Link::Outbound,
-                            DisconnectReason::SelfConnection,
-                        ));
-                    }
-                    Err(err @ ConnectError::Connection { .. }) => {
-                        let _ = shared.controller.send(ServiceInput::Disconnected(
-                            remote,
-                            Link::Outbound,
-                            DisconnectReason::Connection(Arc::new(err)),
-                        ));
+                        GossipProtocolHandler {
+                            shared: shared.clone(),
+                        }
+                        .run(connection, Link::Outbound)
+                        .await
                     }
                     Err(err) => {
-                        let _ = shared.controller.send(ServiceInput::ConnectFailed(
-                            remote,
-                            protocol::service::ConnectError::Dial(Arc::new(err)),
-                        ));
+                        let _ = shared
+                            .controller
+                            .send(ServiceInput::ConnectFailed(remote, err));
                     }
                 }
+                let mut outbound = shared.outbound_tasks.lock().await;
+                if outbound
+                    .get(&remote)
+                    .is_some_and(|task| task.id() == tokio::task::id())
+                {
+                    outbound.remove(&remote);
+                }
             });
+            if let Some(previous) = outbound.insert(remote, task) {
+                previous.abort();
+            }
         }
         Io::Disconnect(remote, reason) => {
-            if let Some(peer) = gossip.peers.lock().await.remove(&remote) {
+            // Prevent a cancelled dial from installing a peer while we close it.
+            let mut peers = gossip.peers.lock().await;
+            if let Some(task) = gossip.outbound_tasks.lock().await.remove(&remote) {
+                task.abort();
+            }
+            if let Some(peer) = peers.remove(&remote) {
                 // TODO: Use standard error code and reason.
-                peer.connection.close(0u32.into(), b"gossip disconnected");
-                let _ = gossip
-                    .controller
-                    .send(ServiceInput::Disconnected(remote, peer.link, reason));
+                peer.connection
+                    .close(0u32.into(), reason.to_string().as_bytes());
             }
         }
         Io::Fetch {
@@ -737,11 +752,7 @@ async fn run_outgoing_git(
     let id = match iroh::PublicKey::from_bytes(std::borrow::Borrow::borrow(&remote)) {
         Ok(id) => id,
         Err(err) => {
-            let _ = shared.controller.send(ServiceInput::ConnectFailed(
-                remote,
-                protocol::service::ConnectError::Dial(Arc::new(err)),
-            ));
-            return Err("invalid remote node ID".to_owned());
+            return Err(format!("invalid remote node ID: {err}"));
         }
     };
 
@@ -826,6 +837,12 @@ impl GossipProtocolHandler {
         if remote == self.shared.local {
             // TODO: Use standard error code and reason.
             connection.close(0u32.into(), b"self connection");
+            if link.is_outbound() {
+                let _ = self.shared.controller.send(ServiceInput::ConnectFailed(
+                    remote,
+                    service::ConnectError::SelfConnection,
+                ));
+            }
             return;
         }
 
@@ -844,6 +861,12 @@ impl GossipProtocolHandler {
             Ok(streams) => streams,
             Err(err) => {
                 log::debug!(target: "gossip", "Failed to open gossip stream with {remote}: {err}");
+                if link.is_outbound() {
+                    let _ = self.shared.controller.send(ServiceInput::ConnectFailed(
+                        remote,
+                        service::ConnectError::Dial(Arc::new(err)),
+                    ));
+                }
                 return;
             }
         };
@@ -882,7 +905,8 @@ impl GossipProtocolHandler {
             .controller
             .send(ServiceInput::Connected(remote, addr, link));
 
-        let mut reason = DisconnectReason::connection();
+        let mut disconnect = None;
+        let mut error = None;
         let mut shutdown = self.shared.shutdown.clone();
 
         let receive = async {
@@ -924,18 +948,24 @@ impl GossipProtocolHandler {
                 connection.close(0u32.into(), b"node shutting down");
             }
             result = &mut receive => {
-                if let Some(err) = result
-                    && connection.close_reason().is_none()
-                {
-                    log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
-                    reason = DisconnectReason::Session(session::Error::Misbehavior);
-                    // TODO: Use standard error code and reason.
-                    connection.close(0u32.into(), b"invalid gossip");
+                if let Some(err) = result {
+                    match err {
+                        crate::wire::Error::Oversized(_)
+                        | crate::wire::Error::Decode(_)
+                        | crate::wire::Error::Trailing(_) => {
+                            log::debug!(target: "gossip", "Invalid gossip from {remote}: {err}");
+                            disconnect = Some(DisconnectReason::Session(session::Error::Misbehavior));
+                            // TODO: Use standard error code and reason.
+                            connection.close(0u32.into(), b"invalid gossip");
+                        }
+                        err => error = Some(DisconnectError::Connection(Arc::new(err))),
+                    }
                 }
             }
             result = &mut transmit => {
                 if let Err(err) = result {
                     log::warn!(target: "gossip", "Unable to send gossip to {remote}: {err}");
+                    error = Some(DisconnectError::Connection(Arc::new(err)));
                     // TODO: Use standard error code and reason.
                     connection.close(0u32.into(), b"unable to encode gossip");
                 }
@@ -954,10 +984,18 @@ impl GossipProtocolHandler {
         };
 
         if removed {
-            let _ = self
-                .shared
-                .controller
-                .send(ServiceInput::Disconnected(remote, link, reason));
+            let input = if let Some(reason) = disconnect {
+                ServiceInput::Disconnect(remote, link, reason)
+            } else {
+                let error = error.unwrap_or_else(|| {
+                    DisconnectError::Connection(match connection.close_reason() {
+                        Some(err) => Arc::new(err),
+                        None => Arc::new(io::Error::from(io::ErrorKind::UnexpectedEof)),
+                    })
+                });
+                ServiceInput::Disconnected(remote, link, error)
+            };
+            let _ = self.shared.controller.send(input);
         }
     }
 }

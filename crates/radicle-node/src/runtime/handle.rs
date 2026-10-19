@@ -18,7 +18,7 @@ use radicle::identity::RepoId;
 use radicle::node::events::{Event, Events};
 use radicle::node::policy;
 use radicle::node::{Alias, Command, FetchResult};
-use radicle::node::{Config, NodeId};
+use radicle::node::{Config, NodeId, State};
 use radicle::node::{ConnectOptions, ConnectResult, Seeds};
 use radicle::storage::refs;
 use radicle::storage::refs::RefsAt;
@@ -136,6 +136,9 @@ impl radicle::node::Handle for Handle {
         if let Some(s) = session
             && s.state.is_connected()
         {
+            // An explicit connect also clears a previous user disconnect and
+            // may make an existing inbound connection persistent.
+            self.command(service::Command::Connect(node, addr, opts))?;
             return Ok(ConnectResult::Connected);
         }
         self.command(service::Command::Connect(node, addr, opts))?;
@@ -160,13 +163,12 @@ impl radicle::node::Handle for Handle {
         let events = self.events();
         let sessions = self.sessions()?;
 
-        if !sessions
-            .iter()
-            .any(|session| session.nid == node && session.state.is_connected())
-        {
+        self.command(service::Command::Disconnect(node))?;
+        if !sessions.iter().any(|session| {
+            session.nid == node && !matches!(session.state, State::Disconnected { .. })
+        }) {
             return Ok(());
         }
-        self.command(service::Command::Disconnect(node))?;
         events
             .wait(
                 |e| match e {

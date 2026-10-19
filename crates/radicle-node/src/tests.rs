@@ -138,6 +138,135 @@ fn disconnecting_unresponsive_peer() {
     amy.outbox()
         .find(|m| matches!(m, &Io::Disconnect(addr, _) if addr == *bob.nid()))
         .expect("disconnect an unresponsive bob");
+    assert!(!amy.sessions().is_connected(bob.nid()));
+}
+
+#[test]
+fn user_disconnect_suppresses_reconnection() {
+    let bob = Peer::bob();
+    for persistent in [false, true] {
+        let connect = ConnectAddress::new(*bob.nid(), bob.address());
+        let mut amy = Peer::amy_with(|config| {
+            if persistent {
+                config.config.connect.insert(connect);
+            }
+        });
+        // Drop the startup dial before explicitly establishing the session.
+        if persistent {
+            amy.outbox().for_each(drop);
+            amy.attempted(*bob.nid(), bob.address());
+            amy.connected(*bob.nid(), bob.address(), Link::Outbound);
+        } else {
+            amy.connect_to(&bob);
+        }
+        amy.outbox().for_each(drop);
+        let events = amy.emitter().subscribe();
+
+        amy.command(Command::Disconnect(*bob.nid()));
+        assert!(!amy.sessions().contains_key(bob.nid()));
+        assert_matches!(amy.outbox().next(), Some(Io::Disconnect(id, DisconnectReason::Command)) if id == *bob.nid());
+        assert_matches!(events.try_recv(), Ok(Event::PeerDisconnected { nid, reason }) if nid == *bob.nid() && reason == "command");
+
+        // Repeated commands and late runtime notifications must be harmless.
+        amy.command(Command::Disconnect(*bob.nid()));
+        amy.attempted(*bob.nid(), bob.address());
+        amy.connect_failed(*bob.nid(), &ConnectError::SelfConnection);
+        amy.disconnected(
+            *bob.nid(),
+            Link::Outbound,
+            &DisconnectError::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset))),
+        );
+        amy.elapse(MAX_RECONNECTION_DELTA);
+        assert!(
+            !amy.outbox()
+                .any(|io| matches!(io, Io::Connect(id, _) if id == *bob.nid()))
+        );
+        assert!(events.try_recv().is_err());
+
+        // A late successful dial cannot restore a user-disconnected peer.
+        amy.connected(*bob.nid(), bob.address(), Link::Outbound);
+        assert!(!amy.sessions().contains_key(bob.nid()));
+        assert_matches!(amy.outbox().next(), Some(Io::Disconnect(id, DisconnectReason::Command)) if id == *bob.nid());
+        assert!(events.try_recv().is_err());
+
+        amy.command(Command::Connect(
+            *bob.nid(),
+            bob.address(),
+            ConnectOptions::default(),
+        ));
+        assert_matches!(amy.outbox().next(), Some(Io::Connect(id, _)) if id == *bob.nid());
+        amy.attempted(*bob.nid(), bob.address());
+        amy.connected(*bob.nid(), bob.address(), Link::Outbound);
+        assert!(amy.sessions().is_connected(bob.nid()));
+    }
+}
+
+#[test]
+fn user_disconnect_cancels_persistent_retry() {
+    let bob = Peer::bob();
+    let mut amy = Peer::amy_with(|config| {
+        config
+            .config
+            .connect
+            .insert(ConnectAddress::new(*bob.nid(), bob.address()));
+    });
+    amy.outbox().for_each(drop);
+    amy.attempted(*bob.nid(), bob.address());
+    amy.connect_failed(*bob.nid(), &ConnectError::SelfConnection);
+    assert!(amy.sessions().get(bob.nid()).unwrap().is_disconnected());
+    amy.outbox().for_each(drop);
+
+    amy.command(Command::Disconnect(*bob.nid()));
+    assert!(!amy.sessions().contains_key(bob.nid()));
+    amy.elapse(MAX_RECONNECTION_DELTA);
+    assert!(
+        !amy.outbox()
+            .any(|io| matches!(io, Io::Connect(id, _) if id == *bob.nid()))
+    );
+}
+
+#[test]
+fn user_disconnect_cancels_connection_attempt() {
+    let mut amy = Peer::amy();
+    let bob = Peer::bob();
+    amy.command(Command::Connect(
+        *bob.nid(),
+        bob.address(),
+        ConnectOptions::default(),
+    ));
+    amy.attempted(*bob.nid(), bob.address());
+    amy.outbox().for_each(drop);
+
+    amy.command(Command::Disconnect(*bob.nid()));
+    assert!(!amy.sessions().contains_key(bob.nid()));
+    assert_matches!(amy.outbox().next(), Some(Io::Disconnect(id, DisconnectReason::Command)) if id == *bob.nid());
+    amy.elapse(MAX_RECONNECTION_DELTA);
+    assert!(
+        !amy.outbox()
+            .any(|io| matches!(io, Io::Connect(id, _) if id == *bob.nid()))
+    );
+}
+
+#[test]
+fn failed_attempt_preserves_established_session() {
+    let bob = Peer::bob();
+    for link in [Link::Inbound, Link::Outbound] {
+        let mut amy = Peer::amy();
+        amy.command(Command::Connect(
+            *bob.nid(),
+            bob.address(),
+            ConnectOptions::default(),
+        ));
+        amy.attempted(*bob.nid(), bob.address());
+        amy.connected(*bob.nid(), bob.address(), link);
+        amy.outbox().for_each(drop);
+        let events = amy.emitter().subscribe();
+
+        amy.connect_failed(*bob.nid(), &ConnectError::SelfConnection);
+        assert!(amy.sessions().is_connected(bob.nid()));
+        assert!(amy.outbox().next().is_none());
+        assert!(events.try_recv().is_err());
+    }
 }
 
 #[test]
@@ -1060,10 +1189,9 @@ fn refs_announcement_offline() {
         .addresses_mut()
         .remove(bob.nid())
         .unwrap(); // Make sure we don't reconnect automatically.
-    amy.disconnected(
+    amy.disconnect(
         *bob.nid(),
-        Link::Outbound,
-        &DisconnectReason::Session(session::Error::Timeout),
+        DisconnectReason::Session(session::Error::Timeout),
     );
     amy.outbox().for_each(drop);
     amy.restart();
@@ -1231,16 +1359,21 @@ fn persistent_peer_reconnect_attempt() {
 
     // A non-transient disconnect, such as one due to peer misbehavior will still trigger a
     // a reconnection, since this is a persistent peer.
-    let reason = DisconnectReason::Session(session::Error::Misbehavior);
-
+    amy.disconnect(
+        *bob.nid(),
+        DisconnectReason::Session(session::Error::Misbehavior),
+    );
     for _ in 0..3 {
-        amy.disconnected(*bob.nid(), Link::Outbound, &reason);
         amy.elapse(service::MAX_RECONNECTION_DELTA);
         amy.outbox()
             .find(|io| matches!(io, Io::Connect(a, _) if a == bob.nid()))
             .unwrap();
 
         amy.attempted(*bob.nid(), bob.address());
+        amy.connect_failed(
+            *bob.nid(),
+            &ConnectError::Dial(Arc::new(io::Error::from(io::ErrorKind::ConnectionRefused))),
+        );
     }
 }
 
@@ -1261,7 +1394,7 @@ fn persistent_peer_reconnect_success() {
     amy.disconnected(
         *bob.nid(),
         Link::Outbound,
-        &DisconnectReason::Connection(error),
+        &DisconnectError::Connection(error),
     );
     amy.elapse(service::MIN_RECONNECTION_DELTA);
     amy.elapse(service::MIN_RECONNECTION_DELTA); // Trigger a second wakeup to test idempotence.
@@ -1308,11 +1441,7 @@ fn maintain_connections() {
     // A non-transient error such as this will cause Amy to attempt a different peer.
     let error = session::Error::Misbehavior;
     for peer in connected.iter() {
-        amy.disconnected(
-            *peer.nid(),
-            Link::Outbound,
-            &DisconnectReason::Session(error),
-        );
+        amy.disconnect(*peer.nid(), DisconnectReason::Session(error));
 
         let id = amy
             .outbox()
@@ -1349,7 +1478,7 @@ fn maintain_connections_transient() {
         amy.disconnected(
             *peer.nid(),
             Link::Outbound,
-            &DisconnectReason::Connection(error.clone()),
+            &DisconnectError::Connection(error.clone()),
         );
         amy.outbox()
             .find(|o| matches!(o, Io::Connect(id, _) if id == peer.nid()))
@@ -1362,7 +1491,8 @@ fn maintain_connections_failed_attempt() {
     let cid = Peer::cid();
     let mut amy = Peer::amy();
     let reason =
-        DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
+        DisconnectError::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
+    let failed = ConnectError::Dial(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
 
     // Make sure Amy knows about Cid.
     amy.connect_to(&cid);
@@ -1372,8 +1502,8 @@ fn maintain_connections_failed_attempt() {
         .expect("Amy attempts Cid");
     amy.attempted(*cid.nid(), cid.address());
 
-    // Disconnect Cid and make sure Amy doesn't try to re-connect immediately.
-    amy.disconnected(*cid.nid(), Link::Outbound, &reason);
+    // Fail the attempt and make sure Amy doesn't try to re-connect immediately.
+    amy.connect_failed(*cid.nid(), &failed);
     assert_matches!(amy.outbox().find(|o| matches!(o, Io::Connect(_, _))), None);
 
     // Now pass some time and try again.
@@ -1382,8 +1512,8 @@ fn maintain_connections_failed_attempt() {
         .find(|o| matches!(o, Io::Connect(id, _) if id == cid.nid()))
         .expect("Amy attempts Cid again");
 
-    // Disconnect Cid and make sure Amy doesn't try to re-connect immediately.
-    amy.disconnected(*cid.nid(), Link::Outbound, &reason);
+    // Fail the attempt and make sure Amy doesn't try to re-connect immediately.
+    amy.connect_failed(*cid.nid(), &failed);
     assert!(!amy.outbox().any(|o| matches!(o, Io::Connect(_, _))));
     // Or even after some short time..
     amy.elapse(MIN_RECONNECTION_DELTA);
@@ -1398,7 +1528,7 @@ fn maintain_connections_same_second_loop() {
     let bob = Peer::bob();
     let mut amy = Peer::amy();
     let reason =
-        DisconnectReason::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
+        DisconnectError::Connection(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset)));
 
     amy.connect_to(&bob);
 
@@ -1417,10 +1547,13 @@ fn maintain_connections_same_second_loop() {
     assert_eq!(connects, 1, "Amy should attempt to reconnect once");
 
     // Simulate the dial failing instantly.
-    // We DO NOT advance the clock. We just call disconnected again.
+    // We DO NOT advance the clock. We report the failed dial.
     // This triggers `maintain_connections` again.
     // Now `last_success` is T, and `last_attempt` is T.
-    amy.disconnected(*bob.nid(), Link::Outbound, &reason);
+    amy.connect_failed(
+        *bob.nid(),
+        &ConnectError::Dial(Arc::new(io::Error::from(io::ErrorKind::ConnectionReset))),
+    );
 
     // Check if Amy tries to connect again in the exact same second.
     let immediate_retry = amy
@@ -1611,7 +1744,7 @@ fn orphaned_fetch_blocks_repo_from_all_nodes() {
     amy.disconnected(
         *bob.nid(),
         Link::Outbound,
-        &DisconnectReason::Session(session::Error::Timeout),
+        &DisconnectError::Connection(Arc::new(io::Error::from(io::ErrorKind::TimedOut))),
     );
 
     // Meanwhile the fetch result is never delivered (the `worker_result` discard).
