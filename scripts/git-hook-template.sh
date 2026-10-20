@@ -10,7 +10,7 @@ then
 fi
 
 readonly SENSITIVE_FILES=("justfile" "build.rs" "rust-toolchain.toml")
-readonly BASE_BRANCH="master"
+readonly BASE_BRANCH="main"
 
 # Check which files were modified compared to the base branch.
 mapfile -t CHANGED_FILES < <(comm -12 \

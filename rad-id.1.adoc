@@ -185,7 +185,7 @@ object as the value. Here is an example below:
 
     $ rad id update --title "Update canonical reference rules" \
         --payload xyz.radicle.crefs rules '{
-              "refs/heads/master": { "threshold": 1, "allow": "delegates" },
+              "refs/heads/main": { "threshold": 1, "allow": "delegates" },
               "refs/tags/*": { "threshold": 2, "allow": "delegates" },
               "refs/tags/qa/*": { "threshold": 1, "allow": "delegates" }
           }'
@@ -197,7 +197,7 @@ the payload directly. Here is an example of what that may look like:
       "payload": {
         "xyz.radicle.crefs": {
           "rules": {
-            "refs/heads/master": {
+            "refs/heads/main": {
               "allow": "delegates",
               "threshold": 1
             },
@@ -212,7 +212,7 @@ the payload directly. Here is an example of what that may look like:
           }
         },
         "xyz.radicle.project": {
-          "defaultBranch": "master",
+          "defaultBranch": "main",
           "description": "Radicle Heartwood Protocol & Stack",
           "name": "heartwood"
         }

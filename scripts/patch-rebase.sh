@@ -7,6 +7,6 @@ if [ "$#" -lt 1 ]; then
 fi
 
 rad patch checkout "$1"
-git rebase master --autosquash
-rad patch update "$1" --message "Rebased on master"
-git checkout master
+git rebase main --autosquash
+rad patch update "$1" --message "Rebased on main"
+git checkout main

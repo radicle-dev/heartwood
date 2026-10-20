@@ -19,8 +19,8 @@ is_remote_branch() {
 for branch in $(git branch -r --format "%(refname:short)"); do
   # Extract the branch name without the "$remote/" prefix.
   branch=${branch#"$remote/"}
-  # Never delete the master branch.
-  if [ "$branch" = "master" ]; then
+  # Never delete the main branch.
+  if [ "$branch" = "main" ]; then
     continue
   fi
 

@@ -14,7 +14,7 @@ The first action required is to create a release tag. All tags that start with a
 `releases/` are considered release tags, e.g. `releases/1.0.0`, `releases/1.1.0`,
 `releases/1.1.0-rc`, etc.
 Before creating the tag, we must decide which commit we are choosing for the
-release. In general, this will be the latest commit of the `master` branch. We
+release. In general, this will be the latest commit of the `main` branch. We
 checkout this commit:
 
 ```
@@ -211,7 +211,7 @@ missed notes.
 
 Once the change log is finalized with a header using the version number, e.g.
 `## 1.5.0`, it should be committed to the `releases/x.y` branch and a patch must
-be made to port the changes to the `master` branch.
+be made to port the changes to the `main` branch.
 
 ### Announcement
 
@@ -231,16 +231,16 @@ release patch releases of the binaries. These patch releases must be compatible
 with minor version that was released; otherwise, the commits should not be
 included.
 
-These changes may have been made on `master` and back-ported to the
+These changes may have been made on `main` and back-ported to the
 `releases/x.y` branch. Note that is not the job of the maintainer to ensure that
 the change applies cleanly to both branches – it is the job of the person
 contributing the changes.
 Alternatively, it may be the case that changes are made on the `releases/x.y`
-branch and forward-ported to `master`. The burden of ensuring changes apply
+branch and forward-ported to `main`. The burden of ensuring changes apply
 remains the same as above.
 
 Remember that `heartwood/CHANGELOG.md` must be updated to include the latest
-changes in the patch release. These must be forward-ported to the `master`
+changes in the patch release. These must be forward-ported to the `main`
 branch.
 
 [radicle-infra]: https://radicle.network/nodes/seed.radicle.dev/rad:z254T5p17bdFPmzfDojsdjo4HjpoZ
