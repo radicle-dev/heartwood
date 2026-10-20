@@ -32,6 +32,8 @@ use crate::service::filter;
 pub type Size = u16;
 
 /// Maximum encoded message size, including the message type.
+// TODO: Make this configurable, and apply to both inbound and outbound
+// messages symmetrically.
 pub const MAX_MESSAGE_SIZE: usize = 1 << 20;
 
 #[derive(thiserror::Error, Debug)]
