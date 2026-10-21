@@ -10,11 +10,14 @@ $ touch file2.txt
 $ git add .
 $ git commit -m "Create a second file" -q
 $ git checkout HEAD~1
+$ git config --local init.defaultBranch nonexistent
 ```
 
 If you try to `rad init` the repository in this state, it will attempt to
 determine a default branch. However, it cannot because we are currently not on
-any branch nor have we set the `init.defaultBranch` option in our `git config`.
+any branch and `init.defaultBranch` does not name an existing local branch.
+Setting this option locally overrides any default branch configured by the host,
+including the system configuration installed by Git for Windows.
 
 Using `rad init` will fail, providing a hint on how to fix the issue:
 
