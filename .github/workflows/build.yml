@@ -19,7 +19,7 @@ jobs:
           - windows-2025      # x64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 512
           fetch-tags: true
@@ -27,11 +27,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - if: runner.os == 'Windows'
         run: git config --system core.autocrlf false
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: ~/.cargo
           key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-home
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: target
           key: ${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}-cargo-target
@@ -43,7 +43,7 @@ jobs:
           echo $env:RADICLE_VERSION
           dotnet build
       - if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: radicle-installer-${{ runner.arch }}-${{ github.sha }}-${{ github.job }}
           path: windows/bin/*/*.msi
