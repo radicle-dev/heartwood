@@ -119,6 +119,7 @@ fn repository_with<P: AsRef<Path>>(
         let mut config = repo.config().unwrap();
         config.set_str("user.name", USER_NAME).unwrap();
         config.set_str("user.email", USER_EMAIL).unwrap();
+        config.set_bool("core.autocrlf", false).unwrap();
 
         // In Git 2.48.0, the option `remote.<name>.followRemoteHEAD` was added.
         // Git versions older than 2.48.0 behave as if this option is set to
