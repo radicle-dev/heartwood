@@ -25,6 +25,8 @@ jobs:
           fetch-tags: true
           filter: 'tree:0'
       - uses: dtolnay/rust-toolchain@stable
+      - if: runner.os == 'Windows'
+        run: git config --system core.autocrlf false
       - uses: actions/cache@v5
         with:
           path: ~/.cargo
