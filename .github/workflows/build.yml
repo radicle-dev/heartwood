@@ -47,11 +47,6 @@ jobs:
         with:
           name: radicle-installer-${{ runner.arch }}-${{ github.sha }}-${{ github.job }}
           path: windows/bin/*/*.msi
-      - if: runner.os != 'Windows'
-        run: cargo test  --workspace --verbose --all-features -- --nocapture
-      - if: runner.os == 'Windows'
-        run: cargo test  --workspace --verbose --all-features -- --nocapture
+      - run: cargo test  --workspace --verbose --all-features -- --nocapture
         env:
           RUST_BACKTRACE: full
-          RUST_LOG: trace
-          RUST_TEST_THREADS: 1
