@@ -312,9 +312,24 @@ impl NodeHandle {
 
         fs::create_dir_all(cwd)?;
 
-        let result = process::Command::new(snapbox::cmd::cargo_bin("rad"))
-            .env_clear()
-            .envs(env::vars().filter(|(k, _)| k == "PATH"))
+        let mut command = process::Command::new(snapbox::cmd::cargo_bin("rad"));
+
+        command.env_clear();
+
+        {
+            // Have `rad` inherit `PATH`. On Windows, also inherit `SystemRoot`.
+            const PATH: &str = "PATH";
+
+            #[cfg(not(windows))]
+            env::var(PATH).ok().map(|path| command.env(PATH, path));
+
+            #[cfg(windows)]
+            command.envs(env::vars().filter(|(key, _)| {
+                key.eq_ignore_ascii_case("SystemRoot") || key.eq_ignore_ascii_case(PATH)
+            }));
+        }
+
+        command
             .env("GIT_AUTHOR_DATE", "1671125284")
             .env("GIT_AUTHOR_EMAIL", "radicle@localhost")
             .env("GIT_AUTHOR_NAME", "radicle")
@@ -333,8 +348,9 @@ impl NodeHandle {
             .envs(git::env::GIT_DEFAULT_CONFIG)
             .current_dir(cwd)
             .arg(cmd)
-            .args(args)
-            .output()?;
+            .args(args);
+
+        let result = command.output()?;
 
         for line in io::BufReader::new(io::Cursor::new(&result.stdout))
             .lines()

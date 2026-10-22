@@ -476,6 +476,11 @@ impl TestFormula {
                     .args(args.clone())
                     .with_assert(assert.clone());
 
+                // On Windows, inherit `SystemRoot`.
+                #[cfg(windows)]
+                let command = command
+                    .envs(env::vars().filter(|(key, _)| key.eq_ignore_ascii_case("SystemRoot")));
+
                 log::debug!(target: "test", "{location}: `{} {}` @ {}", assertion.command, args.join(" "), run.path().display());
                 log::trace!(target: "test", "{location}: {}", run.envs().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "));
                 log::logger().flush();
