@@ -486,6 +486,12 @@ impl TestFormula {
                 // separately and provide a more helpful error message in that case.
                 match command.output() {
                     Ok(output) => {
+                        #[cfg(windows)]
+                        let output = std::process::Output {
+                            stdout: normalize_windows_paths(output.stdout),
+                            stderr: normalize_windows_paths(output.stderr),
+                            ..output
+                        };
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
 
@@ -528,6 +534,40 @@ impl TestFormula {
         }
         Ok(true)
     }
+}
+
+/// Normalize drive-qualified Windows paths, including debug-escaped paths,
+/// while preserving backslashes in JSON and source code outside paths.
+#[cfg(any(windows, test))]
+fn normalize_windows_paths(bytes: Vec<u8>) -> Vec<u8> {
+    let mut normalized = Vec::with_capacity(bytes.len());
+    let mut path = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_alphabetic()
+            && bytes.get(i + 1) == Some(&b':')
+            && bytes.get(i + 2) == Some(&b'\\')
+        {
+            path = true;
+        }
+        match bytes[i] {
+            b'\n' | b'\r' | b'"' | b'\'' => path = false,
+            b'\\' if path => {
+                normalized.push(b'/');
+                // Debug formatting doubles path separators.
+                i += if bytes.get(i + 1) == Some(&b'\\') {
+                    2
+                } else {
+                    1
+                };
+                continue;
+            }
+            _ => {}
+        }
+        normalized.push(bytes[i]);
+        i += 1;
+    }
+    normalized
 }
 
 fn cargo_manifest_dir() -> PathBuf {
