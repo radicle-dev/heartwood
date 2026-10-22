@@ -268,6 +268,7 @@ fn fetch<W: Write, H: Handle<Error = runtime::handle::Error>>(
     match handle.fetch(id, node, timeout, signed_references_minimum_feature_level) {
         Ok(result) => {
             json::to_writer(&mut writer, &result)?;
+            writer.write_all(b"\n")?;
         }
         Err(e) => {
             return Err(CommandError::Runtime(e));
