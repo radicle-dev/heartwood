@@ -117,7 +117,7 @@ Some commands also give us a hint if the node isn't running:
 
 ``` (fail)
 $ rad node events
-✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" (entity not found)
+✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" ([..])
 ✗ Hint: to start your node, run `rad node start`.
 ```
 ``` (fail)
@@ -127,6 +127,6 @@ $ rad sync status
 ``` (fail)
 $ rad node connect z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk@radicle.example:58776
 ✗ Connecting to z6Mkt67…v4N1tRk@radicle.example:58776… <canceled>
-✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" (entity not found)
+✗ Error: failed to open node control socket "[..]/.radicle/node/control.sock" ([..])
 ✗ Hint: to start your node, run `rad node start`.
 ```
