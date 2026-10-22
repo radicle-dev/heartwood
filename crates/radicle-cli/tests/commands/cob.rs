@@ -1,7 +1,7 @@
 use std::path::Path;
 
+use crate::test;
 use crate::util::environment::Environment;
-use crate::{program_reports_version, test};
 use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::node::Handle;
 use radicle::test::fixtures;
@@ -37,11 +37,12 @@ fn rad_cob_update_identity() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn rad_cob_multiset() {
     // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
     // We test whether `jq` is installed, and have this test succeed if it is not.
     // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jq") {
+    if !crate::program_reports_version("jq") {
         return;
     }
 
