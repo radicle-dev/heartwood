@@ -486,6 +486,13 @@ impl TestFormula {
                 // separately and provide a more helpful error message in that case.
                 match command.output() {
                     Ok(output) => {
+                        #[cfg(windows)]
+                        let output = {
+                            let mut output = output;
+                            normalize_windows_paths(&mut output.stdout);
+                            normalize_windows_paths(&mut output.stderr);
+                            output
+                        };
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
 
@@ -528,6 +535,49 @@ impl TestFormula {
         }
         Ok(true)
     }
+}
+
+/// Normalize drive-qualified Windows paths, compressing sequences of backslashes
+/// to a forward slash.
+#[cfg(windows)]
+fn normalize_windows_paths(bytes: &mut Vec<u8>) {
+    let mut path = false;
+    let mut i = 0;
+    let mut len = 0;
+    while i < bytes.len() {
+        // Detect drive-qualified paths, e.g., `C:\` or `D:\`.
+        if bytes[i].is_ascii_alphabetic()
+            && bytes.get(i + 1) == Some(&b':')
+            && bytes.get(i + 2) == Some(&b'\\')
+        {
+            path = true;
+        }
+
+        match bytes[i] {
+            b'\n' | b'\r' | b'"' | b'\'' => path = false,
+            b'\\' if path => {
+                i += match bytes.get(i + 1) {
+                    Some(b'\\') => {
+                        // Repeated backslash, common in escaped Rust debug
+                        // output, e.g., `"C:\\Users\\example"`.
+                        2
+                    }
+                    _ => 1,
+                };
+                bytes[len] = b'/';
+                len += 1;
+
+                continue;
+            }
+            _ => {}
+        }
+
+        bytes[len] = bytes[i];
+        len += 1;
+        i += 1;
+    }
+
+    bytes.truncate(len);
 }
 
 fn cargo_manifest_dir() -> PathBuf {
