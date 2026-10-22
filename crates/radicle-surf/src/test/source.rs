@@ -16,13 +16,13 @@ fn tree_serialization() {
           "name": "Eval.hs",
           "kind": "blob",
           "oid": "7d6240123a8d8ea8a8376610168a0a4bcb96afd0",
-          "commit": "src/Eval.hs"
+          "commit": PathBuf::from("src").join("Eval.hs")
         },
         {
           "name": "memory.rs",
           "kind": "blob",
           "oid": "b84992d24be67536837f5ab45a943f1b3f501878",
-          "commit": "src/memory.rs"
+          "commit": PathBuf::from("src").join("memory.rs")
         }
       ],
       "commit": {
