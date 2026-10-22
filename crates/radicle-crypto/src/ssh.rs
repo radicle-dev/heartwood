@@ -33,7 +33,7 @@ impl crate::ExtendedSignature {
             ssh_key::HashAlg::Sha256,
             ssh_key::Signature::new(ssh_key::Algorithm::Ed25519, self.sig.to_vec())?,
         )?
-        .to_pem(ssh_key::LineEnding::default())
+        .to_pem(ssh_key::LineEnding::LF)
         .map_err(ExtendedSignaturePemError::from)
     }
 
