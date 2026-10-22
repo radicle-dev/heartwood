@@ -2943,7 +2943,6 @@ dependencies = [
  "shlex",
  "snapbox",
  "thiserror 2.0.18",
- "winsplit",
 ]
 
 [[package]]
