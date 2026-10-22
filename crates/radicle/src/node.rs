@@ -1413,9 +1413,9 @@ impl Handle for Node {
     }
 
     fn announce_inventory(&mut self) -> Result<(), Error> {
-        for line in self.call::<Success>(Command::AnnounceInventory, DEFAULT_TIMEOUT)? {
-            line?;
-        }
+        self.call::<Success>(Command::AnnounceInventory, DEFAULT_TIMEOUT)?
+            .next()
+            .ok_or(Error::EmptyResponse)??;
         Ok(())
     }
 
