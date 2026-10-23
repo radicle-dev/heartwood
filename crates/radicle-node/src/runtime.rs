@@ -62,7 +62,8 @@ const ALPN_GOSSIP: &[u8] = b"radicle/gossip/1";
 const ALPN_GIT: &[u8] = b"radicle/git/1";
 
 /// A command delivered to the synchronous service actor.
-pub(crate) enum ServiceInput {
+#[derive(Debug)]
+pub enum ServiceInput {
     User(service::Command),
     Worker(TaskResult),
     Attempted(NodeId, Address),
@@ -101,7 +102,7 @@ pub enum Error {
     #[error("service error: {0}")]
     Service(Box<service::Error>),
     #[error("failed to send message to service")]
-    ServiceSend,
+    ServiceSend(Box<ServiceInput>),
     #[error("control socket error: {0}")]
     Control(#[from] control::Error),
     #[error("iroh error: {0}")]
@@ -123,8 +124,8 @@ impl From<service::Error> for Error {
 }
 
 impl From<mpsc::std::SendError<ServiceInput>> for Error {
-    fn from(_: mpsc::std::SendError<ServiceInput>) -> Self {
-        Self::ServiceSend
+    fn from(input: mpsc::std::SendError<ServiceInput>) -> Self {
+        Self::ServiceSend(Box::new(input.0))
     }
 }
 
