@@ -26,18 +26,11 @@ no-default-features = false
 feature-depth = 1
 
 # This section is considered when running `cargo deny check advisories`
+# We use `cargo-audit` for checking for advisories.
 [advisories]
 # Opt into new defaults since cargo deny 0.14.12 (2024-02-23)
 version = 2
-# The path where the advisory database is cloned/fetched into
-db-path = "~/.cargo/advisory-db"
-# The url(s) of the advisory databases to use
-db-urls = ["https://github.com/rustsec/advisory-db"]
-# The lint level for crates that have been yanked from their source registry.
-yanked = "warn"
-# A list of advisory IDs to ignore. Note that ignored advisories will still
-# output a note when they are encountered.
-ignore = []
+db-path = "/USE cargo audit NOT cargo deny TO CHECK FOR ADVISORIES/"
 
 # This section is considered when running `cargo deny check licenses`
 [licenses]
