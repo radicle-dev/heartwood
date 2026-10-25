@@ -57,6 +57,8 @@
         ".txt" # might be included with `include_str!`
         "rad-cob-multiset" # testing external COBs
       ]
+      # Fixtures for testing `radicle-surf`.
+      || lib.hasPrefix (toString ./crates/radicle-surf/src/test/platinum + "/") path
       ||
       # Default filter from crane (allow .rs files)
       ((crane.mkLib pkgs).filterCargoSources path type);
