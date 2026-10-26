@@ -1267,6 +1267,66 @@ fn inventory_relay() {
 }
 
 #[test]
+fn inventory_relay_after_link_drop() {
+    let time = LocalTime::from_secs(1_700_000_000);
+    let tmp = tempfile::tempdir().unwrap();
+    let peer = |name: &'static str, id| {
+        let storage = Storage::open(tmp.path().join(name), fixtures::user()).unwrap();
+        // Only connect to peers we are told to connect to.
+        Peer::new_with(name, id, storage, |c| {
+            c.local_time = time;
+            c.config.peers = PeerConfig::Static;
+        })
+    };
+    let mut amy = peer("amy", AMY);
+    let mut bob = peer("bob", BOB);
+    let mut cid = peer("cid", CID);
+    let mut sim = Simulation::with_seed(time, 1, simulator::Options::default());
+
+    // Cid learns about Amy's inventory through Bob: amy <-> bob <-> cid.
+    let acme = amy.project("acme", "");
+    amy.command(Command::add_inventory(acme).0);
+    amy.command(Command::Connect(
+        *bob.nid(),
+        bob.address(),
+        ConnectOptions::default(),
+    ));
+    bob.command(Command::Connect(
+        *cid.nid(),
+        cid.address(),
+        ConnectOptions::default(),
+    ));
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_mins(1)
+    });
+    assert!(cid.lookup(acme).unwrap().remote.contains(amy.nid()));
+
+    // Amy connects to Cid and drops Bob: amy <-> cid <-> bob.
+    amy.command(Command::Connect(
+        *cid.nid(),
+        cid.address(),
+        ConnectOptions::default(),
+    ));
+    amy.command(Command::Disconnect(*bob.nid()));
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_secs(10)
+    });
+
+    // Bob can only learn about Amy's new inventory through Cid.
+    let zeta = amy.project("zeta", "");
+    amy.command(Command::add_inventory(zeta).0);
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_mins(1)
+    });
+    assert!(amy.sessions().connected().all(|(nid, _)| nid != bob.nid()));
+    assert!(cid.lookup(zeta).unwrap().remote.contains(amy.nid()));
+
+    // FIXME: Bob should learn about it. Cid does not relay it to Bob, since Bob relayed an
+    // earlier version of Amy's inventory to Cid.
+    assert!(!bob.lookup(zeta).unwrap().remote.contains(amy.nid()));
+}
+
+#[test]
 fn persistent_peer_reconnect_attempt() {
     use indexmap::IndexSet;
 
