@@ -339,9 +339,9 @@ pub struct Service<D, S> {
     sessions: Sessions,
     /// Clock. Tells the time.
     clock: LocalTime,
-    /// Who relayed what announcement to us. We keep track of this to ensure that
-    /// we don't relay messages to nodes that already know about these messages.
-    relayed_by: HashMap<gossip::AnnouncementId, Vec<NodeId>>,
+    /// The latest version of each announcement we have seen, and who relayed that version to us.
+    /// We keep track of this to ensure that we do not relay it back to them.
+    relayed_by: HashMap<AnnouncementKey, (Timestamp, Vec<NodeId>)>,
     /// I/O outbox.
     outbox: Outbox,
     /// Cached local node announcement.
@@ -1488,6 +1488,20 @@ where
             }
         }
 
+        // Keep track of who relayed the latest version of the message for later, including
+        // duplicates of it.
+        let (latest, relayers) = self
+            .relayed_by
+            .entry(AnnouncementKey::from(announcement))
+            .or_insert_with(|| (timestamp, Vec::new()));
+        if *latest < timestamp {
+            *latest = timestamp;
+            relayers.clear();
+        }
+        if *latest == timestamp && !relayers.contains(relayer) {
+            relayers.push(*relayer);
+        }
+
         // Discard announcement messages we've already seen; otherwise, update our last seen time.
         let relay = match self.db.gossip_mut().announced(announcer, announcement) {
             Ok(Some(id)) => {
@@ -1496,9 +1510,6 @@ where
                     "Stored announcement from {announcer} to be broadcast in {} (t={timestamp})",
                     (self.last_gossip + GOSSIP_INTERVAL) - self.clock
                 );
-                // Keep track of who relayed this version of the message for later.
-                self.relayed_by.insert(id, vec![*relayer]);
-
                 // Decide whether or not to relay this message, if it's fresh.
                 // To avoid spamming peers on startup with historical gossip messages,
                 // don't relay messages that are too old. We make an exception for node announcements,
@@ -1508,7 +1519,6 @@ where
                 relay.then_some(id)
             }
             Ok(None) => {
-                // FIXME: Still mark as relayed by this peer.
                 // FIXME: Refs announcements should not be delayed, since they are only sent
                 // to subscribers.
                 debug!(target: "service", "Ignoring stale announcement from {announcer} (t={timestamp})");
@@ -1823,7 +1833,7 @@ where
                             return Ok(());
                         }
                     } else {
-                        self.relay(id, ann);
+                        self.relay(ann);
                     }
                 }
             }
@@ -2326,9 +2336,13 @@ where
         self.last_timestamp
     }
 
-    fn relay(&mut self, id: gossip::AnnouncementId, ann: Announcement) {
+    fn relay(&mut self, ann: Announcement) {
         let announcer = ann.node;
-        let relayed_by = self.relayed_by.get(&id);
+        let relayed_by = self
+            .relayed_by
+            .get(&AnnouncementKey::from(&ann))
+            .filter(|(latest, _)| *latest == ann.timestamp())
+            .map(|(_, relayers)| relayers);
         let rid = if let AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }) = ann.message {
             Some(rid)
         } else {
@@ -2376,13 +2390,13 @@ where
         let rows = self.database_mut().gossip_mut().relays(now)?;
         let local = *self.nid();
 
-        for (id, msg) in rows {
+        for (_, msg) in rows {
             let announcer = msg.node;
             if announcer == local {
                 // Don't relay our own stored gossip messages.
                 continue;
             }
-            self.relay(id, msg);
+            self.relay(msg);
         }
         Ok(())
     }
@@ -2824,6 +2838,24 @@ pub struct Lookup {
     pub local: Option<Doc>,
     /// A list of remote peers on which the project is known to exist.
     pub remote: Vec<NodeId>,
+}
+
+/// An announcement, regardless of its version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum AnnouncementKey {
+    Node(NodeId),
+    Inventory(NodeId),
+    Refs(NodeId, RepoId),
+}
+
+impl From<&Announcement> for AnnouncementKey {
+    fn from(ann: &Announcement) -> Self {
+        match &ann.message {
+            AnnouncementMessage::Node(_) => Self::Node(ann.node),
+            AnnouncementMessage::Inventory(_) => Self::Inventory(ann.node),
+            AnnouncementMessage::Refs(refs) => Self::Refs(ann.node, refs.rid),
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]

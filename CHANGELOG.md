@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A node now relays newer versions of an announcement to peers that relayed
   an older version of it. Before, a peer could stop receiving a node's
   announcements after its direct link to that node dropped.
+- A node no longer relays an inventory announcement back to peers that
+  already sent it the same version, which reduces duplicate gossip traffic.
 
 ## 1.10.3 - 2026-09-07
 
