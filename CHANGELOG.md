@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Only merges by DIDs in the rule's `allow` set count, and they must
   reach the rule's `threshold`. A patch that targets a branch which no
   rule matches cannot merge.
+- A node now relays newer versions of an announcement to peers that relayed
+  an older version of it. Before, a peer could stop receiving a node's
+  announcements after its direct link to that node dropped.
 
 ## 1.10.3 - 2026-09-07
 

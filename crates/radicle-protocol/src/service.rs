@@ -1496,8 +1496,8 @@ where
                     "Stored announcement from {announcer} to be broadcast in {} (t={timestamp})",
                     (self.last_gossip + GOSSIP_INTERVAL) - self.clock
                 );
-                // Keep track of who relayed the message for later.
-                self.relayed_by.entry(id).or_default().push(*relayer);
+                // Keep track of who relayed this version of the message for later.
+                self.relayed_by.insert(id, vec![*relayer]);
 
                 // Decide whether or not to relay this message, if it's fresh.
                 // To avoid spamming peers on startup with historical gossip messages,

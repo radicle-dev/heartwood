@@ -1321,9 +1321,8 @@ fn inventory_relay_after_link_drop() {
     assert!(amy.sessions().connected().all(|(nid, _)| nid != bob.nid()));
     assert!(cid.lookup(zeta).unwrap().remote.contains(amy.nid()));
 
-    // FIXME: Bob should learn about it. Cid does not relay it to Bob, since Bob relayed an
-    // earlier version of Amy's inventory to Cid.
-    assert!(!bob.lookup(zeta).unwrap().remote.contains(amy.nid()));
+    // Cid relays Amy's new inventory to Bob.
+    assert!(bob.lookup(zeta).unwrap().remote.contains(amy.nid()));
 }
 
 #[test]
