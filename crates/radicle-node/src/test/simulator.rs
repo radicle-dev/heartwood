@@ -120,6 +120,18 @@ impl Inbox {
         self.messages.insert(time, msg);
     }
 
+    /// Check whether a node is already due to wake at the given time. Since inputs that
+    /// collide are moved to later time slots, check those slots too.
+    fn is_waking(&self, node: &NodeId, mut time: LocalTime) -> bool {
+        while let Some(scheduled) = self.messages.get(&time) {
+            if scheduled.node == *node && matches!(scheduled.input, Input::Wake) {
+                return true;
+            }
+            time = time + MIN_LATENCY;
+        }
+        false
+    }
+
     /// Get the next scheduled input to be delivered.
     fn next(&mut self) -> Option<(LocalTime, Scheduled)> {
         self.messages
@@ -585,13 +597,7 @@ where
             Io::Wakeup(duration) => {
                 let time = self.time + duration;
 
-                if !matches!(
-                    self.inbox.messages.get(&time),
-                    Some(Scheduled {
-                        input: Input::Wake,
-                        ..
-                    })
-                ) {
+                if !self.inbox.is_waking(&node, time) {
                     self.inbox.insert(
                         time,
                         Scheduled {
@@ -656,5 +662,46 @@ where
     /// Check whether two nodes are partitioned.
     fn is_partitioned(&self, a: NodeId, b: NodeId) -> bool {
         self.partitions.contains(&(a, b)) || self.partitions.contains(&(b, a))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use radicle::crypto::{Signer as _, SigningKey};
+    use radicle::test::storage::MockStorage;
+
+    use crate::test::peer::{AMY, BOB};
+
+    use super::*;
+
+    /// Node ID of a test peer.
+    fn nid(id: u8) -> NodeId {
+        *SigningKey::mock(id.into()).public_key()
+    }
+
+    /// Nodes scheduled to wake, in order of their wake time.
+    fn wakes(sim: &Simulation<MockStorage>) -> Vec<(LocalTime, NodeId)> {
+        sim.inbox
+            .messages
+            .iter()
+            .filter(|(_, s)| matches!(s.input, Input::Wake))
+            .map(|(t, s)| (*t, s.node))
+            .collect()
+    }
+
+    #[test]
+    fn wake_every_node() {
+        let time = LocalTime::from_secs(1_700_000_000);
+        let mut sim = Simulation::<MockStorage>::with_seed(time, 1, Options::default());
+        let (amy, bob) = (nid(AMY), nid(BOB));
+        let duration = LocalDuration::from_secs(6);
+
+        sim.schedule(&amy, Io::Wakeup(duration));
+        sim.schedule(&amy, Io::Wakeup(duration));
+        sim.schedule(&bob, Io::Wakeup(duration));
+        sim.schedule(&bob, Io::Wakeup(duration));
+
+        let nodes = wakes(&sim).into_iter().map(|(_, n)| n).collect::<Vec<_>>();
+        assert_eq!(nodes, [amy, bob]);
     }
 }
