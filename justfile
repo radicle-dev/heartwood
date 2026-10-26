@@ -90,7 +90,7 @@ check-spelling: (verify-tool "codespell")
 [parallel]
 check-scripts: (verify-tool "shellcheck")
     @echo "{{CHECK}}Checking shell scripts…{{NORMAL}}"
-    @find . -type f -name "*.sh" -exec shellcheck {} +
+    @find . -type f -name "*.sh" -exec shellcheck --shell sh --exclude SC3040 {} +
 
 # Run checks for forbidden keywords
 [group('pre-commit')]

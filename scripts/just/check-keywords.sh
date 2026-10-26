@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#! /usr/bin/env sh
 set -e
 echo "${CHECK}Checking for forbidden words in staged files…${NORMAL}"
 

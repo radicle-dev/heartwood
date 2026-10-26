@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /usr/bin/env sh
 set -e
 
 unset SSH_AUTH_SOCK

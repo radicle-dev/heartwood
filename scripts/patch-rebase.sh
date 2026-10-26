@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /usr/bin/env sh
 set -e
 
 if [ "$#" -lt 1 ]; then

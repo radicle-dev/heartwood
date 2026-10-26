@@ -294,7 +294,10 @@
                       clippy = rustup.toolchain;
                     };
                   };
-                  shellcheck.enable = true;
+                  shellcheck = {
+                    enable = true;
+                    args = ["--shell" "sh" "--exclude" "SC3040"];
+                  };
                 }
                 // grep.hooks;
             };

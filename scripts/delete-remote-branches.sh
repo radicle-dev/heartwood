@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /usr/bin/env sh
 # Delete all remote branches that don't have a local copy.
 
 remote="rad"
