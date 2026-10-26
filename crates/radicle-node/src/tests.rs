@@ -4,6 +4,8 @@ use std::collections::BTreeSet;
 use std::default::*;
 use std::env;
 use std::io;
+use std::mem;
+use std::mem::Discriminant;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time;
@@ -32,6 +34,7 @@ use radicle::identity::Visibility;
 use radicle::node;
 use radicle::node::Event;
 use radicle::node::Link;
+use radicle::node::NodeId;
 use radicle::node::Timestamp;
 use radicle::node::address::Store as _;
 use radicle::node::config::*;
@@ -185,6 +188,70 @@ fn connection_kept_alive() {
 
     assert_eq!(1, amy.sessions().len(), "Amy remains connected to Bob");
     assert_eq!(1, bob.sessions().len(), "Bob remains connected to Amy");
+}
+
+#[test]
+fn simulation_is_deterministic() {
+    fn run(seed: u64, time: LocalTime) -> Vec<(NodeId, NodeId, Message)> {
+        let mut peers = [("amy", AMY), ("bob", BOB), ("cid", CID)]
+            .map(|(name, id)| Peer::new_empty_with(name, id, |c| c.local_time = time));
+        let mut sim = Simulation::with_seed(
+            time,
+            seed,
+            simulator::Options {
+                latency: 0..2,
+                failure_rate: 0.2,
+            },
+        );
+        let [amy, bob, cid] = &mut peers;
+
+        amy.command(Command::Connect(
+            *bob.nid(),
+            bob.address(),
+            ConnectOptions::default(),
+        ));
+        amy.command(Command::Connect(
+            *cid.nid(),
+            cid.address(),
+            ConnectOptions::default(),
+        ));
+        bob.command(Command::Connect(
+            *cid.nid(),
+            cid.address(),
+            ConnectOptions::default(),
+        ));
+
+        sim.run_while(&mut peers, |s| s.elapsed() < LocalDuration::from_mins(10));
+        sim.messages().to_vec()
+    }
+    // Who sends which kind of message to whom, regardless of timestamps.
+    fn kinds(
+        messages: &[(NodeId, NodeId, Message)],
+    ) -> Vec<(NodeId, NodeId, Discriminant<Message>)> {
+        messages
+            .iter()
+            .map(|(from, to, msg)| (*from, *to, mem::discriminant(msg)))
+            .collect()
+    }
+    let time = LocalTime::from_secs(1_700_000_000);
+    let messages = run(1, time);
+
+    assert!(!messages.is_empty());
+    assert_eq!(
+        messages,
+        run(1, time),
+        "the same seed and start time yield the same messages"
+    );
+    assert_eq!(
+        kinds(&messages),
+        kinds(&run(1, time + LocalDuration::from_millis(1234))),
+        "the start time does not change the course of the simulation"
+    );
+    assert_ne!(
+        messages,
+        run(2, time),
+        "a different seed yields different messages"
+    );
 }
 
 #[test]
