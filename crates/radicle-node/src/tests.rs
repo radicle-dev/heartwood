@@ -2211,9 +2211,9 @@ fn announcement_message_amplification() {
     // In the above case of 5 nodes, this is 4 * 4 = 16 messages. This is an amplification of 4.0.
     // The best case is an amplification of 1.0, ie. each node receives the message once only.
     //
-    // Delayed message propagation is meant to bring this down closer to the minimum. But the
-    // nodes wake at the same time, and so all relay the message before receiving it from each
-    // other, which keeps the amplification close to the worst case.
+    // Delayed message propagation is meant to bring this down closer to the minimum. But a node
+    // does not record the sender of a duplicate as a relayer, and so relays the message back to
+    // it, which keeps the amplification close to the worst case.
     log::debug!(target: "test", "Average message amplification: {amp}");
 
     // FIXME: This should be lower.

@@ -336,7 +336,7 @@ where
             let id = *peer.nid();
 
             while let Some(o) = peer.next() {
-                self.schedule(&id, o);
+                self.schedule(&id, *peer.clock(), o);
             }
         }
         // Next high-priority message.
@@ -431,7 +431,7 @@ where
                     }
                 }
                 while let Some(o) = p.next() {
-                    self.schedule(&node, o);
+                    self.schedule(&node, *p.clock(), o);
                 }
             } else {
                 panic!("Node {node} not found when attempting to schedule {input:?}",);
@@ -440,8 +440,8 @@ where
         !self.is_done()
     }
 
-    /// Process a service output event from a node.
-    pub fn schedule(&mut self, node: &NodeId, out: Io) {
+    /// Process a service output event from a node with the given clock.
+    pub fn schedule(&mut self, node: &NodeId, clock: LocalTime, out: Io) {
         let node = *node;
 
         match out {
@@ -595,7 +595,8 @@ where
                 );
             }
             Io::Wakeup(duration) => {
-                let time = self.time + duration;
+                // Nb. A node's clock may be ahead of the simulation, eg. after `Peer::elapse`.
+                let time = clock.max(self.time) + duration;
 
                 if !self.inbox.is_waking(&node, time) {
                     self.inbox.insert(
@@ -670,7 +671,7 @@ mod tests {
     use radicle::crypto::{Signer as _, SigningKey};
     use radicle::test::storage::MockStorage;
 
-    use crate::test::peer::{AMY, BOB};
+    use crate::test::peer::{AMY, BOB, CID};
 
     use super::*;
 
@@ -696,12 +697,34 @@ mod tests {
         let (amy, bob) = (nid(AMY), nid(BOB));
         let duration = LocalDuration::from_secs(6);
 
-        sim.schedule(&amy, Io::Wakeup(duration));
-        sim.schedule(&amy, Io::Wakeup(duration));
-        sim.schedule(&bob, Io::Wakeup(duration));
-        sim.schedule(&bob, Io::Wakeup(duration));
+        sim.schedule(&amy, time, Io::Wakeup(duration));
+        sim.schedule(&amy, time, Io::Wakeup(duration));
+        sim.schedule(&bob, time, Io::Wakeup(duration));
+        sim.schedule(&bob, time, Io::Wakeup(duration));
 
         let nodes = wakes(&sim).into_iter().map(|(_, n)| n).collect::<Vec<_>>();
         assert_eq!(nodes, [amy, bob]);
+    }
+
+    #[test]
+    fn wake_node_on_its_clock() {
+        let time = LocalTime::from_secs(1_700_000_000);
+        let mut sim = Simulation::<MockStorage>::with_seed(time, 1, Options::default());
+        let (amy, bob, cid) = (nid(AMY), nid(BOB), nid(CID));
+        let (two, six) = (LocalDuration::from_secs(2), LocalDuration::from_secs(6));
+
+        sim.schedule(&amy, time + two, Io::Wakeup(six));
+        sim.schedule(&bob, time, Io::Wakeup(six));
+        // A clock behind the simulation must not schedule a wakeup in the past.
+        sim.schedule(&cid, time - six, Io::Wakeup(two));
+
+        assert_eq!(
+            wakes(&sim),
+            [
+                (time + two, cid),
+                (time + six, bob),
+                (time + six + two, amy)
+            ]
+        );
     }
 }
