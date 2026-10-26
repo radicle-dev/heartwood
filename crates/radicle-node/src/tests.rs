@@ -2203,15 +2203,11 @@ fn announcement_message_amplification() {
     // In the above case of 5 nodes, this is 4 * 4 = 16 messages. This is an amplification of 4.0.
     // The best case is an amplification of 1.0, ie. each node receives the message once only.
     //
-    // Delayed message propagation is meant to bring this down closer to the minimum. But a node
-    // does not record the sender of a duplicate as a relayer, and so relays the message back to
-    // it, which keeps the amplification close to the worst case.
+    // By using delayed message propagation though, we can bring this down closer to the minimum.
+    // Since every node relays to every peer it did not receive the message from, the best case
+    // here is 4 direct messages plus 3 + 2 + 1 + 0 relayed ones, an amplification of 2.5.
     log::debug!(target: "test", "Average message amplification: {amp}");
 
-    // FIXME: This should be lower.
-    assert!(
-        amp > 3.,
-        "Amplification factor of {amp} is lower than expected"
-    );
+    assert!(amp < 3.25, "Amplification factor of {amp} is too high");
     assert!(amp >= 1., "Amplification can't be lower than 1");
 }
