@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{fmt, io, net};
+use std::{env, fmt, io, net};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -190,13 +190,29 @@ impl<S> Simulation<S>
 where
     S: WriteStorage + 'static,
 {
-    /// Create a new simulation.
+    /// Environment variable that sets the seed of new simulations.
+    const SEED_VAR: &str = "RAD_SIM_SEED";
+
+    /// Create a new simulation, seeded from [`Self::SEED_VAR`] if it is set,
+    /// and randomly otherwise.
     pub fn new(time: LocalTime, opts: Options) -> Self {
-        let rng = fastrand::Rng::new();
+        let seed = env::var(Self::SEED_VAR)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| fastrand::u64(..));
 
         // Log the seed so that we can reproduce the simulation if needed.
-        log::info!(target: "sim", "Seed: {}", rng.get_seed());
+        log::info!(
+            target: "sim",
+            "Simulation seed is {seed}, set {}={seed} to reproduce.",
+            Self::SEED_VAR
+        );
 
+        Self::with_seed(time, seed, opts)
+    }
+
+    /// Create a new simulation with the given seed.
+    pub fn with_seed(time: LocalTime, seed: u64, opts: Options) -> Self {
         Self {
             inbox: Inbox {
                 messages: BTreeMap::new(),
@@ -211,7 +227,7 @@ where
             opts,
             start_time: time,
             time,
-            rng: RefCell::new(rng),
+            rng: RefCell::new(fastrand::Rng::with_seed(seed)),
             storage: PhantomData,
         }
     }
@@ -222,7 +238,6 @@ where
     }
 
     /// Total amount of simulated time elapsed.
-    #[allow(dead_code)]
     pub fn elapsed(&self) -> LocalDuration {
         self.time - self.start_time
     }
@@ -292,7 +307,7 @@ where
         // between individual nodes. We need to think about more realistic
         // scenarios. We should also think about creating various network
         // topologies.
-        if self.time.as_secs().is_multiple_of(10) {
+        if self.elapsed().as_secs().is_multiple_of(10) {
             for (i, x) in nodes.keys().enumerate() {
                 for y in nodes.keys().skip(i + 1) {
                     if self.is_fallible() {
