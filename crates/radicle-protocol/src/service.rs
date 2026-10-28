@@ -97,6 +97,8 @@ pub const MAX_LATENCIES: usize = 16;
 pub const MAX_TIME_DELTA: LocalDuration = LocalDuration::from_mins(60);
 /// Maximum attempts to connect to a peer before we give up.
 pub const MAX_CONNECTION_ATTEMPTS: usize = 3;
+/// Maximum attempts to fetch a repository from a node again, after fetching it failed.
+pub const MAX_FETCH_RETRIES: usize = 3;
 /// How far back from the present time should we request gossip messages when connecting to a peer,
 /// when we come online for the first time.
 pub const INITIAL_SUBSCRIBE_BACKLOG_DELTA: LocalDuration = LocalDuration::from_mins(60 * 24);
@@ -342,6 +344,10 @@ pub struct Service<D, S> {
     /// The latest version of each announcement we have seen, and who relayed that version to us.
     /// We keep track of this to ensure that we do not relay it back to them.
     relayed_by: HashMap<AnnouncementSubject, AnnouncementRelayers>,
+    /// The number of consecutive failed or cancelled fetches of a repository from a node.
+    /// An entry is removed when a fetch of the repository from the node succeeds, or when a
+    /// retry finds the announced refs already in storage. Entries are not otherwise pruned.
+    failed_fetches: HashMap<(RepoId, NodeId), usize>,
     /// I/O outbox.
     outbox: Outbox,
     /// Cached local node announcement.
@@ -584,6 +590,7 @@ where
             fetcher,
             filter: Filter::empty(),
             relayed_by: HashMap::default(),
+            failed_fetches: HashMap::default(),
             last_idle: LocalTime::default(),
             last_gossip: LocalTime::default(),
             last_sync: LocalTime::default(),
@@ -1088,6 +1095,7 @@ where
                         doc,
                     }) => {
                         info!(target: "service", "Fetched {rid} from {from} successfully");
+                        self.failed_fetches.remove(&(rid, from));
                         // Update our routing table in case this fetch was user-initiated and doesn't
                         // come from an announcement.
                         self.seed_discovered(rid, from, self.clock.into());
@@ -1136,6 +1144,7 @@ where
                     }
                     Err(err) => {
                         warn!(target: "service", "Fetch failed for {rid} from {from}: {err}");
+                        *self.failed_fetches.entry((rid, from)).or_default() += 1;
 
                         // For now, we only disconnect the from in case of timeout. In the future,
                         // there may be other reasons to disconnect.
@@ -1352,6 +1361,11 @@ where
                 queued,
             } => {
                 debug!(target: "service", "Cancelled {} ongoing, {} queued for {from}", active.len(), queued.len());
+
+                let rids = active.into_keys().chain(queued.into_iter().map(|q| q.rid));
+                for rid in rids {
+                    *self.failed_fetches.entry((rid, from)).or_default() += 1;
+                }
             }
         }
 
@@ -1501,7 +1515,8 @@ where
             entry.timestamp = timestamp;
             entry.relayers.clear();
         }
-        if entry.timestamp == timestamp && !entry.relayers.contains(relayer) {
+        let is_latest = entry.timestamp == timestamp;
+        if is_latest && !entry.relayers.contains(relayer) {
             entry.relayers.push(*relayer);
         }
 
@@ -1522,6 +1537,11 @@ where
                 relay.then_some(id)
             }
             Ok(None) => {
+                if let AnnouncementMessage::Refs(message) = message
+                    && is_latest
+                {
+                    self.retry_fetch(*announcer, relayer, message);
+                }
                 // FIXME: Refs announcements should not be delayed, since they are only sent
                 // to subscribers.
                 debug!(target: "service", "Ignoring stale announcement from {announcer} (t={timestamp})");
@@ -1920,6 +1940,52 @@ where
             }
         }
         Ok(())
+    }
+
+    /// Fetch the refs of a copy of the latest refs announcement of a node, if the previous
+    /// fetch of the repository from the announcer failed or was cancelled, or if the copy was
+    /// sent by the announcer itself, e.g., in response to `Subscribe` after connecting.
+    /// Fetching stops after [`MAX_FETCH_RETRIES`] failed retries.
+    fn retry_fetch(&mut self, announcer: NodeId, relayer: &NodeId, message: &RefsAnnouncement) {
+        let rid = message.rid;
+        let failures = self.failed_fetches.get(&(rid, announcer)).copied();
+
+        match failures {
+            Some(n) if n > MAX_FETCH_RETRIES => {
+                trace!(
+                    target: "service",
+                    "Not fetching {rid} from {announcer} again after {n} failed fetches"
+                );
+                return;
+            }
+            None if *relayer != announcer => return,
+            _ => {}
+        }
+        let Some(refs) = NonEmpty::from_vec(message.refs.to_vec()) else {
+            return;
+        };
+        let Ok(SeedingPolicy::Allow { scope }) =
+            self.policies.seed_policy(&rid).map(|entry| entry.policy)
+        else {
+            return;
+        };
+        if !self
+            .sessions
+            .get(&announcer)
+            .is_some_and(|s| s.is_connected())
+        {
+            return;
+        }
+        if self.fetch_refs_at(rid, announcer, refs, scope, self.fetch_config()) {
+            debug!(
+                target: "service",
+                "Requesting fetch of {rid} from {announcer} again, {} failed fetches so far",
+                failures.unwrap_or_default()
+            );
+        } else {
+            // The announced refs are already in storage, or their status is unknown.
+            self.failed_fetches.remove(&(rid, announcer));
+        }
     }
 
     /// A convenient method to check if we should fetch from a `RefsAnnouncement` with `scope`.

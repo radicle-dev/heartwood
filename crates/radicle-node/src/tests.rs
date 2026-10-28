@@ -926,6 +926,119 @@ fn refs_announcement_fetch_trusted_no_inventory() {
     assert_matches!(amy.outbox().next(), Some(Io::Fetch { .. }));
 }
 
+#[test]
+fn refs_announcement_fetch_again_after_failure() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Peer::with_storage(
+        "amy",
+        AMY,
+        Storage::open(tmp.path().join("amy"), fixtures::user()).unwrap(),
+    );
+    let bob = {
+        let secret_key = SigningKey::mock(BOB as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &secret_key).unwrap();
+
+        Peer::with_storage("bob", BOB, storage)
+    };
+    let cid = Peer::cid();
+    let rid = *bob.inventory().iter().next().unwrap();
+    let ann = bob.refs_announcement(rid);
+    let failed = || {
+        Err(protocol::worker::FetchError::Io(
+            io::ErrorKind::ConnectionReset.into(),
+        ))
+    };
+
+    amy.seed(&rid, policy::Scope::All).unwrap();
+    amy.connect_to(&bob);
+    amy.connect_to(&cid);
+    amy.receive(*bob.nid(), ann.clone());
+    assert!(amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+
+    // A copy of the announcement relayed by Cid starts the fetch from Bob again.
+    for _ in 0..service::MAX_FETCH_RETRIES {
+        amy.fetched(rid, *bob.nid(), failed());
+        amy.outbox().for_each(drop);
+        amy.receive(*cid.nid(), ann.clone());
+        assert!(amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+    }
+    amy.fetched(rid, *bob.nid(), failed());
+    amy.outbox().for_each(drop);
+    amy.receive(*cid.nid(), ann);
+    assert!(!amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+}
+
+#[test]
+fn refs_announcement_fetch_on_copy_from_announcer() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Peer::with_storage(
+        "amy",
+        AMY,
+        Storage::open(tmp.path().join("amy"), fixtures::user()).unwrap(),
+    );
+    let bob = {
+        let secret_key = SigningKey::mock(BOB as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &secret_key).unwrap();
+
+        Peer::with_storage("bob", BOB, storage)
+    };
+    let cid = Peer::cid();
+    let rid = *bob.inventory().iter().next().unwrap();
+    let ann = bob.refs_announcement(rid);
+
+    amy.seed(&rid, policy::Scope::All).unwrap();
+    amy.connect_to(&cid);
+    amy.receive(*cid.nid(), bob.node_announcement());
+    amy.receive(*cid.nid(), ann.clone());
+    assert!(!amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+
+    // A copy sent by the announcer itself, e.g., in response to `Subscribe` after connecting,
+    // starts the fetch.
+    amy.connect_to(&bob);
+    amy.receive(*bob.nid(), ann);
+    assert!(amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+}
+
+#[test]
+fn refs_announcement_no_fetch_again_after_success() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Peer::with_storage(
+        "amy",
+        AMY,
+        Storage::open(tmp.path().join("amy"), fixtures::user()).unwrap(),
+    );
+    let bob = {
+        let secret_key = SigningKey::mock(BOB as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &secret_key).unwrap();
+
+        Peer::with_storage("bob", BOB, storage)
+    };
+    let cid = Peer::cid();
+    let rid = *bob.inventory().iter().next().unwrap();
+    let ann = bob.refs_announcement(rid);
+
+    amy.seed(&rid, policy::Scope::All).unwrap();
+    amy.connect_to(&bob);
+    amy.connect_to(&cid);
+    amy.receive(*bob.nid(), ann.clone());
+    amy.fetched(
+        rid,
+        *bob.nid(),
+        Err(protocol::worker::FetchError::Io(
+            io::ErrorKind::ConnectionReset.into(),
+        )),
+    );
+    amy.outbox().for_each(drop);
+    amy.receive(*cid.nid(), ann.clone());
+    assert!(amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+
+    // NOTE: No refs are updated, so the refs database still differs from the announcement.
+    amy.fetched(rid, *bob.nid(), Ok(FetchResult::new(arbitrary::r#gen(1))));
+    amy.outbox().for_each(drop);
+    amy.receive(*cid.nid(), ann);
+    assert!(!amy.outbox().any(|o| matches!(o, Io::Fetch { .. })));
+}
+
 /// Amy and Bob both have the same repo.
 ///
 /// First, Amy will not fetch from Bob's `RefsAnnouncement` as Amy does not

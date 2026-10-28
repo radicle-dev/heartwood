@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   announcements after its direct link to that node dropped.
 - A node no longer relays an inventory announcement back to peers that
   already sent it the same version, which reduces duplicate gossip traffic.
+- A node now fetches the refs of a refs announcement it already received when
+  a copy of it arrives after the previous fetch from the announcing node failed
+  or was cancelled, e.g., by a disconnect, or when the announcing node itself
+  sends the copy, as it does after connecting. Fetching stops after three
+  failed retries. Before, the refs were not fetched until the announcing node
+  announced again.
 
 ## 1.10.3 - 2026-09-07
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `radicle_protocol::service::MAX_FETCH_RETRIES`, the maximum number of times
+  a repository is fetched from a node again after fetching it failed.
+
 ### Changed
 
 ### Removed
