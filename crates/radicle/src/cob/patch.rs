@@ -14,7 +14,7 @@ use std::sync::LazyLock;
 
 use nonempty::NonEmpty;
 use serde::{Deserialize, Serialize};
-use storage::{HasRepoId, RepositoryError};
+use storage::{HasRepoId, IdentityDocError, RepositoryError};
 use thiserror::Error;
 
 use crate::cob;
@@ -159,7 +159,7 @@ pub enum Error {
     Thread(#[from] thread::Error),
     /// Error loading the identity document committed to by an operation.
     #[error("identity doc failed to load: {0}")]
-    Doc(#[from] RepositoryError),
+    Doc(#[from] IdentityDocError),
     /// Identity document is missing.
     #[error("missing identity document")]
     MissingIdentity,

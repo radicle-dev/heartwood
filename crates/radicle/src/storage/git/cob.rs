@@ -17,6 +17,7 @@ use crate::identity;
 use crate::node::NodeId;
 use crate::storage;
 use crate::storage::Error;
+use crate::storage::IdentityDocError;
 use crate::storage::{
     ReadRepository,
     git::{Remote, Remotes, Validations},
@@ -363,11 +364,11 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.references_glob(pattern)
     }
 
-    fn identity_doc(&self) -> Result<crate::identity::DocAt, RepositoryError> {
+    fn identity_doc(&self) -> Result<crate::identity::DocAt, IdentityDocError> {
         self.repo.identity_doc()
     }
 
-    fn identity_doc_at(&self, head: Oid) -> Result<crate::identity::DocAt, RepositoryError> {
+    fn identity_doc_at(&self, head: Oid) -> Result<crate::identity::DocAt, IdentityDocError> {
         self.repo.identity_doc_at(head)
     }
 

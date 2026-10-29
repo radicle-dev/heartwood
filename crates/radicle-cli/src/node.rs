@@ -4,7 +4,7 @@ use std::io::Write;
 
 use radicle::node::sync;
 use radicle::node::{Handle as _, NodeId};
-use radicle::storage::{ReadRepository, RepositoryError, refs};
+use radicle::storage::{IdentityDocError, ReadRepository, refs};
 use radicle::{Node, Profile};
 
 use crate::terminal as term;
@@ -87,7 +87,7 @@ impl Default for SyncSettings {
 #[derive(thiserror::Error, Debug)]
 pub enum SyncError {
     #[error(transparent)]
-    Repository(#[from] RepositoryError),
+    IdentityDoc(#[from] IdentityDocError),
     #[error(transparent)]
     Node(#[from] radicle::node::Error),
     #[error("all seeds timed out")]
@@ -100,7 +100,7 @@ impl SyncError {
     fn is_connection_err(&self) -> bool {
         match self {
             Self::Node(e) => e.is_connection_err(),
-            Self::Repository(_) | Self::AllSeedsTimedOut | Self::Target(_) => false,
+            Self::IdentityDoc(_) | Self::AllSeedsTimedOut | Self::Target(_) => false,
         }
     }
 }

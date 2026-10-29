@@ -19,7 +19,7 @@ use crate::cob::{TitleError, thread};
 use crate::node::NodeId;
 use crate::prelude::{Did, Doc, ReadRepository, RepoId};
 use crate::storage;
-use crate::storage::{HasRepoId, RepositoryError, WriteRepository};
+use crate::storage::{HasRepoId, IdentityDocError, RepositoryError, WriteRepository};
 
 pub use cache::Cache;
 
@@ -47,7 +47,7 @@ impl<'a> IssueStream<'a> {
 pub enum Error {
     /// Error loading the identity document.
     #[error("identity doc failed to load: {0}")]
-    Doc(#[from] RepositoryError),
+    Doc(#[from] IdentityDocError),
     #[error("thread apply failed: {0}")]
     Thread(#[from] thread::Error),
     #[error("store: {0}")]

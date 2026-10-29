@@ -307,11 +307,11 @@ impl ReadRepository for MockRepository {
         todo!()
     }
 
-    fn identity_doc(&self) -> Result<crate::identity::DocAt, RepositoryError> {
+    fn identity_doc(&self) -> Result<crate::identity::DocAt, IdentityDocError> {
         Ok(self.doc.clone())
     }
 
-    fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, RepositoryError> {
+    fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, IdentityDocError> {
         Ok(self.doc.clone())
     }
 

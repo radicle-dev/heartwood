@@ -10,7 +10,7 @@ use crate::cob;
 use crate::cob::Timestamp;
 use crate::git;
 use crate::identity::DocAt;
-use crate::storage::{ReadRepository, RepositoryError};
+use crate::storage::{IdentityDocError, ReadRepository};
 
 /// The author of an [`Op`].
 pub type ActorId = PublicKey;
@@ -111,7 +111,7 @@ impl<A> Op<A> {
     pub fn identity_doc<R: ReadRepository>(
         &self,
         repo: &R,
-    ) -> Result<Option<DocAt>, RepositoryError> {
+    ) -> Result<Option<DocAt>, IdentityDocError> {
         match self.identity {
             None => Ok(None),
             Some(head) => repo.identity_doc_at(head).map(Some),

@@ -155,8 +155,25 @@ pub enum RepositoryError {
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
     FindObjects(#[from] canonical::effects::FindObjectsError),
+    #[error(transparent)]
+    IdentityDoc(#[from] IdentityDocError),
+}
+
+/// Error looking up an accepted repository identity document.
+#[derive(Error, Debug)]
+pub enum IdentityDocError {
+    #[error(transparent)]
+    Repository(Box<RepositoryError>),
+    #[error(transparent)]
+    Doc(#[from] DocError),
     #[error("commit {0} is not an accepted revision of the repository identity")]
-    UnacceptedIdentityRevision(Oid),
+    UnacceptedRevision(Oid),
+}
+
+impl From<RepositoryError> for IdentityDocError {
+    fn from(err: RepositoryError) -> Self {
+        Self::Repository(Box::new(err))
+    }
 }
 
 impl From<Error> for RepositoryError {
@@ -621,7 +638,7 @@ pub trait ReadRepository: Sized + ValidateRepository {
     }
 
     /// Get the repository's identity document.
-    fn identity_doc(&self) -> Result<DocAt, RepositoryError> {
+    fn identity_doc(&self) -> Result<DocAt, IdentityDocError> {
         let head = self.identity_head()?;
         let doc = self.identity_doc_at(head)?;
 
@@ -631,9 +648,9 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Get the repository's identity document at a specific commit.
     ///
     /// The commit must be an accepted revision of the evaluated [`Identity`] COB.
-    /// Returns [`RepositoryError::UnacceptedIdentityRevision`] otherwise.
+    /// Returns [`IdentityDocError::UnacceptedRevision`] otherwise.
     /// For document loading without this check, use [`Doc::load_at`].
-    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, RepositoryError>;
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, IdentityDocError>;
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error>;
