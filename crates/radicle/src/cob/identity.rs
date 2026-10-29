@@ -1495,7 +1495,7 @@ mod test {
     }
 
     #[test]
-    fn identity_revision_doc() {
+    fn identity_doc_at_checks_accepted_history() {
         let NodeWithRepo { node, repo } = NodeWithRepo::default();
         let bob = SigningKey::mock(103);
         let mut identity = Identity::load_mut(&*repo, &node.signer).unwrap();
@@ -1515,17 +1515,26 @@ mod test {
             .unwrap();
         let forged = cob::test::forge_identity(repo.raw(), &doc.verified().unwrap());
 
-        assert!(repo.identity_revision_doc(r0).unwrap().is_some());
-        assert!(repo.identity_revision_doc(r1).unwrap().is_some());
-        assert!(repo.identity_revision_doc(r2).unwrap().is_none());
-        assert!(repo.identity_revision_doc(forged).unwrap().is_none());
+        assert_eq!(repo.identity_doc_at(r0).unwrap().commit, r0);
+        assert_eq!(repo.identity_doc_at(r1).unwrap().commit, r1);
+        for commit in [r2, forged] {
+            assert_eq!(Doc::load_at(commit, &*repo).unwrap().commit, commit);
+            assert!(matches!(
+                repo.identity_doc_at(commit),
+                Err(RepositoryError::UnacceptedIdentityRevision(id)) if id == commit
+            ));
+        }
 
         let mut identity = Identity::load_mut(&*repo, &bob).unwrap();
         identity.accept(&r2).unwrap();
+        // Computing the canonical document must work ahead of cached `rad/id`.
+        assert_eq!(repo.identity_head().unwrap(), r1);
+        assert_eq!(repo.canonical_identity_doc().unwrap().commit, r2);
         repo.set_identity_head_to(identity.current).unwrap();
 
-        assert!(repo.identity_revision_doc(r0).unwrap().is_some());
-        assert!(repo.identity_revision_doc(r2).unwrap().is_some());
+        assert_eq!(repo.identity_doc_at(r0).unwrap().commit, r0);
+        assert_eq!(repo.identity_doc_at(r1).unwrap().commit, r1);
+        assert_eq!(repo.identity_doc_at(r2).unwrap().commit, r2);
     }
 
     #[test]
@@ -2714,6 +2723,7 @@ mod test {
 
         let mut eve_identity = Identity::load_mut(&repo, &eve).unwrap();
         eve_identity.accept(&revision).unwrap();
+        repo.set_identity_head_to(eve_identity.current).unwrap();
 
         let identity: Identity = Identity::load(&repo).unwrap();
         let root = repo.identity_root().unwrap();

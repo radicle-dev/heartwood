@@ -157,6 +157,8 @@ pub enum RepositoryError {
     FindObjects(#[from] canonical::effects::FindObjectsError),
     #[error(transparent)]
     Op(#[from] cob::op::LoadError),
+    #[error("commit {0} is not an accepted revision of the repository identity")]
+    UnacceptedIdentityRevision(Oid),
 }
 
 impl From<Error> for RepositoryError {
@@ -564,7 +566,8 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Compute the canonical identity document.
     fn canonical_identity_doc(&self) -> Result<DocAt, RepositoryError> {
         let head = self.canonical_identity_head()?;
-        let doc = self.identity_doc_at(head)?;
+        // The computed head is authoritative and may be ahead of cached `rad/id`.
+        let doc = Doc::load_at(head, self)?;
 
         Ok(doc)
     }
@@ -629,15 +632,10 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get the repository's identity document at a specific commit.
     ///
-    /// This does not check that `head` is a revision of the repository's
-    /// identity. Any commit with an identity document in its tree is
-    /// accepted, so only pass commits from a trusted source. To check an
-    /// untrusted commit, use [`ReadRepository::identity_revision_doc`].
-    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError>;
-
-    /// Get the identity document of `commit`, if it is an accepted revision
-    /// of the repository's identity.
-    fn identity_revision_doc(&self, commit: Oid) -> Result<Option<DocAt>, RepositoryError>;
+    /// The commit must be in the accepted identity history anchored at `rad/id`.
+    /// Returns [`RepositoryError::UnacceptedIdentityRevision`] otherwise.
+    /// For document loading without this check, use [`Doc::load_at`].
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, RepositoryError>;
 
     /// Get the merge base of two commits.
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error>;

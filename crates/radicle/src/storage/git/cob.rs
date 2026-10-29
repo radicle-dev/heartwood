@@ -14,7 +14,6 @@ use crate::git;
 use crate::git::fmt::*;
 use crate::git::*;
 use crate::identity;
-use crate::identity::doc::DocError;
 use crate::node::NodeId;
 use crate::storage;
 use crate::storage::Error;
@@ -368,15 +367,8 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.identity_doc()
     }
 
-    fn identity_doc_at(&self, head: Oid) -> Result<crate::identity::DocAt, DocError> {
+    fn identity_doc_at(&self, head: Oid) -> Result<crate::identity::DocAt, RepositoryError> {
         self.repo.identity_doc_at(head)
-    }
-
-    fn identity_revision_doc(
-        &self,
-        commit: Oid,
-    ) -> Result<Option<crate::identity::DocAt>, RepositoryError> {
-        self.repo.identity_revision_doc(commit)
     }
 
     fn identity_head(&self) -> Result<Oid, RepositoryError> {

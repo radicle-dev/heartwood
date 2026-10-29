@@ -5,7 +5,6 @@ use bstr::BString;
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
 use radicle::identity::{Doc, DocError};
-use radicle::storage::ReadRepository;
 use radicle::storage::git::Repository;
 
 use crate::policy::{Allowed, BlockList};
@@ -89,7 +88,10 @@ where
     }
 
     pub fn verified(&self, head: Oid) -> Result<Doc, DocError> {
-        Ok(self.repository().identity_doc_at(head)?.doc)
+        // During fetch, the candidate may be ahead of local `rad/id`, or the
+        // local identity history may not exist yet. Validate the document here;
+        // repository identity validation happens after the refs are fetched.
+        Ok(Doc::load_at(head, self.repository())?.doc)
     }
 }
 

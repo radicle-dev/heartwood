@@ -837,16 +837,11 @@ impl ReadRepository for Repository {
         Ok(refs)
     }
 
-    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, DocError> {
-        Doc::load_at(head, self)
-    }
-
-    fn identity_revision_doc(&self, commit: Oid) -> Result<Option<DocAt>, RepositoryError> {
-        if identity::Identity::is_accepted(self, commit)? {
-            Ok(Some(self.identity_doc_at(commit)?))
-        } else {
-            Ok(None)
+    fn identity_doc_at(&self, head: Oid) -> Result<DocAt, RepositoryError> {
+        if !identity::Identity::is_accepted(self, head)? {
+            return Err(RepositoryError::UnacceptedIdentityRevision(head));
         }
+        Ok(Doc::load_at(head, self)?)
     }
 
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {

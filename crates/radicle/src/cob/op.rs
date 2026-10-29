@@ -112,12 +112,10 @@ impl<A> Op<A> {
         &self,
         repo: &R,
     ) -> Result<Option<DocAt>, RepositoryError> {
-        let Some(head) = self.identity else {
-            return Ok(None);
-        };
-        // Any user can write a commit with a document that names them as a
-        // delegate, so only accept revisions of the repository identity.
-        repo.identity_revision_doc(head)
+        match self.identity {
+            None => Ok(None),
+            Some(head) => repo.identity_doc_at(head).map(Some),
+        }
     }
 
     pub fn manifest_of<S>(store: &S, id: &git::Oid) -> Result<Manifest, ManifestError>
