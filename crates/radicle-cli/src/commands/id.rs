@@ -50,6 +50,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
 
             if interactive.confirm(format!("Accept revision {}?", term::format::tertiary(id))) {
                 identity.accept(&revision.id)?;
+                // Accepting a revision may also adopt a queued child.
+                repo.set_identity_head_to(identity.current)?;
 
                 if let Some(revision) = identity.revision(&id) {
                     // TODO: Different output if canonical changed?
@@ -183,6 +185,7 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 return Ok(());
             }
             let revision = update(title, description, proposal, &mut identity, &profile)?;
+            repo.set_identity_head_to(identity.current)?;
 
             if args.quiet {
                 term::println(revision.id);
