@@ -286,34 +286,6 @@ impl Identity {
         Self::get(&oid, repo).map_err(RepositoryError::from)
     }
 
-    /// Check that `commit` is an accepted revision of the identity.
-    ///
-    /// A revision is only adopted if its parent is the current revision, so
-    /// the accepted revisions form a chain from the root to `rad/id`. Walk
-    /// that chain back from `rad/id`.
-    pub fn is_accepted<R: ReadRepository + cob::Store>(
-        repo: &R,
-        commit: Oid,
-    ) -> Result<bool, RepositoryError> {
-        let mut revision = Some(repo.identity_head()?);
-
-        while let Some(id) = revision {
-            if id == commit {
-                return Ok(true);
-            }
-            // Follow the parent of the revision. An op without a revision ends
-            // the chain.
-            revision = Op::load(repo, id)?
-                .actions
-                .into_iter()
-                .find_map(|action| match action {
-                    Action::Revision { parent, .. } => parent,
-                    _ => None,
-                });
-        }
-        Ok(false)
-    }
-
     pub fn load_mut<'a, 'b, Repo, Signer>(
         repo: &'a Repo,
         signer: &'b Signer,
@@ -1527,8 +1499,9 @@ mod test {
 
         let mut identity = Identity::load_mut(&*repo, &bob).unwrap();
         identity.accept(&r2).unwrap();
-        // Computing the canonical document must work ahead of cached `rad/id`.
+        // Accepted revisions are recognized even ahead of cached `rad/id`.
         assert_eq!(repo.identity_head().unwrap(), r1);
+        assert_eq!(repo.identity_doc_at(r2).unwrap().commit, r2);
         assert_eq!(repo.canonical_identity_doc().unwrap().commit, r2);
         repo.set_identity_head_to(identity.current).unwrap();
 

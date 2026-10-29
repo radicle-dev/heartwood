@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::{fs, io};
 
-use crate::cob::identity;
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
 use crate::identity::doc::{DocError, GetPayload as _};
@@ -838,7 +837,8 @@ impl ReadRepository for Repository {
     }
 
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, RepositoryError> {
-        if !identity::Identity::is_accepted(self, head)? {
+        let identity = Identity::load(self)?;
+        if !identity.revision(&head).is_some_and(|r| r.is_accepted()) {
             return Err(RepositoryError::UnacceptedIdentityRevision(head));
         }
         Ok(Doc::load_at(head, self)?)

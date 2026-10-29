@@ -155,8 +155,6 @@ pub enum RepositoryError {
     CanonicalRefs(#[from] doc::CanonicalRefsError),
     #[error(transparent)]
     FindObjects(#[from] canonical::effects::FindObjectsError),
-    #[error(transparent)]
-    Op(#[from] cob::op::LoadError),
     #[error("commit {0} is not an accepted revision of the repository identity")]
     UnacceptedIdentityRevision(Oid),
 }
@@ -632,7 +630,7 @@ pub trait ReadRepository: Sized + ValidateRepository {
 
     /// Get the repository's identity document at a specific commit.
     ///
-    /// The commit must be in the accepted identity history anchored at `rad/id`.
+    /// The commit must be an accepted revision of the evaluated [`Identity`] COB.
     /// Returns [`RepositoryError::UnacceptedIdentityRevision`] otherwise.
     /// For document loading without this check, use [`Doc::load_at`].
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, RepositoryError>;
