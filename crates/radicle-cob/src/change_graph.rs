@@ -19,6 +19,8 @@ pub enum EvaluateError {
     Signature(EntryId),
     #[error("root entry '{0}' missing from graph")]
     MissingRoot(EntryId),
+    #[error("root entry '{0}' has parents")]
+    RootHasParents(EntryId),
 }
 
 /// The graph of changes for a particular collaborative object
@@ -111,17 +113,27 @@ impl ChangeGraph {
         if !root.valid_signatures() {
             return Err(EvaluateError::Signature(root.id));
         }
+        if !root.dependencies.is_empty() {
+            return Err(EvaluateError::RootHasParents(root.id));
+        }
         // Evaluate the root separately, since we can't have a COB without a valid root.
-        // Then, traverse the graph starting from the root's dependents.
+        // Then, traverse the graph starting from the root's dependents, building the
+        // `applied` DAG directly so only applied descendants of `root` form the history.
         let mut object =
             T::init(&root.value, store).map_err(|e| EvaluateError::Init(Box::new(e)))?;
         let children = Vec::from_iter(root.dependents.iter().cloned());
         let manifest = root.manifest.clone();
+        let mut applied = Dag::root(root.id, root.value.clone());
         let root = root.id;
 
         self.graph.prune_by(
             &children,
-            |_, entry, siblings| {
+            |id, entry, siblings| {
+                // Every COB parent must have been applied before the entry.
+                if !entry.dependencies.iter().all(|p| applied.contains(p)) {
+                    log::debug!("Entry {} has a parent that was not applied.", entry.id);
+                    return ControlFlow::Break(());
+                }
                 // Check the entry signatures are valid.
                 if !entry.valid_signatures() {
                     log::debug!("Signature verification failed for entry {}.", entry.id);
@@ -132,6 +144,10 @@ impl ChangeGraph {
                     log::debug!("Application of entry {} returned error: {err}", entry.id);
                     return ControlFlow::Break(());
                 }
+                applied.node(*id, entry.value.clone());
+                for parent in &entry.dependencies {
+                    applied.dependency(*id, *parent);
+                }
                 ControlFlow::Continue(())
             },
             Self::chronological,
@@ -140,7 +156,7 @@ impl ChangeGraph {
         Ok(CollaborativeObject {
             manifest,
             object,
-            history: History::new(root, self.graph),
+            history: History::new(root, applied),
             id: self.object_id,
         })
     }
