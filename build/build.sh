@@ -24,9 +24,9 @@ main() {
 
   rev="$(git rev-parse HEAD)"
   keypath="$(rad path)/keys/radicle.pub"
-  version="$(build/version)"
+  version="$(build/version.sh)"
   image=radicle-build-$version
-  rust_version="$(build/rust-version)"
+  rust_version="$(build/rust-version.sh)"
 
   if [ ! -f "$keypath" ]; then
     echo "fatal: no key found at $keypath" >&2 ; exit 1
@@ -86,7 +86,7 @@ main "$@"
 
 # Show artifact checksums.
 echo
-build/checksums
+build/checksums.sh
 echo
 
 echo "Build successful."

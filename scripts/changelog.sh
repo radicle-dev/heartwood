@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Current/latest tag.
-version="$(build/version)"
+version="$(build/version.sh)"
 current="releases/${version}"
 
 if ! git rev-parse --verify "$current^{tag}" >/dev/null 2>&1; then
@@ -84,5 +84,5 @@ echo "## Checksums"
 echo
 
 echo '```'
-build/checksums
+build/checksums.sh
 echo '```'

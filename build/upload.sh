@@ -6,7 +6,7 @@ SSH_ADDRESS=${SSH_ADDRESS:-$SSH_LOGIN@files.radicle.dev}
 SSH_KEY="$(rad path)/keys/radicle"
 
 main() {
-  version="$(build/version)"
+  version="$(build/version.sh)"
   nid="$(rad self --did | cut -d: -f3-)"
   rad_url="$(rad . | sed s/rad:/rad:\\/\\//)"
   rad_remote="$rad_url/$nid"
