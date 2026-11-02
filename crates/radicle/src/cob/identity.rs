@@ -1524,9 +1524,12 @@ mod test {
         assert_eq!(repo.canonical_identity_doc().unwrap().commit, r2);
         repo.set_identity_head_to(identity.current).unwrap();
 
-        assert_eq!(repo.identity_doc_at(r0).unwrap().commit, r0);
-        assert_eq!(repo.identity_doc_at(r1).unwrap().commit, r1);
-        assert_eq!(repo.identity_doc_at(r2).unwrap().commit, r2);
+        for revision in [r0, r1, r2] {
+            assert_eq!(
+                repo.identity_doc_at(revision).unwrap(),
+                Doc::load_at(revision, &*repo).unwrap()
+            );
+        }
     }
 
     #[test]

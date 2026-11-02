@@ -311,6 +311,16 @@ impl ReadRepository for MockRepository {
         Ok(self.doc.clone())
     }
 
+    fn identity_from(
+        &self,
+        root: &crate::cob::ObjectId,
+    ) -> Result<std::cell::Ref<'_, crate::identity::Identity>, crate::cob::store::Error> {
+        Err(crate::cob::store::Error::NotFound(
+            crate::identity::TYPENAME.clone(),
+            *root,
+        ))
+    }
+
     fn identity_doc_at(&self, _head: Oid) -> Result<crate::identity::DocAt, IdentityDocError> {
         Ok(self.doc.clone())
     }

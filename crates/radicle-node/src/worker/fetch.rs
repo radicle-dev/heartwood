@@ -336,8 +336,7 @@ fn set_canonical_refs(
 ) -> Result<Option<UpdatedCanonicalRefs>, error::Canonical> {
     const LOG_MESSAGE: &str = "set-canonical-reference from fetch (radicle)";
 
-    let identity = repo.identity()?;
-    let crefs = identity.doc().canonical_refs()?;
+    let crefs = repo.identity()?.doc().canonical_refs()?;
 
     for (name, target) in crefs.symbolic().iter() {
         if let Err(e) = repo.set_symbolic_ref(name, target, LOG_MESSAGE) {

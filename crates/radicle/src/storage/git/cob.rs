@@ -1,4 +1,5 @@
 //! COB storage Git backend.
+use std::cell::Ref as CellRef;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -382,6 +383,13 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {
         self.repo.identity_root()
+    }
+
+    fn identity_from(
+        &self,
+        root: &ObjectId,
+    ) -> Result<CellRef<'_, identity::Identity>, store::Error> {
+        self.repo.identity_from(root)
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {

@@ -94,8 +94,8 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
         info.push([term::format::italic(project.description()).into()]);
     }
 
-    let issues = term::cob::issues(&profile, &repo)?.counts()?;
-    let patches = term::cob::patches(&profile, &repo)?.counts()?;
+    let issues = term::cob::issues(&profile, repo.as_ref())?.counts()?;
+    let patches = term::cob::patches(&profile, repo.as_ref())?.counts()?;
 
     info.push([term::Line::spaced([
         term::format::tertiary(issues.open).into(),
@@ -210,7 +210,7 @@ impl Checkout {
                 spinner.finish();
                 Ok(CloneResult::Success(Success {
                     working_copy,
-                    repository: self.repository,
+                    repository: Box::new(self.repository),
                     doc: self.doc,
                     project: self.project,
                 }))
@@ -302,7 +302,7 @@ enum CloneResult {
 
 struct Success {
     working_copy: raw::Repository,
-    repository: storage::git::Repository,
+    repository: Box<storage::git::Repository>,
     doc: Doc,
     project: Option<Project>,
 }

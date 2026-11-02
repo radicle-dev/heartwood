@@ -1,6 +1,7 @@
 pub mod git;
 pub mod refs;
 
+use std::cell::Ref;
 use std::collections::{HashSet, hash_map};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -565,13 +566,14 @@ pub trait ReadRepository: Sized + ValidateRepository {
     /// Get the root commit of the canonical identity branch.
     fn identity_root(&self) -> Result<Oid, RepositoryError>;
 
-    /// Load the identity history.
-    fn identity(&self) -> Result<Identity, RepositoryError>
-    where
-        Self: cob::Store,
-    {
-        Identity::load(self)
+    /// Borrow the identity of this repository.
+    fn identity(&self) -> Result<Ref<'_, Identity>, RepositoryError> {
+        let root = self.identity_root()?;
+        Ok(self.identity_from(&root.into())?)
     }
+
+    /// Borrow the identity history for a specific COB root.
+    fn identity_from(&self, root: &cob::ObjectId) -> Result<Ref<'_, Identity>, cob::store::Error>;
 
     /// Compute the canonical `rad/id` of this repository.
     ///

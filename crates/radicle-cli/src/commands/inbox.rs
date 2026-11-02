@@ -9,7 +9,7 @@ use localtime::LocalTime;
 use radicle::cob::TypedId;
 use radicle::git::BranchName;
 use radicle::git::fmt::{Component, Qualified};
-use radicle::identity::{Identity, doc::GetPayload as _};
+use radicle::identity::doc::GetPayload as _;
 use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
@@ -339,7 +339,7 @@ impl NotificationRow {
                 term::format::patch::state(patch.state()),
             )
         } else if typed_id.is_identity() {
-            let Ok(identity) = Identity::get(id, repo) else {
+            let Ok(identity) = repo.identity_from(id) else {
                 log::error!(
                     target: "cli",
                     "Error retrieving identity {id} for notification {}", n.id
@@ -438,7 +438,7 @@ fn show(
             term::patch::show(&patch, &typed_id.id, false, &repo, None, profile)?;
         }
         NotificationKind::Cob { typed_id } if typed_id.is_identity() => {
-            let identity = Identity::get(&typed_id.id, &repo)?;
+            let identity = repo.identity_from(&typed_id.id)?;
 
             term::json::to_pretty(&identity.doc, Path::new("radicle.json"))?.print();
         }

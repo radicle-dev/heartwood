@@ -5,12 +5,16 @@ pub mod transport;
 pub mod temp;
 pub use temp::TempRepository;
 
+use std::cell::{Cell, Ref as CellRef, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::{fs, io};
 
+use crate::cob::identity::TYPENAME as IDENTITY_TYPENAME;
+use crate::cob::object::{self, collaboration::get_from_objects};
+use crate::cob::{ObjectId, error, store};
 use crate::git::canonical::Quorum;
 use crate::git::raw::ErrorExt as _;
 use crate::identity::doc::{DocError, GetPayload as _};
@@ -299,6 +303,26 @@ pub struct Repository {
     pub id: RepoId,
     /// The backing Git repository.
     pub backend: git::raw::Repository,
+    /// A cache of the evaluated identity.
+    cached_identity: RefCell<Option<CachedIdentity>>,
+    /// The root of the last resolved `rad/id` commit.
+    cached_identity_root: Cell<Option<CachedIdentityRoot>>,
+}
+
+#[derive(Clone, Copy)]
+struct CachedIdentityRoot {
+    /// The commit referenced by `rad/id` when the root was resolved.
+    head: Oid,
+    /// The root commit of that identity history.
+    root: Oid,
+}
+
+struct CachedIdentity {
+    root: ObjectId,
+    /// Tips of the various COB references that were considered.
+    tips: BTreeSet<Oid>,
+    /// The actual evaluated identity being cached.
+    identity: Identity,
 }
 
 impl AsRef<Repository> for Repository {
@@ -423,7 +447,12 @@ impl Repository {
             &[] as &[&std::ffi::OsStr],
         )?;
 
-        Ok(Self { id, backend })
+        Ok(Self {
+            id,
+            backend,
+            cached_identity: RefCell::default(),
+            cached_identity_root: Cell::default(),
+        })
     }
 
     /// Create a new repository.
@@ -456,7 +485,21 @@ impl Repository {
         config.set_str("user.name", &info.name())?;
         config.set_str("user.email", &info.email())?;
 
-        Ok(Self { id, backend })
+        Ok(Self {
+            id,
+            backend,
+            cached_identity: RefCell::default(),
+            cached_identity_root: Cell::default(),
+        })
+    }
+
+    fn identity_root_at(&self, head: Oid) -> Result<Oid, RepositoryError> {
+        let root = self
+            .revwalk(head)?
+            .last()
+            .ok_or(RepositoryError::Doc(DocError::Missing))??;
+
+        Ok(root.into())
     }
 
     /// Remove an existing repository
@@ -833,11 +876,17 @@ impl ReadRepository for Repository {
     }
 
     fn identity_doc_at(&self, head: Oid) -> Result<DocAt, IdentityDocError> {
-        let identity = Identity::load(self)?;
-        if !identity.revision(&head).is_some_and(|r| r.is_accepted()) {
-            return Err(IdentityDocError::UnacceptedRevision(head));
-        }
-        Ok(Doc::load_at(head, self)?)
+        let identity = self.identity()?;
+        let revision = identity
+            .revision(&head)
+            .filter(|r| r.is_accepted())
+            .ok_or(IdentityDocError::UnacceptedRevision(head))?;
+
+        Ok(DocAt {
+            commit: revision.id,
+            blob: revision.blob,
+            doc: revision.doc.clone(),
+        })
     }
 
     fn head(&self) -> Result<(Qualified<'_>, Oid), RepositoryError> {
@@ -884,13 +933,54 @@ impl ReadRepository for Repository {
     }
 
     fn identity_root(&self) -> Result<Oid, RepositoryError> {
-        let oid = self.backend.refname_to_id(CANONICAL_IDENTITY.as_str())?;
-        let root = self
-            .revwalk(oid.into())?
-            .last()
-            .ok_or(RepositoryError::Doc(DocError::Missing))??;
+        let head = self
+            .backend
+            .refname_to_id(CANONICAL_IDENTITY.as_str())?
+            .into();
+        if let Some(cached) = self.cached_identity_root.get()
+            && cached.head == head
+        {
+            return Ok(cached.root);
+        }
+        let root = self.identity_root_at(head)?;
+        self.cached_identity_root
+            .set(Some(CachedIdentityRoot { head, root }));
 
-        Ok(root.into())
+        Ok(root)
+    }
+
+    fn identity_from(&self, root: &ObjectId) -> Result<CellRef<'_, Identity>, store::Error> {
+        // Another handle or process may have changed the refs. Evaluate exactly
+        // this snapshot of the refs, so the cache key matches the evaluation.
+        let refs = object::Storage::objects(self, &IDENTITY_TYPENAME, root)
+            .map_err(|err| error::Retrieve::Refs { err: Box::new(err) })?;
+        let tips = refs.iter().map(|r| r.target.id).collect();
+        let mut cached = self.cached_identity.borrow();
+
+        if !cached
+            .as_ref()
+            .is_some_and(|cached| cached.root == *root && cached.tips == tips)
+        {
+            drop(cached);
+
+            let identity = get_from_objects(self, &IDENTITY_TYPENAME, root, &refs)?
+                .ok_or_else(|| store::Error::NotFound(IDENTITY_TYPENAME.clone(), *root))?
+                .object;
+
+            *self.cached_identity.borrow_mut() = Some(CachedIdentity {
+                root: *root,
+                tips,
+                identity,
+            });
+            cached = self.cached_identity.borrow();
+        }
+
+        Ok(CellRef::map(cached, |cached| {
+            &cached
+                .as_ref()
+                .expect("identity cache is populated")
+                .identity
+        }))
     }
 
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
@@ -944,7 +1034,7 @@ impl ReadRepository for Repository {
             return Err(RepositoryError::Doc(DocError::Missing));
         }
 
-        Ok(Identity::get(&root.into(), self)?.head())
+        Ok(self.identity_from(&root.into())?.head())
     }
 
     fn merge_base(&self, left: &Oid, right: &Oid) -> Result<Oid, crate::git::raw::Error> {
