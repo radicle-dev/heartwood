@@ -219,13 +219,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             revisions.divider();
 
             for r in identity.revisions().rev() {
-                let icon = match r.state {
-                    identity::State::Active => term::format::tertiary("●"),
-                    identity::State::Accepted => term::format::positive("●"),
-                    identity::State::Rejected(_) => term::format::negative("●"),
-                    identity::State::Redacted(_) => continue,
+                if matches!(r.state, identity::State::Redacted(_)) {
+                    continue;
                 }
-                .into();
+                let icon = term::format::identity::state_symbol(&r.state).into();
                 let state = match &r.state {
                     identity::State::Active => "active".to_string(),
                     identity::State::Accepted => "accepted".to_string(),
@@ -269,9 +266,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             term::println("Hints:");
             term::println(format!(
                 "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
-                term::format::tertiary("●"),
-                term::format::positive("●"),
-                term::format::negative("●"),
+                term::format::identity::state_symbol(&identity::State::Active),
+                term::format::identity::state_symbol(&identity::State::Accepted),
+                term::format::identity::state_symbol(&identity::State::Rejected(
+                    identity::RejectedBy::Vote
+                )),
                 "✘",
                 "↥",
                 "⇄",

@@ -366,6 +366,20 @@ pub mod issue {
             } => term::format::secondary(s.to_string()),
         }
     }
+
+    /// Format issue state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Open => term::format::positive("●"),
+            State::Closed {
+                reason: CloseReason::Solved,
+            } => term::format::secondary("✓"),
+            State::Closed {
+                reason: CloseReason::Other,
+            } => term::format::negative("✗"),
+        }
+    }
 }
 
 /// Patch formatting
@@ -392,6 +406,17 @@ pub mod patch {
             State::Merged { .. } => term::format::secondary(s.to_string()),
         }
     }
+
+    /// Format patch state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Draft => term::format::dim("○"),
+            State::Open { .. } => term::format::positive("●"),
+            State::Archived => term::format::yellow("⊘"),
+            State::Merged { .. } => term::PREFIX_SUCCESS,
+        }
+    }
 }
 
 /// Identity formatting
@@ -406,6 +431,17 @@ pub mod identity {
             State::Active => term::format::tertiary(s.to_string()),
             State::Accepted => term::format::positive(s.to_string()),
             State::Rejected(_) | State::Redacted(_) => term::format::negative(s.to_string()),
+        }
+    }
+
+    /// Format identity revision state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Active => term::format::tertiary("●"),
+            State::Accepted => term::PREFIX_SUCCESS,
+            State::Rejected(_) => term::PREFIX_ERROR,
+            State::Redacted(_) => term::format::dim("✗"),
         }
     }
 }
@@ -477,6 +513,44 @@ mod test {
         assert_eq!(
             super::bytes(1024usize.pow(3) * 1024).to_string(),
             "1024 GiB"
+        );
+    }
+
+    #[test]
+    fn test_cob_state_symbols() {
+        use radicle::cob::identity::RejectedBy;
+        use radicle::cob::identity::State as IdState;
+        use radicle::issue::{CloseReason, State as IssueState};
+        use radicle::patch::State as PatchState;
+
+        assert_eq!(issue::state_symbol(&IssueState::Open).to_string(), "●");
+        assert_eq!(
+            issue::state_symbol(&IssueState::Closed {
+                reason: CloseReason::Solved
+            })
+            .to_string(),
+            "✓"
+        );
+        assert_eq!(
+            issue::state_symbol(&IssueState::Closed {
+                reason: CloseReason::Other
+            })
+            .to_string(),
+            "✗"
+        );
+
+        assert_eq!(patch::state_symbol(&PatchState::Draft).to_string(), "○");
+        assert_eq!(
+            patch::state_symbol(&PatchState::Open { conflicts: vec![] }).to_string(),
+            "●"
+        );
+        assert_eq!(patch::state_symbol(&PatchState::Archived).to_string(), "⊘");
+
+        assert_eq!(identity::state_symbol(&IdState::Active).to_string(), "●");
+        assert_eq!(identity::state_symbol(&IdState::Accepted).to_string(), "✓");
+        assert_eq!(
+            identity::state_symbol(&IdState::Rejected(RejectedBy::Vote)).to_string(),
+            "✗"
         );
     }
 }
