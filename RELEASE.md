@@ -14,7 +14,7 @@ The first action required is to create a release tag. All tags that start with a
 `releases/` are considered release tags, e.g. `releases/1.0.0`, `releases/1.1.0`,
 `releases/1.1.0-rc`, etc.
 Before creating the tag, we must decide which commit we are choosing for the
-release. In general, this will be the latest commit of the `master` branch. We
+release. In general, this will be the latest commit of the `main` branch. We
 checkout this commit:
 
 ```
@@ -39,13 +39,13 @@ git config set gpg.format ssh
 git config set user.signingKey "key::$(rad self --ssh-key)""
 ```
 
-We provide a script for performing the tagging related options, `build/tag`.
+We provide a script for performing the tagging related options, `build/tag.sh`.
 The input to this script does not require the `releases/` prefix. For example,
 if we want to cut a release for `releases/1.3.0-rc.3`, we would call the
 script like the following:
 
 ```
-build/tag 1.3.0-rc.3
+build/tag.sh 1.3.0-rc.3
 ```
 
 The script will ask you to confirm the creation of the tag, showing you the
@@ -53,14 +53,14 @@ commit that you're tagging, respond with `y` if it all looks good.
 
 ### Run Build
 The next thing we do is to build the binaries based on the latest tag. We
-provide a `build/build` script that performs the build through a Docker
+provide a `build/build.sh` script that performs the build through a Docker
 container. The following requirements are needed for running the build script:
 
 * `rad`
 * `podman`
 * `sha256sum`
 
-Running `build/build` will find the latest tag and perform the build, this will
+Running `build/build.sh` will find the latest tag and perform the build, this will
 take some time, so grab a coffee ☕.
 
 ---
@@ -71,10 +71,10 @@ macOS builds. These are ok, and can be ignored.
 ---
 
 ### Verify Artifacts
-All artifacts constructed from the `build/build` script will be placed under
+All artifacts constructed from the `build/build.sh` script will be placed under
 `build/artifacts`. Any existing, old artifacts can be removed.
 
-We can then verify the artifacts are present via the `build/checksums` script,
+We can then verify the artifacts are present via the `build/checksums.sh` script,
 which prints the checksum values of all the binaries that were built, noting
 that there is a binary for different architectures.
 
@@ -92,11 +92,11 @@ The next step is to upload the artifacts to our servers, allowing others to
 install the binaries, as well as launching the new binaries on our team seed
 node.
 
-This is achieved through the `build/upload` script, which requires SSH access to
+This is achieved through the `build/upload.sh` script, which requires SSH access to
 `files.radicle.dev`, for example:
 
 ```
-SSH_LOGIN=<user> build/upload 1.3.0-rc.3
+SSH_LOGIN=<user> build/upload.sh 1.3.0-rc.3
 ```
 
 Once the files are released we can install the binaries via:
@@ -121,7 +121,7 @@ We do this using NixOS and the [`radicle-nix`][radicle-nix] and
 <!-- an upcoming pre-release rather than something historical.  /RL -->
 
 Once all these steps are completed, we can generate the changelog, by first
-checking out the relevant tag, and running `scripts/changelog` – you can also
+checking out the relevant tag, and running `scripts/changelog.sh` – you can also
 pass a previous version as `--from-version`. This will output something like the
 following:
 
@@ -168,7 +168,7 @@ fc6ee5d764941aaf21d33547e837f3908fbddba533a5b17675ae04e1ab68a664  radicle-1.5.0-
 ```
 ~~~
 
-Once we have the output from `scripts/changelog`, we can post to the internal or
+Once we have the output from `scripts/changelog.sh`, we can post to the internal or
 release candidate topic in Zulip – naming the topic after the release version name.
 Remember to `@all` so that everyone is notified. Issues that are encountered
 should be reported in the Zulip topic, so that they can be resolved for the
@@ -185,10 +185,10 @@ the changes.
 Release Process
 ---------------
 Once the team feels that the release is ready, the final release can be made.
-The `build/tag` step should be repeated for the tag, without the `-rc` suffix.
-The `build/build` and `build/upload` steps are repeated.
+The `build/tag.sh` step should be repeated for the tag, without the `-rc` suffix.
+The `build/build.sh` and `build/upload.sh` steps are repeated.
 
-Finally, `SSH_LOGIN=<user> build/release <version>` is used to create a symlink
+Finally, `SSH_LOGIN=<user> build/release.sh <version>` is used to create a symlink
 from version release to the `latest` release – which is used in our install
 script linked to on [Get Started][website].
 
@@ -206,12 +206,12 @@ The branch must be named `releases/x.y`, similar to the tagged release, where
 The `heartwood/CHANGELOG.md` must be updated to reflect the latest changes that
 were made with regards to the binaries. Many of them should have been included
 during the development process, such as new features, breaking changes, or fixed
-bugs. It is still worth checking `scripts/changelog` to see if there were any
+bugs. It is still worth checking `scripts/changelog.sh` to see if there were any
 missed notes.
 
 Once the change log is finalized with a header using the version number, e.g.
 `## 1.5.0`, it should be committed to the `releases/x.y` branch and a patch must
-be made to port the changes to the `master` branch.
+be made to port the changes to the `main` branch.
 
 ### Announcement
 
@@ -231,16 +231,16 @@ release patch releases of the binaries. These patch releases must be compatible
 with minor version that was released; otherwise, the commits should not be
 included.
 
-These changes may have been made on `master` and back-ported to the
+These changes may have been made on `main` and back-ported to the
 `releases/x.y` branch. Note that is not the job of the maintainer to ensure that
 the change applies cleanly to both branches – it is the job of the person
 contributing the changes.
 Alternatively, it may be the case that changes are made on the `releases/x.y`
-branch and forward-ported to `master`. The burden of ensuring changes apply
+branch and forward-ported to `main`. The burden of ensuring changes apply
 remains the same as above.
 
 Remember that `heartwood/CHANGELOG.md` must be updated to include the latest
-changes in the patch release. These must be forward-ported to the `master`
+changes in the patch release. These must be forward-ported to the `main`
 branch.
 
 [radicle-infra]: https://radicle.network/nodes/seed.radicle.dev/rad:z254T5p17bdFPmzfDojsdjo4HjpoZ

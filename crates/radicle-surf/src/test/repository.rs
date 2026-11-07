@@ -73,14 +73,28 @@ pub fn submodule<'a>(
     head: Oid,
     author: &git2::Signature,
 ) -> git2::Submodule<'a> {
-    let url = format!("file://{}", child.path().canonicalize().unwrap().display());
+    let url = url::Url::from_directory_path(child.path().canonicalize().unwrap()).unwrap();
     let mut sub = parent
         .submodule(url.as_str(), Path::new("submodule"), true)
         .unwrap();
+
+    #[cfg(not(windows))]
     let _ = sub.open().unwrap();
+
+    // See <https://gitforwindows.org/git-cannot-create-a-file-or-directory-with-a-long-path.html#opt-in-configuration>.
+    #[cfg(windows)]
+    let _ = sub
+        .open()
+        .unwrap()
+        .config()
+        .unwrap()
+        .set_bool("core.longpaths", true)
+        .unwrap();
+
     let _ = sub
         .clone(Some(&mut git2::SubmoduleUpdateOptions::default()))
         .unwrap();
+
     sub.add_to_index(true).unwrap();
     sub.add_finalize().unwrap();
     {

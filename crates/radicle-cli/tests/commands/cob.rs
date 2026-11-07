@@ -1,7 +1,7 @@
 use std::path::Path;
 
+use crate::test;
 use crate::util::environment::Environment;
-use crate::{program_reports_version, test};
 use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::node::Handle;
 use radicle::test::fixtures;
@@ -37,11 +37,12 @@ fn rad_cob_update_identity() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn rad_cob_multiset() {
     // `rad-cob-multiset` is a `jq` script, which requires `jq` to be installed.
     // We test whether `jq` is installed, and have this test succeed if it is not.
     // Programmatic skipping of tests is not supported as of 2024-08.
-    if !program_reports_version("jq") {
+    if !crate::program_reports_version("jq") {
         return;
     }
 
@@ -189,8 +190,6 @@ fn cob_deletion() {
     bob.handle
         .seed(rid, radicle::node::policy::Scope::All)
         .unwrap();
-    alice.connect(&bob);
-    bob.routes_to(&[(rid, alice.id)]);
 
     let alice_repo = radicle::storage::ReadStorage::repository(&alice.storage, rid).unwrap();
     let mut alice_issues =
@@ -204,19 +203,22 @@ fn cob_deletion() {
             [],
         )
         .unwrap();
-    let issue_id = issue.id();
+    let issue_id = *issue.id();
     log::debug!(target: "test", "Issue {issue_id} created");
+
+    alice.connect(&bob);
+    bob.routes_to(&[(rid, alice.id)]);
 
     bob.rad("clone", &[rid.to_string().as_str()], working.path())
         .unwrap();
 
     let bob_repo = radicle::storage::ReadStorage::repository(&bob.storage, rid).unwrap();
     let bob_issues = radicle::cob::issue::Issues::open(&bob_repo, ReadOnly).unwrap();
-    assert!(bob_issues.get(issue_id).unwrap().is_some());
+    assert!(bob_issues.get(&issue_id).unwrap().is_some());
 
     let mut alice_issues =
         radicle::cob::issue::Cache::no_cache(&alice_repo, &alice.signer).unwrap();
-    alice_issues.remove(issue_id).unwrap();
+    alice_issues.remove(&issue_id).unwrap();
 
     log::debug!(target: "test", "Removing issue..");
 
@@ -228,5 +230,5 @@ fn cob_deletion() {
     );
     let bob_repo = radicle::storage::ReadStorage::repository(&bob.storage, rid).unwrap();
     let bob_issues = radicle::cob::issue::Issues::open(&bob_repo, ReadOnly).unwrap();
-    assert!(bob_issues.get(issue_id).unwrap().is_none());
+    assert!(bob_issues.get(&issue_id).unwrap().is_none());
 }

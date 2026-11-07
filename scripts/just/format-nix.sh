@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#! /usr/bin/env sh
 
 if command -v alejandra >/dev/null 2>&1; then
     alejandra --check .
