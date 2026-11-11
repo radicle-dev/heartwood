@@ -115,6 +115,10 @@ pub enum ApplyError {
     /// Invalid signature over document blob.
     #[error("invalid signature from {0} for blob {1}")]
     InvalidSignature(PublicKey, Oid),
+    /// The identity document embedded in an operation that carries a [`Revision`]
+    /// action differs from the blob signed by the delegates.
+    #[error("identity document blob {embedded} does not match signed blob {signed}")]
+    DocMismatch { signed: Oid, embedded: Oid },
     /// Unauthorized action.
     #[error("not authorized to perform this action")]
     NotAuthorized,
@@ -645,7 +649,14 @@ impl Identity {
             } => {
                 debug_assert_eq!(self.revisions.get(&id), None, "revision visited twice");
 
-                let doc = Doc::from_blob(&repo.blob(blob)?)?;
+                let embedded = Doc::blob_at(id, repo)?;
+                if Oid::from(embedded.id()) != blob {
+                    return Err(ApplyError::DocMismatch {
+                        signed: blob,
+                        embedded: embedded.id().into(),
+                    });
+                }
+                let doc = Doc::from_blob(&embedded)?;
 
                 // All revisions but the first one must have a parent.
                 let parent_id = parent_id.ok_or(ApplyError::MissingParent)?;

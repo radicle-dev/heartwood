@@ -39,14 +39,14 @@ $ rad id list
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   active     now       0ca42d3 │
 │ ●   12d7300   Edit project name   alice    (you)                                              active     now       0ca42d3 │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+│ ✓   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 Hints:
   ● active
-  ● accepted
-  ● rejected:
+  ✓ accepted
+  ✗ rejected:
     ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
 $ rad id show 12d7300
 ╭────────────────────────────────────────────────────────────────────────╮
@@ -98,15 +98,15 @@ $ rad id list
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                                                      Status     Created   Parent  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+│ ✓   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
+│ ✓   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 Hints:
   ● active
-  ● accepted
-  ● rejected:
+  ✓ accepted
+  ✗ rejected:
     ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
 ```
 

@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#! /usr/bin/env sh
 set -e
 TOOL=$1
 PKG_NAME=$2

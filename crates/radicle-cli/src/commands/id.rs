@@ -219,13 +219,10 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             revisions.divider();
 
             for r in identity.revisions().rev() {
-                let icon = match r.state {
-                    identity::State::Active => term::format::tertiary("●"),
-                    identity::State::Accepted => term::format::positive("●"),
-                    identity::State::Rejected(_) => term::format::negative("●"),
-                    identity::State::Redacted(_) => continue,
+                if matches!(r.state, identity::State::Redacted(_)) {
+                    continue;
                 }
-                .into();
+                let icon = term::format::identity::state_symbol(&r.state).into();
                 let state = match &r.state {
                     identity::State::Active => "active".to_string(),
                     identity::State::Accepted => "accepted".to_string(),
@@ -269,9 +266,11 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             term::println("Hints:");
             term::println(format!(
                 "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
-                term::format::tertiary("●"),
-                term::format::positive("●"),
-                term::format::negative("●"),
+                term::format::identity::state_symbol(&identity::State::Active),
+                term::format::identity::state_symbol(&identity::State::Accepted),
+                term::format::identity::state_symbol(&identity::State::Rejected(
+                    identity::RejectedBy::Vote
+                )),
                 "✘",
                 "↥",
                 "⇄",
@@ -606,7 +605,21 @@ fn print_diff(
     };
     let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
     let mut opts = radicle::git::raw::DiffOptions::new();
-    opts.context_lines(u32::MAX);
+
+    {
+        #[cfg(not(windows))]
+        const CONTEXT_LINES: u32 = u32::MAX;
+
+        // `xdiff`, which is commonly used on Windows, stores the number of
+        // context lines as a signed integer and doubles the value when
+        // merging hunks. Avoid overflow. See also:
+        // - <https://github.com/git-for-windows/git/tree/main/xdiff>
+        // - <https://github.com/libgit2/xdiff>
+        #[cfg(windows)]
+        const CONTEXT_LINES: u32 = (i32::MAX / 2) as u32;
+
+        opts.context_lines(CONTEXT_LINES);
+    }
 
     let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
     let diff = Diff::try_from(diff)?;

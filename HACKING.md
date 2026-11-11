@@ -144,11 +144,11 @@ Once inside a repository folder, the following commands may come in handy.
 `git show-ref` to show all references:
 
     $ git show-ref
-    f60b291752bc38be7dfc90c4c4034de13e01a66b refs/heads/master
-    f60b291752bc38be7dfc90c4c4034de13e01a66b refs/namespaces/z6MkqTY5aQepDGNCrkPqzdmzveX3D4oAmyVXUDDVQaDGdyVH/refs/heads/master
+    f60b291752bc38be7dfc90c4c4034de13e01a66b refs/heads/main
+    f60b291752bc38be7dfc90c4c4034de13e01a66b refs/namespaces/z6MkqTY5aQepDGNCrkPqzdmzveX3D4oAmyVXUDDVQaDGdyVH/refs/heads/main
     805b7d0df927dcbc4d3911ab07cd497953eecbd1 refs/namespaces/z6MkqTY5aQepDGNCrkPqzdmzveX3D4oAmyVXUDDVQaDGdyVH/refs/rad/id
     86136a42a69572015466bac2d974154ee76f0853 refs/namespaces/z6MkqTY5aQepDGNCrkPqzdmzveX3D4oAmyVXUDDVQaDGdyVH/refs/rad/sigrefs
-    5575035d8b4faf1f18c532b08516f18031dd7b28 refs/namespaces/z6MkuGSynjxM8SLhcsiEPWZgDeGLAVNXf5g7WePmc1Tri1FS/refs/heads/master
+    5575035d8b4faf1f18c532b08516f18031dd7b28 refs/namespaces/z6MkuGSynjxM8SLhcsiEPWZgDeGLAVNXf5g7WePmc1Tri1FS/refs/heads/main
     805b7d0df927dcbc4d3911ab07cd497953eecbd1 refs/namespaces/z6MkuGSynjxM8SLhcsiEPWZgDeGLAVNXf5g7WePmc1Tri1FS/refs/rad/id
     89e4f0baa327595c7b2849189fc8808388a29033 refs/namespaces/z6MkuGSynjxM8SLhcsiEPWZgDeGLAVNXf5g7WePmc1Tri1FS/refs/rad/sigrefs
 

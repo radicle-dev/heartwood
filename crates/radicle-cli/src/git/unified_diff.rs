@@ -589,20 +589,10 @@ impl<'a> Writer<'a> {
     }
 
     pub fn write(&mut self, s: impl fmt::Display, style: term::Style) -> io::Result<()> {
-        #[cfg(windows)]
-        const EOL: &str = "\r\n";
-
-        #[cfg(not(windows))]
-        const EOL: &str = "\n";
-
         if self.styled {
-            write!(
-                self.stream,
-                "{}{EOL}",
-                term::Paint::new(s).with_style(style)
-            )
+            writeln!(self.stream, "{}", term::Paint::new(s).with_style(style))
         } else {
-            write!(self.stream, "{s}{EOL}")
+            writeln!(self.stream, "{s}")
         }
     }
 

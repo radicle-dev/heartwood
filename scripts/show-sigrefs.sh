@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env sh
 set -e
 
 if [ "$#" -lt 2 ]; then
@@ -23,4 +23,9 @@ actual=$(echo "$actual" | sed "s@refs/namespaces/$REMOTE/@@")
 # Remove `sigrefs` itself.
 actual=$(echo "$actual" | grep -v "refs/rad/sigrefs$")
 
-diff <(echo "$signed") <(echo "$actual") --color=always -y --minimal -W 240
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' 0
+trap 'exit 1' HUP INT TERM
+printf '%s\n' "$signed" > "$tmp/signed"
+printf '%s\n' "$actual" > "$tmp/actual"
+diff --color=always -y --minimal -W 240 "$tmp/signed" "$tmp/actual"

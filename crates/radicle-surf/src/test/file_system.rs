@@ -122,6 +122,7 @@ pub mod directory {
     }
 
     #[test]
+    #[cfg(not(windows))] // Backslash in file name is not supported.
     fn file_last_commit() {
         let repo = Repository::open(platinum::get()).unwrap();
         let branch = Branch::local(refname!("master"));
