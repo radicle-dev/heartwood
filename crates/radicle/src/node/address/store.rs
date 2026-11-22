@@ -622,7 +622,7 @@ mod test {
     use localtime::LocalTime;
 
     #[test]
-    fn test_empty() {
+    fn empty() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("cache");
         let cache = Database::open(path, crate::node::db::config::Config::default()).unwrap();
@@ -631,7 +631,7 @@ mod test {
     }
 
     #[test]
-    fn test_get_none() {
+    fn get_none() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let cache = Database::memory().unwrap();
         let result = cache.get(&alice).unwrap();
@@ -640,7 +640,7 @@ mod test {
     }
 
     #[test]
-    fn test_remove_nothing() {
+    fn remove_nothing() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let removed = cache.remove(&alice).unwrap();
@@ -649,7 +649,7 @@ mod test {
     }
 
     #[test]
-    fn test_alias() {
+    fn alias() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
@@ -688,7 +688,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_get() {
+    fn insert_and_get() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let version = 2;
@@ -728,7 +728,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_duplicate() {
+    fn insert_duplicate() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let features = node::Features::SEED;
@@ -757,7 +757,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_update() {
+    fn insert_and_update() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
         let timestamp = LocalTime::now().into();
@@ -832,7 +832,7 @@ mod test {
     }
 
     #[test]
-    fn test_insert_and_remove() {
+    fn insert_and_remove() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let bob = arbitrary::r#gen::<NodeId>(1);
         let mut cache = Database::memory().unwrap();
@@ -882,7 +882,7 @@ mod test {
     }
 
     #[test]
-    fn test_entries() {
+    fn entries() {
         let ids = arbitrary::vec::<NodeId>(16);
         let mut rng = fastrand::Rng::new();
         let mut cache = Database::memory().unwrap();
@@ -924,7 +924,7 @@ mod test {
     }
 
     #[test]
-    fn test_disconnected() {
+    fn disconnected() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let addr = arbitrary::r#gen::<Address>(1);
         let mut cache = Database::memory().unwrap();
@@ -965,7 +965,7 @@ mod test {
     }
 
     #[test]
-    fn test_disconnected_ban() {
+    fn disconnected_ban() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let ua = UserAgent::default();
         let ip1: net::Ipv4Addr = [198, 18, 0, 8].into();
@@ -1029,7 +1029,7 @@ mod test {
     }
 
     #[test]
-    fn test_entries_skips_unparsable_address() {
+    fn entries_skips_unparsable_address() {
         let alice = arbitrary::r#gen::<NodeId>(1);
         let bob = arbitrary::r#gen::<NodeId>(2);
         let mut cache = Database::memory().unwrap();
@@ -1077,7 +1077,7 @@ mod test {
     }
 
     #[test]
-    fn test_node_aliases() {
+    fn node_aliases() {
         let mut db = Database::memory().unwrap();
         let input = node::properties::AliasInput::new();
         let (short, short_ids) = input.short();

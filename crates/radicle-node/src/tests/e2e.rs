@@ -5,6 +5,7 @@ use radicle::cob::Title;
 use radicle::cob::store::access::{ReadOnly, WriteAs};
 use radicle::crypto::{Signer as _, SigningKey};
 use radicle::git::fmt::Component;
+use radicle::identity::doc::GetPayload as _;
 use test_log::test;
 
 use radicle::git::raw::ErrorExt as _;
@@ -53,7 +54,7 @@ mod config {
 //
 //     alice -- bob
 //
-fn test_inventory_sync_basic() {
+fn inventory_sync_basic() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -75,7 +76,7 @@ fn test_inventory_sync_basic() {
 //
 //     alice -- bob -- eve
 //
-fn test_inventory_sync_bridge() {
+fn inventory_sync_bridge() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -103,7 +104,7 @@ fn test_inventory_sync_bridge() {
 //       |       |
 //     carol -- eve
 //
-fn test_inventory_sync_ring() {
+fn inventory_sync_ring() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -138,7 +139,7 @@ fn test_inventory_sync_ring() {
 //              |
 //            carol
 //
-fn test_inventory_sync_star() {
+fn inventory_sync_star() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -169,7 +170,116 @@ fn test_inventory_sync_star() {
 }
 
 #[test]
-fn test_replication() {
+fn public_to_private_to_public_replay() {
+    use radicle::identity::Identity;
+    use radicle::identity::Visibility;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
+    let bob = SigningKey::mock(99);
+
+    assert!(alice.id.to_human() > bob.public_key().to_human());
+
+    let rid = alice.project("acme", "");
+    let repo = alice.storage.repository(rid).unwrap();
+    let public_root = repo.identity_root().unwrap();
+
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::Public
+    );
+
+    let mut identity = Identity::load_mut(&repo, &alice.secret_key).unwrap();
+    let private_doc = repo
+        .identity_doc()
+        .unwrap()
+        .doc
+        .with_edits(|doc| {
+            doc.visibility = Visibility::private([]);
+        })
+        .unwrap();
+    let private_rev = identity
+        .update(Title::new("Private").unwrap(), "", &private_doc)
+        .unwrap();
+    repo.set_identity_head_to(private_rev).unwrap();
+
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::private([])
+    );
+
+    let remote = *bob.public_key();
+    let id_ref = format!("refs/namespaces/{}/refs/rad/id", remote);
+    let root_ref = format!("refs/namespaces/{}/refs/rad/root", remote);
+
+    let public_commit = repo.raw().find_commit(public_root.into()).unwrap();
+    let header = public_commit.raw_header().unwrap_or_default();
+
+    let tree = public_commit.tree().unwrap();
+    let mut signature = String::new();
+    let mut found = false;
+    for line in header.lines().skip(1) {
+        if !found {
+            if line.starts_with("gpgsig ") {
+                found = true;
+                signature.push_str(line.trim_start_matches("gpgsig "));
+                signature.push('\n');
+            }
+            continue;
+        }
+
+        if line.starts_with(' ') {
+            signature.push_str(line.trim_start_matches(' '));
+            signature.push('\n');
+        } else {
+            break;
+        }
+    }
+    assert!(found, "public identity root must include outer gpgsig");
+
+    let time = git::raw::Time::new(1700000000, 0);
+    let author = git::raw::Signature::new("Bob", "bob@example.invalid", &time).unwrap();
+    let wrapper_buffer = repo
+        .raw()
+        .commit_create_buffer(
+            &author.clone(),
+            &author,
+            "Rewrapped historical identity root",
+            &tree,
+            &[],
+        )
+        .unwrap();
+    let wrapper_content = std::str::from_utf8(&wrapper_buffer).unwrap();
+    let wrapper = repo
+        .raw()
+        .commit_signed(wrapper_content, &signature, None)
+        .unwrap();
+    let cob_ref = format!(
+        "refs/namespaces/{}/refs/cobs/{}/{}",
+        remote,
+        *radicle::cob::identity::TYPENAME,
+        wrapper
+    );
+
+    repo.raw().reference(&cob_ref, wrapper, true, "").unwrap();
+
+    repo.raw().reference(&id_ref, wrapper, true, "").unwrap();
+
+    repo.raw().reference(&root_ref, wrapper, true, "").unwrap();
+
+    repo.sign_refs(&bob).unwrap();
+
+    // Recompute and set the identity head, just like `rad id cache` would do.
+    repo.set_identity_head().unwrap();
+
+    assert_eq!(
+        Identity::load(&repo).unwrap().doc().visibility(),
+        &Visibility::private([])
+    );
+}
+
+#[test]
+fn replication() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -245,7 +355,7 @@ fn test_replication() {
 }
 
 #[test]
-fn test_replication_ref_in_sigrefs() {
+fn replication_ref_in_sigrefs() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -296,7 +406,7 @@ fn test_replication_ref_in_sigrefs() {
 }
 
 #[test]
-fn test_replication_invalid() {
+fn replication_invalid() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -351,7 +461,7 @@ fn test_replication_invalid() {
 }
 
 #[test]
-fn test_migrated_clone() {
+fn migrated_clone() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -408,7 +518,7 @@ fn test_migrated_clone() {
 }
 
 #[test]
-fn test_dont_fetch_owned_refs() {
+fn dont_fetch_owned_refs() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -439,7 +549,7 @@ fn test_dont_fetch_owned_refs() {
 }
 
 #[test]
-fn test_fetch_followed_remotes() {
+fn fetch_followed_remotes() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -495,7 +605,7 @@ fn test_fetch_followed_remotes() {
 }
 
 #[test]
-fn test_missing_remote() {
+fn missing_remote() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -533,7 +643,7 @@ fn test_missing_remote() {
 }
 
 #[test]
-fn test_fetch_preserve_owned_refs() {
+fn fetch_preserve_owned_refs() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -583,7 +693,7 @@ fn test_fetch_preserve_owned_refs() {
 }
 
 #[test]
-fn test_clone() {
+fn clone() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -644,7 +754,91 @@ fn test_clone() {
 }
 
 #[test]
-fn test_fetch_up_to_date() {
+fn clone_without_founder_namespace() {
+    use radicle::identity::Identity;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Node::init(tmp.path(), config::relay("amy"), 13);
+    let bob = Node::init(tmp.path(), config::relay("bob"), 37);
+    let eve = Node::init(tmp.path(), config::relay("eve"), 42);
+    let rid = amy.project("acme", "");
+
+    // Amy hands over the repository to Bob, making him the sole delegate.
+    let doc = {
+        let repo = amy.storage.repository(rid).unwrap();
+        let mut identity = Identity::load_mut(&repo, &amy.secret_key).unwrap();
+        let doc = identity
+            .doc()
+            .clone()
+            .with_edits(|doc| {
+                doc.delegate(bob.id.into());
+                assert!(doc.rescind(&amy.id.into()).unwrap());
+            })
+            .unwrap();
+        assert_eq!(doc.delegates().len(), 1);
+        let revision = identity
+            .update(Title::new("Hand over to Bob").unwrap(), "", &doc)
+            .unwrap();
+        repo.set_identity_head_to(revision).unwrap();
+
+        doc
+    };
+
+    let amy = amy.spawn();
+    let mut bob = bob.spawn();
+    bob.connect(&amy);
+    bob.handle.seed(rid, Scope::All).unwrap();
+
+    assert_matches!(
+        bob.handle
+            .fetch(rid, amy.id, DEFAULT_TIMEOUT, None)
+            .unwrap(),
+        FetchResult::Success { .. }
+    );
+
+    // Have Bob fork Amy's namespace, so that the default branch remains
+    // well defined.
+    rad::fork_remote(rid, &amy.id, &bob.signer, &bob.storage).unwrap();
+
+    bob.disconnect(&amy);
+
+    let founder = amy.id;
+    drop(amy);
+
+    let repo = bob.storage.repository(rid).unwrap();
+    let identity = Identity::load(&repo).unwrap();
+
+    assert!(!identity.doc().is_delegate(&founder.into()));
+    assert_eq!(identity.doc().delegates().len(), 1);
+    assert!(identity.doc().is_delegate(&bob.id.into()));
+
+    // Bob still has the founder's namespace.
+    assert!(
+        repo.reference_oid(&founder, &git::refs::storage::IDENTITY_ROOT)
+            .is_ok()
+    );
+
+    // Eve has no cached refs/rad/id. Fetching with followed scope must also
+    // include the founder, Amy, even though she is no longer a delegate.
+    let mut eve = eve.spawn();
+    eve.connect(&bob);
+
+    assert!(!eve.storage.contains(&rid).unwrap());
+    eve.handle.seed(rid, Scope::Followed).unwrap();
+
+    assert!(
+        eve.handle
+            .fetch(rid, bob.id, DEFAULT_TIMEOUT, None)
+            .unwrap()
+            .is_success()
+    );
+
+    let cloned = eve.storage.repository(rid).unwrap();
+    assert_eq!(cloned.identity_doc().unwrap().doc, doc);
+}
+
+#[test]
+fn fetch_up_to_date() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -677,7 +871,7 @@ fn test_fetch_up_to_date() {
 }
 
 #[test]
-fn test_fetch_unseeded() {
+fn fetch_unseeded() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -710,7 +904,7 @@ fn test_fetch_unseeded() {
 }
 
 #[test]
-fn test_large_fetch() {
+fn large_fetch() {
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -733,18 +927,18 @@ fn test_large_fetch() {
             |e| {
                 matches!(e, Event::RefsFetched { updated, .. } if !updated.is_empty()).then_some(())
             },
-            time::Duration::from_secs(9 * scale as u64),
+            time::Duration::from_secs(9 * scale.max(3) as u64),
         )
         .unwrap();
 
     let doc = bob.storage.repository(rid).unwrap().identity_doc().unwrap();
-    let proj = doc.project().unwrap();
+    let proj = doc.project().unwrap().unwrap();
 
     assert_eq!(proj.name(), "acme");
 }
 
 #[test]
-fn test_concurrent_fetches() {
+fn concurrent_fetches() {
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let repos = scale.max(4);
@@ -847,7 +1041,7 @@ fn test_concurrent_fetches() {
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.project().unwrap();
+        let proj = doc.project().unwrap().unwrap();
 
         assert!(proj.name().starts_with("bob"));
     }
@@ -858,14 +1052,14 @@ fn test_concurrent_fetches() {
             .unwrap()
             .identity_doc()
             .unwrap();
-        let proj = doc.project().unwrap();
+        let proj = doc.project().unwrap().unwrap();
 
         assert!(proj.name().starts_with("alice"));
     }
 }
 
 #[test]
-fn test_connection_crossing() {
+fn connection_crossing() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -946,7 +1140,7 @@ fn test_connection_crossing() {
 #[test]
 /// Alice is going to try to fetch outdated refs of Bob, from Eve. This is a non-fast-forward fetch
 /// on the sigrefs branch.
-fn test_non_fast_forward_sigrefs() {
+fn non_fast_forward_sigrefs() {
     let tmp = tempfile::tempdir().unwrap();
 
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1060,7 +1254,7 @@ fn test_non_fast_forward_sigrefs() {
 }
 
 #[test]
-fn test_outdated_sigrefs() {
+fn outdated_sigrefs() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1169,7 +1363,7 @@ fn test_outdated_sigrefs() {
 }
 
 #[test]
-fn test_outdated_delegate_sigrefs() {
+fn outdated_delegate_sigrefs() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1374,7 +1568,7 @@ fn missing_delegate_default_branch() {
     // Helper to assert that Bob's default branch is not in storage
     let assert_bobs_default_is_missing = |repo: &Repository| {
         let doc = repo.identity_doc().unwrap();
-        let project = doc.project().unwrap();
+        let project = doc.project().unwrap().unwrap();
         let default_branch = repo.reference(
             &bob_key,
             &radicle::git::refs::branch(project.default_branch()),
@@ -1420,7 +1614,7 @@ fn missing_delegate_default_branch() {
         "Further investigation into delegates",
     );
     let assert_bobs_issue_exists = |repo: &Repository| {
-        let issue_ref = radicle::git::refs::storage::cob(
+        let issue_ref = radicle::git::refs::storage::cob_with_namespace(
             bob.signer.public_key(),
             &radicle::cob::issue::TYPENAME,
             &issue,
@@ -1467,7 +1661,7 @@ fn missing_delegate_default_branch() {
 }
 
 #[test]
-fn test_background_foreground_fetch() {
+fn background_foreground_fetch() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1564,7 +1758,7 @@ fn test_background_foreground_fetch() {
 #[test]
 /// Alice is offline while Bob pushes some changes to the repo. When Alice reconnects,
 /// she is made aware of the changes via the `subscribe` message, and fetches from the seed.
-fn test_catchup_on_refs_announcements() {
+fn catchup_on_refs_announcements() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -1600,7 +1794,7 @@ fn test_catchup_on_refs_announcements() {
 }
 
 #[test]
-fn test_multiple_offline_inits() {
+fn multiple_offline_inits() {
     let tmp = tempfile::tempdir().unwrap();
 
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1626,7 +1820,7 @@ fn test_multiple_offline_inits() {
 }
 
 #[test]
-fn test_channel_reader_limit() {
+fn channel_reader_limit() {
     let tmp = tempfile::tempdir().unwrap();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let limits = radicle::node::config::Limits {
@@ -1671,7 +1865,7 @@ fn test_channel_reader_limit() {
 }
 
 #[test]
-fn test_fetch_emits_canonical_ref_update() {
+fn fetch_emits_canonical_ref_update() {
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -1701,7 +1895,7 @@ fn test_fetch_emits_canonical_ref_update() {
 
     let default_branch: git::fmt::Qualified = {
         let repo = alice.storage.repository(rid).unwrap();
-        let proj = repo.project().unwrap();
+        let proj = repo.identity_doc().unwrap().project().unwrap().unwrap();
         git::fmt::lit::refs_heads(proj.default_branch()).into()
     };
 
@@ -1721,7 +1915,7 @@ fn test_fetch_emits_canonical_ref_update() {
 }
 
 #[test]
-fn test_non_fast_forward_identity_doc() {
+fn non_fast_forward_identity_doc() {
     use radicle::identity::Identity;
 
     let tmp = tempfile::tempdir().unwrap();
@@ -1839,7 +2033,7 @@ fn test_non_fast_forward_identity_doc() {
 }
 
 #[test]
-fn test_block_active_connection() {
+fn block_active_connection() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -1865,7 +2059,7 @@ fn test_block_active_connection() {
 }
 
 #[test]
-fn test_block_prevents_connection() {
+fn block_prevents_connection() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -1898,7 +2092,7 @@ fn test_block_prevents_connection() {
 }
 
 #[test]
-fn test_block_prevents_fetch() {
+fn block_prevents_fetch() {
     let tmp = tempfile::tempdir().unwrap();
     let alice = Node::init(tmp.path(), config::relay("alice"), 13);
     let mut bob = Node::init(tmp.path(), config::relay("bob"), 37);
@@ -1971,7 +2165,7 @@ fn fetch_does_not_contain_rad_sigrefs_parent() {
 }
 
 #[test]
-fn test_fetch_emits_canonical_ref_update_partial_glob() {
+fn fetch_emits_canonical_ref_update_partial_glob() {
     let tmp = tempfile::tempdir().unwrap();
     let scale = config::scale();
     let mut alice = Node::init(tmp.path(), config::relay("alice"), 13);
@@ -2002,7 +2196,7 @@ fn test_fetch_emits_canonical_ref_update_partial_glob() {
                 });
 
                 raw.payload.insert(
-                    radicle::identity::doc::PayloadId::canonical_refs(),
+                    radicle::identity::doc::PayloadId::canonical_refs().clone(),
                     radicle::identity::doc::Payload::from(crefs),
                 );
             })

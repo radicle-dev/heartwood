@@ -11,7 +11,7 @@ use super::r#gen;
 
 proptest! {
     #[test]
-    fn test_submodule(
+    fn submodule(
         initial in r#gen::commit::commit(),
         commits in collection::vec(r#gen::commit::commit(), 1..5)
     ) {
@@ -20,7 +20,7 @@ proptest! {
 
     #[ignore = "segfault"]
     #[test]
-    fn test_submodule_bare(
+    fn submodule_bare(
         initial in r#gen::commit::commit(),
         commits in collection::vec(r#gen::commit::commit(), 1..5)
     ) {

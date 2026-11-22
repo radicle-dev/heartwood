@@ -355,7 +355,7 @@ where
     /// Remove an object.
     pub fn remove(&mut self, id: &ObjectId) -> Result<(), Error> {
         let namespace = self.access.signer.public_key();
-        let name = git::refs::storage::cob(namespace, self.scope.type_name, id);
+        let name = git::refs::storage::cob_with_namespace(namespace, self.scope.type_name, id);
         match self.repo.reference_oid(namespace, &name.strip_namespace()) {
             Ok(_) => {
                 cob::remove(self.repo, namespace, self.scope.type_name, id)?;

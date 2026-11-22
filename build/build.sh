@@ -1,4 +1,4 @@
-#!/bin/sh
+#! /usr/bin/env sh
 set -e
 
 main() {
@@ -23,11 +23,10 @@ main() {
   fi
 
   rev="$(git rev-parse HEAD)"
-  gitarchive="build/heartwood-$rev.tar.gz"
   keypath="$(rad path)/keys/radicle.pub"
-  version="$(build/version)"
+  version="$(build/version.sh)"
   image=radicle-build-$version
-  rust_version="$(build/rust-version)"
+  rust_version="$(build/rust-version.sh)"
 
   if [ ! -f "$keypath" ]; then
     echo "fatal: no key found at $keypath" >&2 ; exit 1
@@ -36,6 +35,7 @@ main() {
   rad auth
 
   echo "Building Radicle $version.."
+  gitarchive="build/heartwood-$version.tar.gz"
   echo "Creating archive of repository at $rev in $gitarchive.."
   git archive --format tar.gz -o "$gitarchive" HEAD
 
@@ -86,7 +86,7 @@ main "$@"
 
 # Show artifact checksums.
 echo
-build/checksums
+build/checksums.sh
 echo
 
 echo "Build successful."

@@ -378,7 +378,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_truncate() {
+    fn truncate() {
         let line = Line::default().item("banana").item("peach").item("apple");
 
         let mut actual = line.clone();
@@ -399,7 +399,7 @@ mod test {
     }
 
     #[test]
-    fn test_width() {
+    fn width() {
         // Nb. This might not display correctly in some editors or terminals.
         let line = Line::new("Radicle Heartwood Protocol & Stack ❤️🪵");
         assert_eq!(line.width(), 39, "{line}");
@@ -410,7 +410,7 @@ mod test {
     }
 
     #[test]
-    fn test_spaced() {
+    fn spaced() {
         let line = Line::spaced(["banana", "peach", "apple"].into_iter().map(Label::new));
 
         let iterated: Vec<_> = line.into_iter().collect();

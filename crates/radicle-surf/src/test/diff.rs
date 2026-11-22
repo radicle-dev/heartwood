@@ -14,7 +14,7 @@ use crate::{
 use super::platinum;
 
 #[test]
-fn test_initial_diff() -> Result<(), Error> {
+fn initial_diff() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let oid = Oid::from_str("d3464e33d75c75c99bfb90fa2e9d16efc0b7d0e3")?;
     let commit = repo.commit(oid).unwrap();
@@ -63,7 +63,7 @@ fn test_initial_diff() -> Result<(), Error> {
 }
 
 #[test]
-fn test_diff_of_rev() -> Result<(), Error> {
+fn diff_of_rev() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let diff = repo.diff_commit("80bacafba303bf0cdf6142921f430ff265f25095")?;
     assert_eq!(diff.files().count(), 1);
@@ -71,7 +71,7 @@ fn test_diff_of_rev() -> Result<(), Error> {
 }
 
 #[test]
-fn test_diff_file() -> Result<(), Error> {
+fn diff_file() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let path_buf = Path::new("README.md").to_path_buf();
     let diff = repo.diff_file(
@@ -114,7 +114,7 @@ fn test_diff_file() -> Result<(), Error> {
 }
 
 #[test]
-fn test_diff() -> Result<(), Error> {
+fn diff() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let oid = "80bacafba303bf0cdf6142921f430ff265f25095";
     let commit = repo.commit(oid).unwrap();
@@ -164,7 +164,7 @@ fn test_diff() -> Result<(), Error> {
 }
 
 #[test]
-fn test_branch_diff() -> Result<(), Error> {
+fn branch_diff() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let rev_from = Branch::local(refname!("master"));
     let rev_to = Branch::local(refname!("dev"));
@@ -215,7 +215,7 @@ fn test_branch_diff() -> Result<(), Error> {
 
 #[cfg(feature = "serde")]
 #[test]
-fn test_diff_serde() -> Result<(), Error> {
+fn diff_serde() -> Result<(), Error> {
     let repo = Repository::open(platinum::get())?;
     let rev_from = Branch::local(refname!("master"));
     let rev_to = Branch::local(refname!("diff-test"));
@@ -385,7 +385,7 @@ fn test_diff_serde() -> Result<(), Error> {
 
 #[cfg(feature = "serde")]
 #[test]
-fn test_rename_with_changes() {
+fn rename_with_changes() {
     let buf = r"
 diff --git a/radicle/src/node/tracking/config.rs b/radicle-node/src/service/tracking.rs
 similarity index 96%
@@ -595,7 +595,7 @@ index 3f69208f3..cbc843c82 100644
 // https://github.com/rust-lang/rust-clippy/issues/11402
 #[allow(clippy::needless_raw_string_hashes)]
 #[test]
-fn test_both_missing_eof_newline() {
+fn both_missing_eof_newline() {
     let buf = r#"
 diff --git a/.env b/.env
 index f89e4c0..7c56eb7 100644
@@ -616,7 +616,7 @@ index f89e4c0..7c56eb7 100644
 }
 
 #[test]
-fn test_none_missing_eof_newline() {
+fn none_missing_eof_newline() {
     let buf = r#"
 diff --git a/.env b/.env
 index f89e4c0..7c56eb7 100644
@@ -635,7 +635,7 @@ index f89e4c0..7c56eb7 100644
 }
 
 #[test]
-fn test_old_missing_eof_newline() {
+fn old_missing_eof_newline() {
     let buf = r#"
 diff --git a/.env b/.env
 index f89e4c0..7c56eb7 100644
@@ -655,7 +655,7 @@ index f89e4c0..7c56eb7 100644
 }
 
 #[test]
-fn test_new_missing_eof_newline() {
+fn new_missing_eof_newline() {
     let buf = r#"
 diff --git a/.env b/.env
 index f89e4c0..7c56eb7 100644

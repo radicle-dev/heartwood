@@ -13,13 +13,13 @@ use radicle::storage::{
     Remote, RemoteId, RemoteRepository, Remotes, ValidateRepository, Validations, git::Validation,
 };
 
-use crate::git;
 use crate::git::packfile::Keepfile;
 use crate::git::refs::{Applied, Update};
 use crate::git::repository;
 use crate::sigrefs::SignedRefs;
 use crate::stage;
 use crate::stage::ProtocolStage;
+use crate::{Allowed, git};
 use crate::{Handle, refs, sigrefs, transport};
 
 /// The data size limit, 5Mb, while fetching the special refs,
@@ -321,7 +321,27 @@ impl FetchState {
                 refs_at.iter().map(|r| &r.remote).cloned().collect()
             }
             None => {
-                let followed = handle.allowed();
+                let mut followed = handle.allowed();
+
+                if let Allowed::Followed { remotes } = &mut followed {
+                    // The initial identity document is addressed by the repository ID
+                    // and was fetched with the canonical identity history. Include its
+                    // founder so a fresh clone can resolve the identity COB root even
+                    // if the founder is not a delegate anymore.
+                    let repo = handle.repository();
+                    let blob = repo
+                        .backend
+                        .find_blob((*repo.id).into())
+                        .map_err(DocError::from)
+                        .map_err(error::Canonical::Verified)?;
+
+                    let root = Doc::from_blob(&blob).map_err(error::Canonical::Verified)?;
+                    if root.delegates().len() != 1 {
+                        return Err(error::Canonical::Verified(DocError::Missing).into());
+                    }
+                    remotes.insert(PublicKey::from(*root.delegates().first()));
+                }
+
                 log::trace!("Followed nodes {followed:?}");
                 let special_refs = stage::SpecialRefs {
                     blocked: handle.blocked.clone(),

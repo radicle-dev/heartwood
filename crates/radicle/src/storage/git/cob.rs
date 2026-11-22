@@ -47,6 +47,23 @@ pub enum TypesError {
     RefFormat(#[from] git::fmt::Error),
 }
 
+/// Convert a Git reference into a COB reference.
+///
+/// A reference that does not point to a commit is skipped with a warning, so that
+/// one bad reference from any peer does not make the object or type unreadable.
+fn cob_reference(
+    reference: git::raw::Reference,
+) -> Result<Option<cob::object::Reference>, cob::object::storage::convert::Error> {
+    match cob::object::Reference::try_from(reference) {
+        Ok(reference) => Ok(Some(reference)),
+        Err(err @ cob::object::storage::convert::Error::NotCommit { .. }) => {
+            log::warn!(target: "storage", "Skipping invalid COB reference: {err}");
+            Ok(None)
+        }
+        Err(err) => Err(err),
+    }
+}
+
 impl cob::Store for Repository {}
 
 impl change::Storage for Repository {
@@ -95,51 +112,53 @@ impl cob::object::Storage for Repository {
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<cob::object::Objects, Self::ObjectsError> {
-        let refs = self
-            .backend
-            .references_glob(git::refs::storage::cobs(typename, object_id).as_str())?;
-        let refs = refs
-            .map(|r| {
-                r.map_err(Self::ObjectsError::from).and_then(|r| {
-                    cob::object::Reference::try_from(r).map_err(Self::ObjectsError::from)
-                })
+        self.backend
+            .references_glob(&git::refs::storage::cob(typename, object_id))?
+            .try_fold(cob::object::Objects::default(), |mut objects, reference| {
+                if let Some(reference) = cob_reference(reference?)? {
+                    objects.push(reference);
+                }
+                Ok(objects)
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(refs.into())
     }
 
     fn types(
         &self,
         typename: &cob::TypeName,
     ) -> Result<BTreeMap<cob::ObjectId, cob::object::Objects>, Self::TypesError> {
-        // TODO: Use glob here.
-        let mut references = self.backend.references()?.filter_map(|reference| {
-            let reference = reference.ok()?;
-            match RefStr::try_from_str(reference.name().ok()?) {
-                Ok(name) => {
-                    let (ty, object_id) = cob::object::parse_refstr(&name)?;
-                    if ty == *typename {
-                        Some(
-                            cob::object::Reference::try_from(reference)
-                                .map_err(Self::TypesError::from)
-                                .map(|reference| (object_id, reference)),
-                        )
-                    } else {
-                        None
+        self.backend
+            .references_glob(&git::refs::storage::cobs(typename))?
+            .filter_map(Result::ok)
+            .filter_map(
+                |reference| match RefStr::try_from_str(reference.name().ok()?) {
+                    Ok(name) => {
+                        let (ty, object_id) = cob::object::parse_refstr(&name)?;
+                        debug_assert_eq!(ty, *typename);
+                        Some(Ok((object_id, reference)))
                     }
-                }
-                Err(err) => Some(Err(err.into())),
-            }
-        });
-
-        references.try_fold(BTreeMap::new(), |mut objects, result| {
-            let (oid, reference) = result?;
-            objects
-                .entry(oid)
-                .and_modify(|objs: &mut cob::object::Objects| objs.push(reference.clone()))
-                .or_insert_with(|| cob::object::Objects::new(reference));
-            Ok(objects)
-        })
+                    Err(err) => Some(Err(err.into())),
+                },
+            )
+            .filter_map(
+                |result: Result<(ObjectId, git2::Reference<'_>), Self::TypesError>| match result {
+                    Ok((object_id, reference)) => match cob_reference(reference) {
+                        Ok(Some(reference)) => {
+                            Some(Ok::<_, Self::TypesError>((object_id, reference)))
+                        }
+                        Ok(None) => None,
+                        Err(err) => Some(Err(err.into())),
+                    },
+                    Err(err) => Some(Err(err)),
+                },
+            )
+            .try_fold(BTreeMap::new(), |mut objects, result| {
+                let (oid, reference) = result?;
+                objects
+                    .entry(oid)
+                    .and_modify(|objs: &mut cob::object::Objects| objs.push(reference.clone()))
+                    .or_insert_with(|| cob::object::Objects::new(reference));
+                Ok(objects)
+            })
     }
 
     fn update(
@@ -150,7 +169,7 @@ impl cob::object::Storage for Repository {
         entry: &cob::EntryId,
     ) -> Result<(), Self::UpdateError> {
         self.backend.reference(
-            git::refs::storage::cob(namespace, typename, object_id).as_str(),
+            git::refs::storage::cob_with_namespace(namespace, typename, object_id).as_str(),
             (*entry).into(),
             true,
             &format!(
@@ -167,9 +186,9 @@ impl cob::object::Storage for Repository {
         typename: &cob::TypeName,
         object_id: &cob::ObjectId,
     ) -> Result<(), Self::RemoveError> {
-        let mut reference = self
-            .backend
-            .find_reference(git::refs::storage::cob(namespace, typename, object_id).as_str())?;
+        let mut reference = self.backend.find_reference(
+            git::refs::storage::cob_with_namespace(namespace, typename, object_id).as_str(),
+        )?;
 
         reference.delete()
     }
@@ -365,10 +384,6 @@ impl<R: storage::ReadRepository> ReadRepository for DraftStore<'_, R> {
         self.repo.identity_root()
     }
 
-    fn identity_root_of(&self, remote: &RemoteId) -> Result<Oid, RepositoryError> {
-        self.repo.identity_root_of(remote)
-    }
-
     fn canonical_identity_head(&self) -> Result<Oid, RepositoryError> {
         self.repo.canonical_identity_head()
     }
@@ -396,7 +411,7 @@ impl<R: storage::WriteRepository> cob::object::Storage for DraftStore<'_, R> {
         // First get the signed COB tips of all remotes for this object.
         let signed = self
             .repo
-            .references_glob(&git::refs::storage::cobs(typename, object_id))?;
+            .references_glob(&git::refs::storage::cob(typename, object_id))?;
 
         for (r, id) in signed {
             let r = cob::object::Reference {

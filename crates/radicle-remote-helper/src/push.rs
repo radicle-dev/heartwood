@@ -850,7 +850,17 @@ where
             patch_merge_all(old, head, dst, working, &mut patches, signer, &identity)?;
         }
     }
-    Ok(Some(ExplorerResource::Tree { oid: head }))
+    // Annotated tags point to a tag object, but the explorer can only show
+    // the tree of a commit.
+    let resource = working
+        .find_object(head.into(), None)?
+        .peel_to_commit()
+        .ok()
+        .map(|commit| ExplorerResource::Tree {
+            oid: commit.id().into(),
+        });
+
+    Ok(resource)
 }
 
 /// Revert all patches that are no longer included in the base branch.

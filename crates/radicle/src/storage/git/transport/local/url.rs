@@ -106,7 +106,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_url_parse() {
+    fn url_parse() {
         let repo = RepoId::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();
@@ -142,7 +142,7 @@ mod test {
     }
 
     #[test]
-    fn test_url_to_string() {
+    fn url_to_string() {
         let repo = RepoId::from_canonical("z2w8RArM3gaBXZxXhQUswE3hhLcss").unwrap();
         let namespace =
             Namespace::from_str("z6Mkifeb5NPS6j7JP72kEQEeuqMTpCAVcHsJi1C86jGTzHRi").unwrap();

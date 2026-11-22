@@ -465,7 +465,7 @@ mod test {
     use crate::test::arbitrary;
 
     #[test]
-    fn test_follow_and_unfollow_node() {
+    fn follow_and_unfollow_node() {
         let id = arbitrary::r#gen::<NodeId>(1);
         let mut db = Store::open(":memory:").unwrap();
         let eve = Alias::new("eve");
@@ -478,7 +478,7 @@ mod test {
     }
 
     #[test]
-    fn test_seed_and_unseed_repo() {
+    fn seed_and_unseed_repo() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -490,7 +490,7 @@ mod test {
     }
 
     #[test]
-    fn test_node_policies() {
+    fn node_policies() {
         let ids = arbitrary::vec::<NodeId>(3);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -504,7 +504,7 @@ mod test {
     }
 
     #[test]
-    fn test_repo_policies() {
+    fn repo_policies() {
         let ids = arbitrary::vec::<RepoId>(3);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -518,7 +518,7 @@ mod test {
     }
 
     #[test]
-    fn test_update_alias() {
+    fn update_alias() {
         let id = arbitrary::r#gen::<NodeId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -538,7 +538,7 @@ mod test {
     }
 
     #[test]
-    fn test_update_scope() {
+    fn update_scope() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -555,7 +555,7 @@ mod test {
     }
 
     #[test]
-    fn test_repo_policy() {
+    fn repo_policy() {
         let id = arbitrary::r#gen::<RepoId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -567,7 +567,7 @@ mod test {
     }
 
     #[test]
-    fn test_node_policy() {
+    fn node_policy() {
         let id = arbitrary::r#gen::<NodeId>(1);
         let mut db = Store::open(":memory:").unwrap();
 
@@ -584,7 +584,7 @@ mod test {
     }
 
     #[test]
-    fn test_node_aliases() {
+    fn node_aliases() {
         let mut db = Store::open(":memory:").unwrap();
         let input = node::properties::AliasInput::new();
         let (short, short_ids) = input.short();

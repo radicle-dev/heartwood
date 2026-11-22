@@ -19,8 +19,7 @@ use crate::cob::identity;
 use crate::crypto;
 use crate::crypto::Signature;
 use crate::git;
-use crate::git::canonical::rules;
-use crate::git::canonical::symbolic;
+use crate::git::canonical::rules::{self, ResolvedDelegates};
 use crate::git::fmt::Qualified;
 use crate::git::fmt::RefString;
 use crate::git::raw::ErrorExt as _;
@@ -227,22 +226,21 @@ impl FromStr for PayloadId {
     }
 }
 
+static CANONICAL_REFS: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.crefs"));
+static PROJECT: LazyLock<PayloadId> = LazyLock::new(|| PayloadId::new("xyz.radicle.project"));
+
 impl PayloadId {
-    /// Project payload type.
-    pub fn project() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.project")
-                .expect("PayloadId::project: type name is valid"),
-        )
+    pub fn canonical_refs() -> &'static Self {
+        &CANONICAL_REFS
     }
 
-    pub fn canonical_refs() -> Self {
-        Self(
-            // SAFETY: We know this is valid.
-            TypeName::from_str("xyz.radicle.crefs")
-                .expect("PayloadId::canonical_refs: type name is valid"),
-        )
+    pub fn project() -> &'static Self {
+        &PROJECT
+    }
+
+    #[inline]
+    fn new(type_name: &'static str) -> Self {
+        Self::from_str(type_name).expect("type_name is valid")
     }
 }
 
@@ -250,8 +248,6 @@ impl PayloadId {
 pub enum PayloadError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
-    #[error("payload '{0}' not found in identity document")]
-    NotFound(PayloadId),
 }
 
 /// A `Payload` is a free-form JSON value that can be associated with an
@@ -293,6 +289,26 @@ impl Deref for Payload {
 /// Trait for all types that may carry payloads.
 pub trait GetPayload {
     fn get_payload(&self, id: &PayloadId) -> Option<&Payload>;
+
+    fn load_payload<T: de::DeserializeOwned>(
+        &self,
+        id: &PayloadId,
+    ) -> Option<Result<T, PayloadError>> {
+        self.get_payload(id).map(|payload| {
+            serde_json::from_value(payload.deref().clone()).map_err(PayloadError::Json)
+        })
+    }
+
+    /// Get the [`Project`] by deserializing from the payload.
+    fn project(&self) -> Option<Result<Project, PayloadError>> {
+        self.load_payload(PayloadId::project())
+    }
+
+    /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
+    /// (if present).
+    fn raw_canonical_refs(&self) -> Option<Result<RawCanonicalRefs, PayloadError>> {
+        self.load_payload(PayloadId::canonical_refs())
+    }
 }
 
 impl GetPayload for Doc {
@@ -436,7 +452,7 @@ impl RawDoc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates,
             threshold,
             visibility,
@@ -446,17 +462,6 @@ impl RawDoc {
     /// Get the version of the document.
     pub fn version(&self) -> &Version {
         &self.version
-    }
-
-    /// Get the project payload, if it exists and is valid, out of this document.
-    pub fn project(&self) -> Result<Project, PayloadError> {
-        let value = self
-            .payload
-            .get(&PayloadId::project())
-            .ok_or_else(|| PayloadError::NotFound(PayloadId::project()))?;
-        let proj: Project = serde_json::from_value((**value).clone())?;
-
-        Ok(proj)
     }
 
     /// Check if the given `did` is in the set of [`RawDoc::delegates`].
@@ -707,7 +712,7 @@ impl Doc {
 
         Self {
             version: IDENTITY_VERSION,
-            payload: BTreeMap::from_iter([(PayloadId::project(), Payload::from(project))]),
+            payload: BTreeMap::from_iter([(PayloadId::project().clone(), Payload::from(project))]),
             delegates: Delegates(NonEmpty::new(delegate)),
             threshold: Threshold(NonZeroUsize::MIN),
             visibility,
@@ -759,17 +764,6 @@ impl Doc {
         &self.payload
     }
 
-    /// Get the project payload, if it exists and is valid, out of this document.
-    pub fn project(&self) -> Result<Project, PayloadError> {
-        let value = self
-            .payload
-            .get(&PayloadId::project())
-            .ok_or_else(|| PayloadError::NotFound(PayloadId::project()))?;
-        let proj: Project = serde_json::from_value((**value).clone())?;
-
-        Ok(proj)
-    }
-
     /// Gets the qualified reference name of the default branch,
     /// according to payloads `xyz.radicle.project` and `xyz.radicle.crefs`
     /// in this document.
@@ -780,6 +774,14 @@ impl Doc {
             .resolve_head()
             .ok_or(DefaultBranchError::MissingHead)?;
         Ok(qualified.to_owned())
+    }
+
+    pub fn default_branch_name(&self) -> Result<git::fmt::RefString, DefaultBranchError> {
+        let qualified = self.default_branch()?;
+        Ok(qualified
+            .strip_prefix(RefString::try_from("refs/heads").expect("valid refstring"))
+            .expect("valid branch")
+            .to_ref_string())
     }
 
     /// Construct the canonical references for this document.
@@ -805,16 +807,23 @@ impl Doc {
     ///
     /// [`RawCanonicalRefs`]: super::crefs::RawCanonicalRefs
     pub fn canonical_refs(&self) -> Result<CanonicalRefs, CanonicalRefsError> {
-        let mut raw_crefs = self.raw_canonical_refs()?.unwrap_or_default();
         let resolve = &mut || self.delegates.clone();
+        let crefs = self
+            .raw_canonical_refs()
+            .transpose()
+            .map_err(CanonicalRefsError::Payload)?
+            .map(|crefs| crefs.try_into_canonical_refs(resolve))
+            .transpose()
+            .map_err(CanonicalRefsError::CanonicalRefs)?
+            .unwrap_or_default();
 
         // Determine where `HEAD` comes from. The `resolve_head()` result
         // borrows `raw_crefs`, so clone to allow mutation in the synthesis
         // path.
-        let head: Option<Qualified<'static>> = raw_crefs.symbolic().resolve_head().cloned();
+        let head: Option<Qualified<'static>> = crefs.symbolic().resolve_head().cloned();
 
         match (head, self.project()) {
-            (Some(ref default_branch), Ok(project)) => {
+            (Some(ref default_branch), Some(Ok(project))) => {
                 let project_branch = project.default_branch_qualified();
                 if project_branch != *default_branch {
                     return Err(CanonicalRefsError::DefaultBranchRuleError(
@@ -824,20 +833,25 @@ impl Doc {
                         },
                     ));
                 }
-                self.validate_head_rule(&raw_crefs, default_branch)?;
+                self.validate_head_rule(&crefs, default_branch)?;
             }
-            (Some(ref default_branch), Err(_)) => {
-                self.validate_head_rule(&raw_crefs, default_branch)?;
+            (Some(ref default_branch), None) => {
+                self.validate_head_rule(&crefs, default_branch)?;
             }
-            (None, Ok(project)) => {
-                self.synthesize_head(&mut raw_crefs, &project)?;
+            (None, Some(Ok(project))) => {
+                return Ok(self
+                    .synthesize_head(crefs, &project)
+                    .try_into_canonical_refs(resolve)?);
             }
-            (None, Err(err)) => {
-                return Err(CanonicalRefsError::SynthesisPayloadMissing(err));
+            (None, None) => {
+                return Err(CanonicalRefsError::SynthesisPayloadMissing);
+            }
+            (_, Some(Err(err))) => {
+                return Err(CanonicalRefsError::ProjectPayload(err));
             }
         }
 
-        Ok(raw_crefs.try_into_canonical_refs(resolve)?)
+        Ok(crefs)
     }
 
     /// Validate that the rule matching `HEAD`'s target branch uses
@@ -847,23 +861,32 @@ impl Doc {
     /// later by [`RawCanonicalRefs::try_into_canonical_refs`] validation.
     fn validate_head_rule(
         &self,
-        raw_crefs: &RawCanonicalRefs,
-        default_branch: &Qualified,
+        crefs: &CanonicalRefs,
+        default_branch: &Qualified<'static>,
     ) -> Result<(), CanonicalRefsError> {
-        let Some((pattern, rule)) = raw_crefs.raw_rules().matches(default_branch).next() else {
+        let Some((pattern, rule)) = crefs.rules().matches(default_branch).next() else {
             return Ok(());
         };
 
-        let allowed = rule.allowed();
-        if *allowed != rules::Allowed::Delegates {
-            return Err(CanonicalRefsError::DefaultBranchRuleError(
-                DefaultBranchRuleError::Allowed {
-                    pattern: pattern.to_string(),
-                    actual: allowed.to_string(),
-                },
-            ));
+        let _allowed = rule.allowed();
+        match rule.allowed() {
+            ResolvedDelegates::Delegates(_) => {
+                // This is the expected case, so we continue to validate the threshold.
+            }
+            ResolvedDelegates::Set(actual) => {
+                return Err(CanonicalRefsError::DefaultBranchRuleError(
+                    DefaultBranchRuleError::Allowed {
+                        pattern: pattern.to_string(),
+                        actual: actual
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    },
+                ));
+            }
         }
-        let actual = *rule.threshold();
+        let actual = (*rule.threshold()).into();
         let expected = self.threshold();
         if actual != expected {
             return Err(CanonicalRefsError::DefaultBranchRuleError(
@@ -879,19 +902,14 @@ impl Doc {
 
     /// Synthesize a `HEAD` symbolic reference and a default branch rule
     /// from the project payload.
-    fn synthesize_head(
-        &self,
-        raw_crefs: &mut RawCanonicalRefs,
-        project: &Project,
-    ) -> Result<(), CanonicalRefsError> {
+    fn synthesize_head(&self, crefs: CanonicalRefs, project: &Project) -> RawCanonicalRefs {
         let default_branch = project.default_branch_qualified();
 
-        if raw_crefs
-            .raw_rules()
-            .matches(&default_branch)
-            .next()
-            .is_none()
-        {
+        let add_rule = crefs.rules().matches(&default_branch).next().is_none();
+
+        let mut raw_crefs = RawCanonicalRefs::from(crefs);
+
+        if add_rule {
             raw_crefs.raw_rules_mut().insert(
                 git::fmt::refspec::QualifiedPattern::from(default_branch.to_owned()),
                 rules::Rule::new(rules::Allowed::Delegates, self.threshold()),
@@ -900,10 +918,9 @@ impl Doc {
 
         raw_crefs
             .symbolic_mut()
-            .combine(symbolic::SymbolicRefs::head(project.default_branch()))
-            .map_err(|source| CanonicalRefsError::SynthesisCycle { source })?;
+            .insert(git::fmt::refname!("HEAD"), default_branch.to_ref_string());
 
-        Ok(())
+        raw_crefs
     }
 
     /// Return the associated [`Visibility`] of this document.
@@ -1044,7 +1061,11 @@ impl Doc {
         let cob = identity::Identity::initialize(self, repo, signer)?;
         let public_key = signer.public_key();
         let id_ref = git::refs::storage::id(public_key);
-        let cob_ref = git::refs::storage::cob(public_key, &crate::cob::identity::TYPENAME, &cob.id);
+        let cob_ref = git::refs::storage::cob_with_namespace(
+            public_key,
+            &crate::cob::identity::TYPENAME,
+            &cob.id,
+        );
         // Set `…/refs/rad/id` -> `…/refs/cobs/xyz.radicle.id/<id>`
         repo.backend.reference_symbolic(
             id_ref.as_str(),
@@ -1058,27 +1079,21 @@ impl Doc {
 }
 
 #[derive(Debug, Error)]
-pub enum RawCanonicalRefsError {
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-}
-
-#[derive(Debug, Error)]
 pub enum CanonicalRefsError {
     #[error(transparent)]
-    Raw(#[from] RawCanonicalRefsError),
+    Payload(PayloadError),
 
     #[error(transparent)]
     CanonicalRefs(#[from] crefs::ValidationError),
 
     #[error("could not load `xyz.radicle.project` to get default branch name: {0}")]
-    SynthesisPayloadMissing(PayloadError),
+    ProjectPayload(PayloadError),
+
+    #[error("payload `xyz.radicle.project` is missing")]
+    SynthesisPayloadMissing,
 
     #[error(transparent)]
     DefaultBranchRuleError(#[from] DefaultBranchRuleError),
-
-    #[error("synthesizing canonical references from project payload failed: {source}")]
-    SynthesisCycle { source: symbolic::InsertionError },
 }
 
 #[derive(Debug, Error)]
@@ -1103,22 +1118,6 @@ pub enum DefaultBranchRuleError {
     HeadMismatch { cref: RefString, project: RefString },
 }
 
-pub trait GetRawCanonicalRefs: GetPayload {
-    /// Retrieve the [`RawCanonicalRefs`] by deserializing from the payload
-    /// (if present).
-    fn raw_canonical_refs(&self) -> Result<Option<RawCanonicalRefs>, RawCanonicalRefsError> {
-        let Some(value) = self.get_payload(&PayloadId::canonical_refs()) else {
-            return Ok(None);
-        };
-
-        Ok(Some(serde_json::from_value(value.to_owned().into_inner())?))
-    }
-}
-
-impl GetRawCanonicalRefs for Doc {}
-
-impl GetRawCanonicalRefs for RawDoc {}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
@@ -1138,7 +1137,7 @@ mod test {
     use qcheck_macros::quickcheck;
 
     #[test]
-    fn test_duplicate_dids() {
+    fn duplicate_dids() {
         let delegate = SigningKey::mock(usize::MAX);
         let did = Did::from(delegate.public_key());
         let mut doc = RawDoc::new(r#gen::<Project>(1), vec![did], 1, Visibility::Public);
@@ -1149,7 +1148,7 @@ mod test {
     }
 
     #[test]
-    fn test_max_delegates() {
+    fn max_delegates() {
         // Generate more than the max delegates
         let delegates = arbitrary::set::<Did>(MAX_DELEGATES + 1..=MAX_DELEGATES + 1)
             .into_iter()
@@ -1170,7 +1169,7 @@ mod test {
     }
 
     #[test]
-    fn test_is_valid_version() {
+    fn is_valid_version() {
         // 0 is not a valid version
         assert!(!Version::is_valid_version(&0));
 
@@ -1185,7 +1184,7 @@ mod test {
     }
 
     #[test]
-    fn test_future_version_error() {
+    fn future_version_error() {
         let v = Version(NonZeroU32::MAX).to_string();
         assert_eq!(
             serde_json::from_str::<Version>(&v)
@@ -1196,7 +1195,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_version() {
+    fn parse_version() {
         // Original document before introducing the version field
         let v1 = json!(
             {
@@ -1220,7 +1219,7 @@ mod test {
         // `IDENTITY_VERSION`.
         let doc = serde_json::from_str::<RawDoc>(&v1.to_string()).unwrap();
         let payload = [(
-            PayloadId::project(),
+            PayloadId::project().clone(),
             Payload {
                 value: json!({
                     "name": "heartwood",
@@ -1270,7 +1269,7 @@ mod test {
     }
 
     #[test]
-    fn test_canonical_example() {
+    fn canonical_example() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
 
@@ -1301,7 +1300,7 @@ mod test {
     }
 
     #[test]
-    fn test_not_found() {
+    fn not_found() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         let remote = arbitrary::r#gen::<RemoteId>(1);
@@ -1320,7 +1319,7 @@ mod test {
     }
 
     #[test]
-    fn test_canonical_doc() {
+    fn canonical_doc() {
         let tempdir = tempfile::tempdir().unwrap();
         let storage = Storage::open(tempdir.path().join("storage"), fixtures::user()).unwrap();
         transport::local::register(storage.clone());
@@ -1350,7 +1349,7 @@ mod test {
     }
 
     #[test]
-    fn test_visibility_json() {
+    fn visibility_json() {
         use std::str::FromStr;
 
         assert_eq!(
@@ -1368,6 +1367,45 @@ mod test {
             .unwrap()]))
             .unwrap(),
             serde_json::json!({ "type": "private", "allow": ["did:key:z6MksFqXN3Yhqk8pTJdUGLwATkRfQvwZXPqR2qMEhbS9wzpT"] })
+        );
+    }
+
+    /// A [`Doc`] containing symbolic references that contain a chain must still
+    /// be readable after [`Doc::encode`]
+    #[test]
+    fn encode_preserves_symbolic_chain() {
+        let value = json!({
+            "payload": {
+                "xyz.radicle.crefs": {
+                    "symbolic": {
+                        "MAIN": "refs/heads/master",
+                        "HEAD": "MAIN",
+                    },
+                    "rules": {
+                        "refs/heads/master": { "allow": "delegates", "threshold": 1 }
+                    }
+                }
+            },
+            "delegates": ["did:key:z6MkireRatUThvd3qzfKht1S44wpm4FEWSSa4PRMTSQZ3voM"],
+            "threshold": 1
+        });
+
+        let doc = serde_json::from_value::<Doc>(value).unwrap();
+        doc.canonical_refs()
+            .expect("symref chain is valid before encoding");
+
+        let (_, bytes) = doc.encode().unwrap();
+        let decoded = RawDoc::from_json(&bytes).unwrap().verified().unwrap();
+
+        assert_eq!(decoded, doc);
+        assert_eq!(
+            decoded
+                .canonical_refs()
+                .expect("symref chain is still valid after encoding")
+                .symbolic()
+                .resolve_head()
+                .map(|q| q.to_string()),
+            Some("refs/heads/master".to_owned()),
         );
     }
 

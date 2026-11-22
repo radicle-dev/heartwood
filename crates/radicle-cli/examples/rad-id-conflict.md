@@ -25,7 +25,8 @@ $ rad id update --title "Edit project name" --description "" --payload "xyz.radi
 ```
 
 When Alice syncs with Bob, she notices the problem: there are two active
-revisions.
+revisions, and because she's created one of them she has implicitly voted
+for it.
 
 ``` ~alice
 $ rad sync --fetch rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
@@ -38,13 +39,57 @@ $ rad id list
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   active     now       0ca42d3 │
 │ ●   12d7300   Edit project name   alice    (you)                                              active     now       0ca42d3 │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+│ ✓   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active
+  ✓ accepted
+  ✗ rejected:
+    ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
+$ rad id show 12d7300
+╭────────────────────────────────────────────────────────────────────────╮
+│ Title    Edit project name                                             │
+│ Revision 12d7300d1bbba84e4e5760c8c61999bf5fefb81a                      │
+│ Parent   0ca42d376bd566631083c8913cf86bec722da392                      │
+│ Blob     e93aa3e3c5c448bacd3537a81daf1437eccd046a                      │
+│ Author   did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi      │
+│ State    active                                                        │
+│ Quorum   no                                                            │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi alice (you) │
+│ ? did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk bob         │
+╰────────────────────────────────────────────────────────────────────────╯
+
+@@ -1,14 +1,14 @@
+ {
+   "payload": {
+     "xyz.radicle.project": {
+       "defaultBranch": "master",
+       "description": "Radicle Heartwood Protocol & Stack",
+-      "name": "heartwood"
++      "name": "heart"
+     }
+   },
+   "delegates": [
+     "did:key:z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi",
+     "did:key:z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk"
+   ],
+   "threshold": 2
+ }
 ```
 
-This isn't a problem as long as we don't try to accept both. Alice decides to
-go with Bob's proposal, so she redacts her own first and then accepts his:
+If she tries to accept Bob's revision she'll receive an appropriate error:
+
+``` ~alice (fail)
+$ rad id accept 89b2623
+✗ Error: apply failed: delegate already accepted a sibling revision '12d7300d1bbba84e4e5760c8c61999bf5fefb81a'
+```
+
+However this isn't a problem as long as we don't try to accept both. Alice 
+decides to go with Bob's proposal, so she redacts her own first and then 
+accepts his:
 
 ``` ~alice
 $ rad id redact 12d7300 -q
@@ -53,10 +98,16 @@ $ rad id list
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title               Author                                                      Status     Created   Parent  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
-│ ●   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
-│ ●   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
+│ ✓   89b2623   Edit project name   bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       0ca42d3 │
+│ ✓   0ca42d3   Add Bob             alice    (you)                                              accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision    alice    (you)                                              accepted   now       none    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active
+  ✓ accepted
+  ✗ rejected:
+    ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
 ```
 
 Alice's revision was redacted and is no longer visible. Bob syncs and sees

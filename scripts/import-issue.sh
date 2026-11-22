@@ -1,4 +1,4 @@
-#!/bin/bash
+#! /usr/bin/env sh
 #
 # Import a GitHub issue into Radicle.
 #
@@ -16,25 +16,8 @@ if ! command -v rad > /dev/null; then
   echo "Error: rad is not installed" ; exit 1
 fi
 
-if ! command -v pcregrep > /dev/null; then
-  echo "Error: pcregrep is not installed" ; exit 1
-fi
-
-if ! command -v sed > /dev/null; then
-  echo "Error: sed is not installed" ; exit 1
-fi
-
-function removeImgTags {
-  local html
-  html="$(cat)"
-  local imgTags
-  imgTags="$(echo "$html" | pcregrep -M '<img [^>]*>')"
-
-  # shellcheck disable=SC2066
-  for imgTag in "$imgTags"; do
-    html="$(echo "$html" | sed -z "s@$imgTag@@")"
-  done
-  echo "$html"
+removeImgTags() {
+  jq -Rrs 'gsub("<img [^>]*>"; "")'
 }
 
 # Check if the correct number of arguments is provided
@@ -53,13 +36,17 @@ url="https://api.github.com/repos/${owner}/${repo}/issues/${issue}"
 response="$(curl -s "$url")"
 
 # Extract the title and body from the JSON response
-title="$(echo "$response" | jq -r '.title')"
-body="$(echo "$response" | jq -r '.body' | removeImgTags)"
-labels="$(echo "$response" | jq -r '.labels | .[].name')"
+title="$(printf '%s\n' "$response" | jq -r '.title')"
+body="$(printf '%s\n' "$response" | jq -r '.body' | removeImgTags)"
+labels="$(printf '%s\n' "$response" | jq -r '.labels | .[].name')"
 
-tags=()
-for label in $labels; do
-  tags+=("--label" "$label")
-done
+set --
+while IFS= read -r label; do
+  if [ -n "$label" ]; then
+    set -- "$@" --label "$label"
+  fi
+done <<EOF
+$labels
+EOF
 
-rad issue open --title "$title" "${tags[@]}" --description "$body" --no-announce
+rad issue open --title "$title" "$@" --description "$body" --no-announce

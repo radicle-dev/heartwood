@@ -16,13 +16,13 @@ fn tree_serialization() {
           "name": "Eval.hs",
           "kind": "blob",
           "oid": "7d6240123a8d8ea8a8376610168a0a4bcb96afd0",
-          "commit": "src/Eval.hs"
+          "commit": PathBuf::from("src").join("Eval.hs")
         },
         {
           "name": "memory.rs",
           "kind": "blob",
           "oid": "b84992d24be67536837f5ab45a943f1b3f501878",
-          "commit": "src/memory.rs"
+          "commit": PathBuf::from("src").join("memory.rs")
         }
       ],
       "commit": {
@@ -56,7 +56,7 @@ fn tree_serialization() {
 }
 
 #[test]
-fn test_tree_last_commit() {
+fn tree_last_commit() {
     let repo = Repository::open(platinum::get()).unwrap();
     let tree = repo.tree(refname!("refs/heads/master"), &"src").unwrap();
     let last_commit = tree.last_commit(&repo).unwrap();
@@ -200,7 +200,9 @@ fn commit_branches() {
 
     assert_eq!(branches.len(), 11);
 
-    let refnames: Vec<_> = branches.iter().map(|b| b.refname().to_string()).collect();
+    let mut refnames: Vec<_> = branches.iter().map(|b| b.refname().to_string()).collect();
+    refnames.sort();
+
     assert_eq!(
         refnames,
         vec![

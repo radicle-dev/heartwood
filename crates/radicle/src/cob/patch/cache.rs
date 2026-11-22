@@ -766,7 +766,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_empty() {
+    fn is_empty() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         assert!(cache.is_empty().unwrap());
@@ -794,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    fn test_counts() {
+    fn counts() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let n_open = arbitrary::r#gen::<u8>(0);
@@ -882,7 +882,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get() {
+    fn get() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
@@ -918,7 +918,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_by_revision() {
+    fn find_by_revision() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let patch_id = PatchId::from(arbitrary::oid());
@@ -960,7 +960,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list() {
+    fn list() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
@@ -991,7 +991,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_by_status() {
+    fn list_by_status() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))
@@ -1022,7 +1022,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove() {
+    fn remove() {
         let repo = arbitrary::r#gen::<MockRepository>(1);
         let mut cache = memory(&repo);
         let ids = (0..arbitrary::r#gen::<u8>(1))

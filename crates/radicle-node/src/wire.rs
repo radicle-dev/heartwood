@@ -784,6 +784,9 @@ where
                                 data: FrameData::Git(data),
                                 ..
                             })) => {
+                                // Counts as liveness: this peer is sending something
+                                self.service.received_bytes(*nid);
+
                                 if let Some(s) = streams.get_mut(&stream) {
                                     metrics.received_git_bytes += data.len();
                                     // Send via channel to the worker thread
@@ -1258,9 +1261,12 @@ fn session(
         Socks5Session::new(connection, socks5)
     };
 
+    let mut random = [0; 32];
+    getrandom::fill(&mut random).expect("failed get random bytes from the operating system");
+
     let noise = {
         let keyset = Keyset {
-            e: crypto::SigningKey::from_seed(crypto::Seed::new([91; 32])),
+            e: crypto::SigningKey::from_seed(crypto::Seed::new(random)),
             s: Some(secret_key),
             re: None,
             rs: remote_id,
@@ -1302,7 +1308,7 @@ mod test {
     use crate::wire::varint;
 
     #[test]
-    fn test_pong_message_with_extension() {
+    fn pong_message_with_extension() {
         use protocol::deserializer;
 
         let mut stream = Vec::new();
@@ -1333,7 +1339,7 @@ mod test {
     }
 
     #[test]
-    fn test_inventory_ann_with_extension() {
+    fn inventory_ann_with_extension() {
         use protocol::deserializer;
 
         #[derive(Debug)]

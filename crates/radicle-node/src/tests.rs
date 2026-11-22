@@ -296,8 +296,8 @@ fn inventory_pruning() {
     }
 
     assert!(
-        one_second_more(ONE_WEEK) > PRUNE_INTERVAL,
-        "pruning must be triggered"
+        one_second_more(PRUNE_INTERVAL) < ONE_WEEK,
+        "entries must not expire before pruning is triggered"
     );
 
     struct Test {
@@ -314,7 +314,7 @@ fn inventory_pruning() {
             },
             expected_routing_table_size: 0,
         },
-        // All entries are too young to expire.
+        // All entries are too young to expire, but the size limit removes them.
         Test {
             limits: Limits {
                 routing_max_size: 0.into(),
@@ -332,7 +332,7 @@ fn inventory_pruning() {
             },
             expected_routing_table_size: 5,
         },
-        // All entries remain because the table constraints are so lax.
+        // Half the entries remain because the table is constrained.
         Test {
             limits: Limits {
                 routing_max_size: 25.into(),
@@ -384,8 +384,8 @@ fn inventory_pruning() {
             );
         }
 
-        // Wait for things to happen
-        amy.elapse(one_second_more(ONE_WEEK));
+        // Trigger pruning while entries with a one-week age limit are still young.
+        amy.elapse(one_second_more(PRUNE_INTERVAL));
 
         assert_eq!(
             test.expected_routing_table_size,
@@ -482,12 +482,22 @@ fn announcement_rebroadcast() {
 }
 
 #[test]
-fn announcement_rebroadcast_duplicates() {
+fn announcement_rebroadcast_deduplicates() {
     let mut cid = Peer::cid();
     let mut amy = Peer::amy();
     let bob = Peer::bob();
     let dan = Peer::dan();
     let rids = arbitrary::set::<RepoId>(3..=3);
+
+    for rid in &rids {
+        let mut repo = r#gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| doc.visibility = Visibility::Public)
+            .unwrap();
+        amy.storage_mut().repos.insert(*rid, repo);
+    }
 
     amy.connect_to(&bob);
     amy.receive(*bob.nid(), cid.node_announcement());
@@ -589,6 +599,27 @@ fn announcement_rebroadcast_timestamp_filtered() {
 
     assert_eq!(relayed.len(), second.len());
     assert_eq!(relayed, second);
+}
+
+#[test]
+fn announcement_rebroadcast_inverted_range() {
+    let mut amy = Peer::amy();
+    let bob = Peer::bob();
+    let cid = Peer::cid();
+
+    amy.connect_to(&bob);
+    amy.connect_from(&cid);
+    amy.outbox().for_each(drop);
+
+    amy.receive(
+        *cid.nid(),
+        Message::Subscribe(Subscribe {
+            filter: Filter::default(),
+            since: Timestamp::MAX,
+            until: Timestamp::MIN,
+        }),
+    );
+    assert_eq!(amy.relayed(*cid.nid()).count(), 0);
 }
 
 #[test]
@@ -800,6 +831,68 @@ fn refs_announcement_relay_private() {
             ..
         })),
         "The second ref announcement is relayed to Cid"
+    );
+}
+
+#[test]
+fn refs_announcement_subscribe_private() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut amy = Peer::amy();
+    let cid = Peer::with_storage(
+        "cid",
+        CID,
+        Storage::open(tmp.path().join("cid"), fixtures::user()).unwrap(),
+    );
+
+    let bob = {
+        let signer = SigningKey::mock(BOB as usize);
+        let storage = fixtures::storage(tmp.path().join("bob"), &signer).unwrap();
+
+        Peer::with_storage("bob", BOB, storage)
+    };
+
+    // Amy holds the repo, and it isn't visible to Cid.
+    let repo = {
+        let mut repo = r#gen::<MockRepository>(1);
+        repo.doc.doc = repo
+            .doc
+            .doc
+            .with_edits(|doc| {
+                doc.visibility = Visibility::Private {
+                    allow: [(*amy.nid()).into(), (*bob.nid()).into()].into(),
+                };
+            })
+            .unwrap();
+        repo
+    };
+    let private = repo.id;
+
+    amy.seed(&repo.id, policy::Scope::All).unwrap();
+    amy.storage_mut().repos.insert(private, repo);
+
+    amy.connect_to(&bob);
+    amy.connect_to(&cid);
+
+    // Amy stores Bob's announcement *before* Cid subscribes.
+    amy.receive(*bob.nid(), bob.refs_announcement(private));
+    amy.messages(*cid.nid()).for_each(drop);
+
+    // Cid subscribes with the default filter, which matches every repo.
+    amy.receive(*cid.nid(), Message::Subscribe(Subscribe::all()));
+
+    let private_refs_announcement = amy.messages(*cid.nid()).find(|m| {
+        matches!(
+            m,
+            Message::Announcement(Announcement {
+                message: AnnouncementMessage::Refs(RefsAnnouncement { rid, .. }),
+                ..
+            }) if *rid == private
+        )
+    });
+    assert_matches!(
+        private_refs_announcement,
+        None,
+        "The refs announcement for private repo {private} is not sent to Cid"
     );
 }
 
@@ -1104,6 +1197,65 @@ fn inventory_relay() {
         }))
         if node == *cid.nid() && timestamp == now
     );
+}
+
+#[test]
+fn inventory_relay_after_link_drop() {
+    let time = LocalTime::from_secs(1_700_000_000);
+    let tmp = tempfile::tempdir().unwrap();
+    let peer = |name: &'static str, id| {
+        let storage = Storage::open(tmp.path().join(name), fixtures::user()).unwrap();
+        // Only connect to peers we are told to connect to.
+        Peer::new_with(name, id, storage, |c| {
+            c.local_time = time;
+            c.config.peers = PeerConfig::Static;
+        })
+    };
+    let mut amy = peer("amy", AMY);
+    let mut bob = peer("bob", BOB);
+    let mut cid = peer("cid", CID);
+    let mut sim = Simulation::with_seed(time, 1, simulator::Options::default());
+
+    // Cid learns about Amy's inventory through Bob: amy <-> bob <-> cid.
+    let acme = amy.project("acme", "");
+    amy.command(Command::add_inventory(acme).0);
+    amy.command(Command::Connect(
+        *bob.nid(),
+        bob.address(),
+        ConnectOptions::default(),
+    ));
+    bob.command(Command::Connect(
+        *cid.nid(),
+        cid.address(),
+        ConnectOptions::default(),
+    ));
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_mins(1)
+    });
+    assert!(cid.lookup(acme).unwrap().remote.contains(amy.nid()));
+
+    // Amy connects to Cid and drops Bob: amy <-> cid <-> bob.
+    amy.command(Command::Connect(
+        *cid.nid(),
+        cid.address(),
+        ConnectOptions::default(),
+    ));
+    amy.command(Command::Disconnect(*bob.nid()));
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_secs(10)
+    });
+
+    // Bob can only learn about Amy's new inventory through Cid.
+    let zeta = amy.project("zeta", "");
+    amy.command(Command::add_inventory(zeta).0);
+    sim.run_while([&mut amy, &mut bob, &mut cid], |s| {
+        s.elapsed() < LocalDuration::from_mins(1)
+    });
+    assert!(amy.sessions().connected().all(|(nid, _)| nid != bob.nid()));
+    assert!(cid.lookup(zeta).unwrap().remote.contains(amy.nid()));
+
+    // Cid relays Amy's new inventory to Bob.
+    assert!(bob.lookup(zeta).unwrap().remote.contains(amy.nid()));
 }
 
 #[test]
@@ -2052,8 +2204,10 @@ fn announcement_message_amplification() {
     // The best case is an amplification of 1.0, ie. each node receives the message once only.
     //
     // By using delayed message propagation though, we can bring this down closer to the minimum.
+    // Since every node relays to every peer it did not receive the message from, the best case
+    // here is 4 direct messages plus 3 + 2 + 1 + 0 relayed ones, an amplification of 2.5.
     log::debug!(target: "test", "Average message amplification: {amp}");
 
-    assert!(amp < 2., "Amplification factor of {amp} is too high");
+    assert!(amp < 3.25, "Amplification factor of {amp} is too high");
     assert!(amp >= 1., "Amplification can't be lower than 1");
 }

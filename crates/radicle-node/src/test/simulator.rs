@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{fmt, io, net};
+use std::{env, fmt, io, net};
 
 use localtime::{LocalDuration, LocalTime};
 use log::*;
@@ -120,6 +120,18 @@ impl Inbox {
         self.messages.insert(time, msg);
     }
 
+    /// Check whether a node is already due to wake at the given time. Since inputs that
+    /// collide are moved to later time slots, check those slots too.
+    fn is_waking(&self, node: &NodeId, mut time: LocalTime) -> bool {
+        while let Some(scheduled) = self.messages.get(&time) {
+            if scheduled.node == *node && matches!(scheduled.input, Input::Wake) {
+                return true;
+            }
+            time = time + MIN_LATENCY;
+        }
+        false
+    }
+
     /// Get the next scheduled input to be delivered.
     fn next(&mut self) -> Option<(LocalTime, Scheduled)> {
         self.messages
@@ -190,13 +202,29 @@ impl<S> Simulation<S>
 where
     S: WriteStorage + 'static,
 {
-    /// Create a new simulation.
+    /// Environment variable that sets the seed of new simulations.
+    const SEED_VAR: &str = "RAD_SIM_SEED";
+
+    /// Create a new simulation, seeded from [`Self::SEED_VAR`] if it is set,
+    /// and randomly otherwise.
     pub fn new(time: LocalTime, opts: Options) -> Self {
-        let rng = fastrand::Rng::new();
+        let seed = env::var(Self::SEED_VAR)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| fastrand::u64(..));
 
         // Log the seed so that we can reproduce the simulation if needed.
-        log::info!(target: "sim", "Seed: {}", rng.get_seed());
+        log::info!(
+            target: "sim",
+            "Simulation seed is {seed}, set {}={seed} to reproduce.",
+            Self::SEED_VAR
+        );
 
+        Self::with_seed(time, seed, opts)
+    }
+
+    /// Create a new simulation with the given seed.
+    pub fn with_seed(time: LocalTime, seed: u64, opts: Options) -> Self {
         Self {
             inbox: Inbox {
                 messages: BTreeMap::new(),
@@ -211,7 +239,7 @@ where
             opts,
             start_time: time,
             time,
-            rng: RefCell::new(rng),
+            rng: RefCell::new(fastrand::Rng::with_seed(seed)),
             storage: PhantomData,
         }
     }
@@ -222,7 +250,6 @@ where
     }
 
     /// Total amount of simulated time elapsed.
-    #[allow(dead_code)]
     pub fn elapsed(&self) -> LocalDuration {
         self.time - self.start_time
     }
@@ -292,7 +319,7 @@ where
         // between individual nodes. We need to think about more realistic
         // scenarios. We should also think about creating various network
         // topologies.
-        if self.time.as_secs().is_multiple_of(10) {
+        if self.elapsed().as_secs().is_multiple_of(10) {
             for (i, x) in nodes.keys().enumerate() {
                 for y in nodes.keys().skip(i + 1) {
                     if self.is_fallible() {
@@ -309,7 +336,7 @@ where
             let id = *peer.nid();
 
             while let Some(o) = peer.next() {
-                self.schedule(&id, o);
+                self.schedule(&id, *peer.clock(), o);
             }
         }
         // Next high-priority message.
@@ -404,7 +431,7 @@ where
                     }
                 }
                 while let Some(o) = p.next() {
-                    self.schedule(&node, o);
+                    self.schedule(&node, *p.clock(), o);
                 }
             } else {
                 panic!("Node {node} not found when attempting to schedule {input:?}",);
@@ -413,8 +440,8 @@ where
         !self.is_done()
     }
 
-    /// Process a service output event from a node.
-    pub fn schedule(&mut self, node: &NodeId, out: Io) {
+    /// Process a service output event from a node with the given clock.
+    pub fn schedule(&mut self, node: &NodeId, clock: LocalTime, out: Io) {
         let node = *node;
 
         match out {
@@ -568,15 +595,11 @@ where
                 );
             }
             Io::Wakeup(duration) => {
-                let time = self.time + duration;
+                // NOTE: A node's clock may be ahead of the simulation,
+                // e.g., after `Peer::elapse`.
+                let time = clock.max(self.time) + duration;
 
-                if !matches!(
-                    self.inbox.messages.get(&time),
-                    Some(Scheduled {
-                        input: Input::Wake,
-                        ..
-                    })
-                ) {
+                if !self.inbox.is_waking(&node, time) {
                     self.inbox.insert(
                         time,
                         Scheduled {
@@ -641,5 +664,68 @@ where
     /// Check whether two nodes are partitioned.
     fn is_partitioned(&self, a: NodeId, b: NodeId) -> bool {
         self.partitions.contains(&(a, b)) || self.partitions.contains(&(b, a))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use radicle::crypto::{Signer as _, SigningKey};
+    use radicle::test::storage::MockStorage;
+
+    use crate::test::peer::{AMY, BOB, CID};
+
+    use super::*;
+
+    /// Node ID of a test peer.
+    fn nid(id: u8) -> NodeId {
+        *SigningKey::mock(id.into()).public_key()
+    }
+
+    /// Nodes scheduled to wake, in order of their wake time.
+    fn wakes(sim: &Simulation<MockStorage>) -> Vec<(LocalTime, NodeId)> {
+        sim.inbox
+            .messages
+            .iter()
+            .filter(|(_, s)| matches!(s.input, Input::Wake))
+            .map(|(t, s)| (*t, s.node))
+            .collect()
+    }
+
+    #[test]
+    fn wake_every_node() {
+        let time = LocalTime::from_secs(1_700_000_000);
+        let mut sim = Simulation::<MockStorage>::with_seed(time, 1, Options::default());
+        let (amy, bob) = (nid(AMY), nid(BOB));
+        let duration = LocalDuration::from_secs(6);
+
+        sim.schedule(&amy, time, Io::Wakeup(duration));
+        sim.schedule(&amy, time, Io::Wakeup(duration));
+        sim.schedule(&bob, time, Io::Wakeup(duration));
+        sim.schedule(&bob, time, Io::Wakeup(duration));
+
+        let nodes = wakes(&sim).into_iter().map(|(_, n)| n).collect::<Vec<_>>();
+        assert_eq!(nodes, [amy, bob]);
+    }
+
+    #[test]
+    fn wake_node_on_its_clock() {
+        let time = LocalTime::from_secs(1_700_000_000);
+        let mut sim = Simulation::<MockStorage>::with_seed(time, 1, Options::default());
+        let (amy, bob, cid) = (nid(AMY), nid(BOB), nid(CID));
+        let (two, six) = (LocalDuration::from_secs(2), LocalDuration::from_secs(6));
+
+        sim.schedule(&amy, time + two, Io::Wakeup(six));
+        sim.schedule(&bob, time, Io::Wakeup(six));
+        // A clock behind the simulation must not schedule a wakeup in the past.
+        sim.schedule(&cid, time - six, Io::Wakeup(two));
+
+        assert_eq!(
+            wakes(&sim),
+            [
+                (time + two, cid),
+                (time + six, bob),
+                (time + six + two, amy)
+            ]
+        );
     }
 }

@@ -52,6 +52,13 @@ pub fn collect(
 ) -> io::Result<ExitStatus> {
     let git_dir = storage.path_of(rid);
     let mut gc = Command::new("git");
+
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(
+        &mut gc,
+        radicle_windows::process::creation_flags::CREATE_NO_WINDOW.0,
+    );
+
     gc.current_dir(git_dir)
         .env_clear()
         .envs(std::env::vars().filter(|(key, _)| key == "PATH" || key.starts_with("GIT_TRACE")))

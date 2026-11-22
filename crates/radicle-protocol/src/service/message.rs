@@ -692,7 +692,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ref_remote_limit() {
+    fn ref_remote_limit() {
         let mut refs = BoundedVec::<_, REF_REMOTE_LIMIT>::new();
         let signer = SigningKey::mock(18);
         let at = git::Oid::ZERO_SHA1;
@@ -724,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inventory_limit() {
+    fn inventory_limit() {
         let msg = Message::inventory(
             InventoryAnnouncement {
                 inventory: arbitrary::vec(INVENTORY_LIMIT)
@@ -772,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn test_node_announcement_validate() {
+    fn node_announcement_validate() {
         let ann = NodeAnnouncement {
             version: 1,
             features: node::Features::SEED,

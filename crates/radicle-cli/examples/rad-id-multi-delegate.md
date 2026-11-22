@@ -17,9 +17,15 @@ $ rad id --repo rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji
 ╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title              Author                                                      Status     Created   Parent  │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       0656c21 │
-│ ●   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       none    │
+│ ✓   069e7d5   Add Bob            alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision   alice    z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi   accepted   now       none    │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active
+  ✓ accepted
+  ✗ rejected:
+    ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
 $ rad inspect rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji --sigrefs
 z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi [..] parent
 z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk [..] root
@@ -103,10 +109,16 @@ $ rad id list
 │ ●   ID        Title              Author                                                      Status     Created   Parent  │
 ├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ ●   e6bf105   Make private       alice    (you)                                              active     now       3cd3c7f │
-│ ●   3cd3c7f   Add Eve            bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       069e7d5 │
-│ ●   069e7d5   Add Bob            alice    (you)                                              accepted   now       0656c21 │
-│ ●   0656c21   Initial revision   alice    (you)                                              accepted   now       none    │
+│ ✓   3cd3c7f   Add Eve            bob      z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk   accepted   now       069e7d5 │
+│ ✓   069e7d5   Add Bob            alice    (you)                                              accepted   now       0656c21 │
+│ ✓   0656c21   Initial revision   alice    (you)                                              accepted   now       none    │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+Hints:
+  ● active
+  ✓ accepted
+  ✗ rejected:
+    ✘ … by delegate votes   ↥ … by parent   ⇄ … by sibling
 ```
 
 Despite being a delegate, Bob can't edit or redact Alice's revision:

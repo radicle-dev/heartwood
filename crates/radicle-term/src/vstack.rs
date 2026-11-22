@@ -215,7 +215,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_vstack() {
+    fn vstack() {
         let mut v = VStack::default().border(Some(Color::Unset)).padding(1);
 
         v.push(Line::new("banana"));
@@ -245,7 +245,7 @@ mod test {
     }
 
     #[test]
-    fn test_vstack_maximize() {
+    fn vstack_maximize() {
         let mut v = VStack::default().border(Some(Color::Unset)).padding(1);
 
         v.push(Line::new("banana"));

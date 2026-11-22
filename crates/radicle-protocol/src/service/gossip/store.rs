@@ -54,11 +54,6 @@ pub trait Store {
 
     /// Get all the latest gossip messages of all nodes, filtered by inventory filter and
     /// announcement timestamps.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `from` > `to`.
-    ///
     fn filtered<'a>(
         &'a self,
         filter: &'a Filter,
@@ -98,11 +93,6 @@ impl Store for Database {
         nid: &NodeId,
         ann: &Announcement,
     ) -> Result<Option<AnnouncementId>, Error> {
-        assert_ne!(
-            ann.timestamp(),
-            Timestamp::MIN,
-            "Timestamp of {ann:?} must not be zero"
-        );
         let mut stmt = self.db.prepare(
             "INSERT INTO `announcements` (node, repo, type, message, signature, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -193,8 +183,6 @@ impl Store for Database {
              WHERE timestamp >= ?1 and timestamp < ?2
              ORDER BY timestamp, node, type",
         )?;
-        assert!(*from <= *to);
-
         stmt.bind((1, &from))?;
         stmt.bind((2, &to))?;
 
@@ -405,7 +393,7 @@ mod test {
     use radicle::test::arbitrary;
 
     #[test]
-    fn test_announced() {
+    fn announced() {
         let mut db = Database::memory().unwrap();
         let nid = arbitrary::r#gen::<NodeId>(1);
         let rid = arbitrary::r#gen::<RepoId>(1);

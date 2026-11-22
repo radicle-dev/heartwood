@@ -136,7 +136,7 @@ mod test {
     use radicle::test::arbitrary;
 
     #[test]
-    fn test_parameters() {
+    fn parameters() {
         // To store 10'000 items with a false positive rate of 1%, we need about 12KB.
         assert_eq!(bloomy::bloom::optimal_bits(10_000, 0.01) / 8, 11_981);
         // To store 1'000 items with a false positive rate of 1%, we need about 1KB.
@@ -175,7 +175,7 @@ mod test {
     }
 
     #[test]
-    fn test_sizes() {
+    fn sizes() {
         let ids = arbitrary::vec::<RepoId>(3420);
         let f = Filter::new(ids.iter().cloned().take(10));
         assert_eq!(f.size(), FILTER_SIZE_S);

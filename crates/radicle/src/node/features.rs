@@ -113,7 +113,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_operations() {
+    fn operations() {
         assert_eq!(Features::NONE.with(Features::SEED), Features::SEED);
 
         assert!(

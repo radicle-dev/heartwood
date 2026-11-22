@@ -627,10 +627,13 @@ impl Patch {
     ///
     /// If a custom target was specified, it returns that branch.
     /// Otherwise, it falls back to the project's default branch.
-    pub fn merge_target_branch<'a>(
+    pub fn merge_target_branch<'a, 'b>(
         &'a self,
-        doc: &'a Doc,
-    ) -> Result<git::fmt::Qualified<'a>, DefaultBranchError> {
+        doc: &'b Doc,
+    ) -> Result<git::fmt::Qualified<'b>, DefaultBranchError>
+    where
+        'b: 'a,
+    {
         match &self.target {
             MergeTarget::Delegates => Ok(doc.default_branch()?),
             MergeTarget::Branch(branch) => Ok(branch.clone().into_qualified()),
@@ -1274,17 +1277,45 @@ impl Patch {
                     },
                 );
 
-                let mut merges = self.merges.iter().fold(
-                    HashMap::<(RevisionId, git::Oid), usize>::new(),
-                    |mut acc, (_, merge)| {
-                        *acc.entry((merge.revision, merge.commit)).or_default() += 1;
-                        acc
-                    },
-                );
-                // Discard revisions that weren't merged by a threshold of delegates.
-                merges.retain(|_, count| *count >= identity.threshold());
+                // The quorum for the target branch is defined by the canonical
+                // reference rule that matches it: only merges made by an allowed
+                // DID count, and the rule's threshold must be reached.
+                //
+                // A branch that no rule matches never becomes a canonical
+                // reference, so a patch targeting it can never reach a quorum.
+                //
+                // As above, a merge we cannot evaluate is skipped rather
+                // than rejected.
+                let Ok(crefs) = identity.canonical_refs() else {
+                    return Ok(());
+                };
+                let Some((_, rule)) = crefs.rules().matches(&expected_branch).next() else {
+                    return Ok(());
+                };
 
-                match merges.into_keys().collect::<Vec<_>>().as_slice() {
+                let merges = self
+                    .merges
+                    .iter()
+                    .filter_map(|(actor, merge)| {
+                        rule.allowed().contains(&Did::from(*actor)).then_some(merge)
+                    })
+                    .fold(
+                        HashMap::<(RevisionId, git::Oid), usize>::new(),
+                        |mut acc, merge| {
+                            *acc.entry((merge.revision, merge.commit)).or_default() += 1;
+                            acc
+                        },
+                    );
+
+                match merges
+                    .into_iter()
+                    .filter_map(|(merge, count)| {
+                        // Discard revisions that were not merged by a threshold of allowed DIDs.
+                        (count >= usize::from(*rule.threshold())).then_some(merge)
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                {
                     [] => {
                         // None of the revisions met the quorum.
                     }
@@ -3068,7 +3099,7 @@ mod test {
     }
 
     #[test]
-    fn test_target_branch() {
+    fn target_branch() {
         let unqualified = TargetBranch::try_from("master").unwrap();
         assert_eq!(unqualified.as_str(), "refs/heads/master");
 
@@ -3092,7 +3123,7 @@ mod test {
     }
 
     #[test]
-    fn test_json_serialisation_target() {
+    fn json_serialisation_target() {
         let edit_none = Action::Edit {
             title: cob::Title::new("My patch").unwrap(),
             target: MergeTarget::Delegates,
@@ -3115,7 +3146,7 @@ mod test {
     }
 
     #[test]
-    fn test_merge_target_resolution() {
+    fn merge_target_resolution() {
         let alice = SigningKey::mock(23);
         let project = Project::new(
             ProjectName::from_str("test_merge_target_resolution").unwrap(),
@@ -3170,7 +3201,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_authorization_ref_formats() {
+    fn patch_merge_authorization_ref_formats() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3194,7 +3225,7 @@ mod test {
         });
         let crefs = serde_json::json!({ "rules": rules });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 
@@ -3253,7 +3284,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_custom_destination_authorized() {
+    fn patch_merge_custom_destination_authorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3276,7 +3307,7 @@ mod test {
             "rules": rules
         });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 
@@ -3312,7 +3343,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge_custom_destination_unauthorized() {
+    fn patch_merge_custom_destination_unauthorized() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let alice = SigningKey::mock(14);
@@ -3335,7 +3366,7 @@ mod test {
             "rules": rules
         });
         raw_doc.payload.insert(
-            identity::doc::PayloadId::canonical_refs(),
+            identity::doc::PayloadId::canonical_refs().clone(),
             identity::doc::Payload::from(crefs),
         );
 
@@ -3370,8 +3401,276 @@ mod test {
         );
     }
 
+    /// Build a patch targeting `refs/heads/accepted`, together with the
+    /// document and repository needed to apply merges to it.
+    ///
+    /// The document has four delegates and a threshold of three, while the
+    /// rule matching the target branch allows only Alice and Bob, with a
+    /// threshold of two. The two quorums are distinguishable.
+    fn merge_quorum_fixture(
+        signers: &[&SigningKey],
+        commit: git::Oid,
+    ) -> (Patch, Doc, MockRepository, RevisionId) {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let [alice, bob, eve, dave] = signers else {
+            panic!("merge_quorum_fixture: expected four signers");
+        };
+
+        let mut raw_doc = RawDoc::new(
+            r#gen::<Project>(1),
+            vec![alice.did(), bob.did(), eve.did(), dave.did()],
+            3,
+            identity::Visibility::Public,
+        );
+        let crefs = serde_json::json!({
+            "rules": {
+                "refs/heads/accepted": {
+                    "allow": [alice.did(), bob.did()],
+                    "threshold": 2
+                }
+            }
+        });
+        raw_doc.payload.insert(
+            identity::doc::PayloadId::canonical_refs().clone(),
+            identity::doc::Payload::from(crefs),
+        );
+        let doc = raw_doc.verified().unwrap();
+
+        // Every signer publishes the merge commit on the target branch, so that
+        // the merge is not skipped for being unreachable.
+        let branch = git::fmt::qualified!("refs/heads/accepted");
+        let mut repo = MockRepository::new(r#gen::<RepoId>(1), doc.clone());
+        for signer in signers {
+            let mut refs = crate::storage::refs::Refs::new();
+            refs.insert(branch.to_ref_string(), commit);
+            repo.remotes.insert(
+                *signer.public_key(),
+                crate::storage::refs::arbitrary::signed_refs(refs, commit, *signer),
+            );
+        }
+
+        let revision_id = RevisionId(arbitrary::entry_id());
+        let patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("accepted").unwrap()),
+            (
+                revision_id,
+                Revision::new(
+                    revision_id,
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    commit,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        (patch, doc, repo, revision_id)
+    }
+
+    fn apply_merge(
+        patch: &mut Patch,
+        doc: &Doc,
+        repo: &MockRepository,
+        revision: RevisionId,
+        commit: git::Oid,
+        signer: &SigningKey,
+    ) {
+        patch
+            .action(
+                Action::Merge { revision, commit },
+                arbitrary::entry_id(),
+                *signer.public_key(),
+                env::local_time().into(),
+                &[],
+                doc,
+                repo,
+            )
+            .unwrap();
+    }
+
     #[test]
-    fn test_json_serialization() {
+    fn test_patch_merge_quorum_uses_rule_threshold() {
+        let commit = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = SigningKey::mock(14);
+        let bob = SigningKey::mock(23);
+        let eve = SigningKey::mock(31);
+        let dave = SigningKey::mock(42);
+        let signers = [&alice, &bob, &eve, &dave];
+
+        let (mut patch, doc, repo, revision) = merge_quorum_fixture(&signers, commit);
+
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &alice);
+        assert!(
+            !patch.is_merged(),
+            "one of two allowed merges is not a quorum"
+        );
+
+        // Two allowed merges reach the rule's threshold, even though the
+        // document threshold of three is not met.
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &bob);
+        assert_eq!(
+            *patch.state(),
+            State::Merged { revision, commit },
+            "the rule's threshold of two is reached"
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_quorum_ignores_disallowed_merges() {
+        let commit = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = SigningKey::mock(14);
+        let bob = SigningKey::mock(23);
+        let eve = SigningKey::mock(31);
+        let dave = SigningKey::mock(42);
+        let signers = [&alice, &bob, &eve, &dave];
+
+        let (mut patch, doc, repo, revision) = merge_quorum_fixture(&signers, commit);
+
+        // Eve and Dave are delegates, but the rule does not allow them, so
+        // their merges never count towards the quorum.
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &eve);
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &dave);
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &alice);
+
+        assert_eq!(patch.merges.len(), 3, "all three merges are recorded");
+        assert!(
+            !patch.is_merged(),
+            "only Alice's merge counts, which is below the rule's threshold"
+        );
+    }
+
+    #[test]
+    fn test_patch_merge_quorum_without_matching_rule() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let commit = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = SigningKey::mock(14);
+
+        // The only rule is the one synthesized for the default branch, so
+        // nothing matches `refs/heads/staging`.
+        let project = Project::new(
+            ProjectName::from_str("unruled").unwrap(),
+            String::new(),
+            BranchName::from(git::fmt::RefString::try_from("master").unwrap()),
+        )
+        .unwrap();
+        let doc = RawDoc::new(project, vec![alice.did()], 1, identity::Visibility::Public)
+            .verified()
+            .unwrap();
+
+        let branch = git::fmt::qualified!("refs/heads/staging");
+        let mut repo = MockRepository::new(r#gen::<RepoId>(1), doc.clone());
+        let mut refs = crate::storage::refs::Refs::new();
+        refs.insert(branch.to_ref_string(), commit);
+        repo.remotes.insert(
+            *alice.public_key(),
+            crate::storage::refs::arbitrary::signed_refs(refs, commit, &alice),
+        );
+
+        let revision = RevisionId(arbitrary::entry_id());
+        let mut patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Branch(TargetBranch::try_from("staging").unwrap()),
+            (
+                revision,
+                Revision::new(
+                    revision,
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    commit,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        // Alice is the only delegate, so she meets the document threshold on
+        // her own, but no rule makes `refs/heads/staging` canonical.
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &alice);
+
+        assert_eq!(patch.merges.len(), 1, "the merge is recorded");
+        assert!(
+            !patch.is_merged(),
+            "a branch that no rule matches can never reach a quorum"
+        );
+    }
+
+    /// The default branch keeps the quorum it had before rules were consulted.
+    ///
+    /// Without a `xyz.radicle.crefs` payload, the rule for the default branch
+    /// is synthesized as `delegates` at the document threshold, so the tally
+    /// must behave exactly as it did when it used the document directly.
+    #[test]
+    fn test_patch_merge_quorum_of_default_branch() {
+        let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
+        let commit = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
+        let alice = SigningKey::mock(14);
+        let bob = SigningKey::mock(23);
+        let eve = SigningKey::mock(31);
+
+        let project = Project::new(
+            ProjectName::from_str("unruled").unwrap(),
+            String::new(),
+            BranchName::from(git::fmt::RefString::try_from("master").unwrap()),
+        )
+        .unwrap();
+        let doc = RawDoc::new(
+            project,
+            vec![alice.did(), bob.did(), eve.did()],
+            2,
+            identity::Visibility::Public,
+        )
+        .verified()
+        .unwrap();
+
+        let branch = git::fmt::qualified!("refs/heads/master");
+        let mut repo = MockRepository::new(r#gen::<RepoId>(1), doc.clone());
+        for signer in [&alice, &bob, &eve] {
+            let mut refs = crate::storage::refs::Refs::new();
+            refs.insert(branch.to_ref_string(), commit);
+            repo.remotes.insert(
+                *signer.public_key(),
+                crate::storage::refs::arbitrary::signed_refs(refs, commit, signer),
+            );
+        }
+
+        let revision = RevisionId(arbitrary::entry_id());
+        let mut patch = Patch::new(
+            cob::Title::new("My Patch").unwrap(),
+            MergeTarget::Delegates,
+            (
+                revision,
+                Revision::new(
+                    revision,
+                    Author::new(alice.did()),
+                    String::new(),
+                    base,
+                    commit,
+                    env::local_time().into(),
+                    Default::default(),
+                ),
+            ),
+        );
+
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &alice);
+        assert!(
+            !patch.is_merged(),
+            "one of three delegates is below the document threshold"
+        );
+
+        apply_merge(&mut patch, &doc, &repo, revision, commit, &bob);
+        assert_eq!(
+            *patch.state(),
+            State::Merged { revision, commit },
+            "the synthesized rule resolves to the document threshold of two"
+        );
+    }
+
+    #[test]
+    fn json_serialization() {
         let edit = Action::Label {
             labels: BTreeSet::new(),
         };
@@ -3382,7 +3681,7 @@ mod test {
     }
 
     #[test]
-    fn test_reactions_json_serialization() {
+    fn reactions_json_serialization() {
         #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
         #[serde(rename_all = "camelCase")]
         struct TestReactions {
@@ -3424,7 +3723,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_create_and_get() {
+    fn patch_create_and_get() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3465,7 +3764,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_discussion() {
+    fn patch_discussion() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3497,7 +3796,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_merge() {
+    fn patch_merge() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3527,7 +3826,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review() {
+    fn patch_review() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3577,7 +3876,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_revision_redact() {
+    fn patch_review_revision_redact() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3607,7 +3906,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_review_merge_redacted() {
+    fn revision_review_merge_redacted() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = SigningKey::mock(14);
@@ -3665,7 +3964,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_edit_redact() {
+    fn revision_edit_redact() {
         let base = arbitrary::oid();
         let oid = arbitrary::oid();
         let repo = r#gen::<MockRepository>(1);
@@ -3726,7 +4025,7 @@ mod test {
     }
 
     #[test]
-    fn test_revision_reaction() {
+    fn revision_reaction() {
         let base = git::Oid::from_str("cb18e95ada2bb38aadd8e6cef0963ce37a87add3").unwrap();
         let oid = git::Oid::from_str("518d5069f94c03427f694bb494ac1cd7d1339380").unwrap();
         let mut alice = SigningKey::mock(35);
@@ -3764,7 +4063,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_edit() {
+    fn patch_review_edit() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3801,7 +4100,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_duplicate() {
+    fn patch_review_duplicate() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3831,7 +4130,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_edit_comment() {
+    fn patch_review_edit_comment() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3880,7 +4179,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_comment() {
+    fn patch_review_comment() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3925,7 +4224,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_review_remove_summary() {
+    fn patch_review_remove_summary() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -3965,7 +4264,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_update() {
+    fn patch_update() {
         let alice = test::setup::NodeWithRepo::default();
         let checkout = alice.repo.checkout();
         let branch = checkout.branch_with([("README", b"Hello World!")]);
@@ -4019,7 +4318,7 @@ mod test {
     }
 
     #[test]
-    fn test_patch_redact() {
+    fn patch_redact() {
         let alice = test::setup::Node::default();
         let repo = alice.project();
         let branch = repo
@@ -4056,7 +4355,7 @@ mod test {
     }
 
     #[test]
-    fn test_json() {
+    fn json() {
         use serde_json::json;
 
         assert_eq!(

@@ -27,6 +27,19 @@ pub fn signed_refs_at(g: &mut qcheck::Gen, root: Oid, signer: &impl crypto::Sign
     }
 }
 
+/// Sign an exact set of `refs`, for tests that need specific reference names.
+pub fn signed_refs(refs: Refs, at: Oid, signer: &impl crypto::Signer) -> SignedRefs {
+    let signature = crypto::signature::Signer::sign(signer, &refs.canonical());
+    SignedRefs {
+        refs,
+        signature,
+        id: *signer.public_key(),
+        level: FeatureLevel::default(),
+        parent: None,
+        at,
+    }
+}
+
 impl Arbitrary for Refs {
     fn arbitrary(g: &mut qcheck::Gen) -> Self {
         let names = &[

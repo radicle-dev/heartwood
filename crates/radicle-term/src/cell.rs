@@ -210,7 +210,7 @@ impl<T: Cell + fmt::Display> Cell for Filled<T> {
 #[cfg(test)]
 mod test {
     #[test]
-    fn test_width() {
+    fn width() {
         assert_eq!(unicode_display_width::width("❤️"), 2);
         assert_eq!(unicode_display_width::width("🪵"), 2);
     }

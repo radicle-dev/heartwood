@@ -13,7 +13,6 @@ mod git {
     use crypto::SigningKey;
 
     use nonempty::{NonEmpty, nonempty};
-    use qcheck::Arbitrary;
 
     use crate::{
         Create, Entry, ObjectId, TypeName, Update, Updated, Version, create, get, list, update,
@@ -24,7 +23,7 @@ mod git {
     #[test]
     fn roundtrip() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
+        let signer = SigningKey::mock(1);
         let terry = test::Person::new(&storage, "terry", signer.public_key().to_owned()).unwrap();
         let proj =
             test::Project::new(&storage, "discworld", signer.public_key().to_owned()).unwrap();
@@ -59,7 +58,7 @@ mod git {
     #[test]
     fn list_cobs() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
+        let signer = SigningKey::mock(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -111,7 +110,7 @@ mod git {
     #[test]
     fn update_cob() {
         let storage = test::Storage::new();
-        let signer = r#gen::<SigningKey>(1);
+        let signer = SigningKey::mock(1);
         let terry = test::Person::new(&storage, "terry", *signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *signer.public_key()).unwrap();
         let proj = test::RemoteProject {
@@ -166,9 +165,9 @@ mod git {
     #[test]
     fn traverse_cobs() {
         let storage = test::Storage::new();
-        let neil_signer = r#gen::<SigningKey>(2);
+        let neil_signer = SigningKey::mock(2);
         let neil = test::Person::new(&storage, "gaiman", *neil_signer.public_key()).unwrap();
-        let terry_signer = r#gen::<SigningKey>(1);
+        let terry_signer = SigningKey::mock(1);
         let terry = test::Person::new(&storage, "pratchett", *terry_signer.public_key()).unwrap();
         let proj = test::Project::new(&storage, "discworld", *terry_signer.public_key()).unwrap();
         let terry_proj = test::RemoteProject {
@@ -265,12 +264,6 @@ mod git {
         );
         repo.reference(&name, original, false, "copying object reference")?;
         Ok(())
-    }
-
-    fn r#gen<T: Arbitrary>(size: usize) -> T {
-        let mut r#gen = qcheck::Gen::new(size);
-
-        T::arbitrary(&mut r#gen)
     }
 }
 

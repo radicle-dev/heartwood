@@ -72,7 +72,7 @@ macro_rules! refname {
             use alloc::string::String;
 
             let s: String = $arg.to_owned();
-            unsafe { core::mem::transmute::<_, RefString>(s) }
+            unsafe { core::mem::transmute::<String, RefString>(s) }
         }
     }};
 }
@@ -186,7 +186,7 @@ macro_rules! pattern {
             use alloc::string::String;
 
             let s: String = $arg.to_owned();
-            unsafe { core::mem::transmute::<_, PatternString>(s) }
+            unsafe { core::mem::transmute::<String, PatternString>(s) }
         }
     }};
 }

@@ -25,8 +25,9 @@ crossbeam-channel = "0.5.6"
 cyphernet = { workspace = true, features = ["dns", "ed25519", "p2p-ed25519", "noise-framework", "noise_sha2"] }
 dhat = { version = "0.3.3", optional = true }
 fastrand = { workspace = true }
+getrandom = { workspace = true, features = ["std"] }
 gix-packetline = { workspace = true, features = ["blocking-io"] }
-indexmap = { workspace = true }
+indexmap = { workspace = true, features = ["std"] }
 lexopt = { workspace = true }
 log = { workspace = true, features = ["kv", "std"] }
 mio = { version = "1", features = ["net", "os-poll"] }

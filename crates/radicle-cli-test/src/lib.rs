@@ -330,11 +330,7 @@ impl TestFormula {
                 } else if let Some(line) = line.strip_prefix('$') {
                     let line = line.trim();
 
-                    #[cfg(unix)]
                     let parts = shlex::split(line).ok_or(Error::Parse)?;
-
-                    #[cfg(windows)]
-                    let parts = winsplit::split(line);
 
                     let (cmd, args) = parts.split_first().ok_or(Error::Parse)?;
 
@@ -476,6 +472,11 @@ impl TestFormula {
                     .args(args.clone())
                     .with_assert(assert.clone());
 
+                // On Windows, inherit `SystemRoot`.
+                #[cfg(windows)]
+                let command = command
+                    .envs(env::vars().filter(|(key, _)| key.eq_ignore_ascii_case("SystemRoot")));
+
                 log::debug!(target: "test", "{location}: `{} {}` @ {}", assertion.command, args.join(" "), run.path().display());
                 log::trace!(target: "test", "{location}: {}", run.envs().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(", "));
                 log::logger().flush();
@@ -485,6 +486,13 @@ impl TestFormula {
                 // separately and provide a more helpful error message in that case.
                 match command.output() {
                     Ok(output) => {
+                        #[cfg(windows)]
+                        let output = {
+                            let mut output = output;
+                            normalize_windows_paths(&mut output.stdout);
+                            normalize_windows_paths(&mut output.stderr);
+                            output
+                        };
                         let assert = OutputAssert::new(output).with_assert(assert.clone());
                         let expected = Self::map_spaced_brackets(&assertion.expected);
 
@@ -527,6 +535,49 @@ impl TestFormula {
         }
         Ok(true)
     }
+}
+
+/// Normalize drive-qualified Windows paths, compressing sequences of backslashes
+/// to a forward slash.
+#[cfg(windows)]
+fn normalize_windows_paths(bytes: &mut Vec<u8>) {
+    let mut path = false;
+    let mut i = 0;
+    let mut len = 0;
+    while i < bytes.len() {
+        // Detect drive-qualified paths, e.g., `C:\` or `D:\`.
+        if bytes[i].is_ascii_alphabetic()
+            && bytes.get(i + 1) == Some(&b':')
+            && bytes.get(i + 2) == Some(&b'\\')
+        {
+            path = true;
+        }
+
+        match bytes[i] {
+            b'\n' | b'\r' | b'"' | b'\'' => path = false,
+            b'\\' if path => {
+                i += match bytes.get(i + 1) {
+                    Some(b'\\') => {
+                        // Repeated backslash, common in escaped Rust debug
+                        // output, e.g., `"C:\\Users\\example"`.
+                        2
+                    }
+                    _ => 1,
+                };
+                bytes[len] = b'/';
+                len += 1;
+
+                continue;
+            }
+            _ => {}
+        }
+
+        bytes[len] = bytes[i];
+        len += 1;
+        i += 1;
+    }
+
+    bytes.truncate(len);
 }
 
 fn cargo_manifest_dir() -> PathBuf {
@@ -576,7 +627,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_parse() {
+    fn parse() {
         let input = r#"
 Let's try to track @dave and @sean:
 ``` RAD_HINT=true
@@ -664,7 +715,7 @@ $ rad sync
     }
 
     #[test]
-    fn test_run() {
+    fn run() {
         let input = r#"
 Running a simple command such as `head`:
 ```
@@ -688,7 +739,7 @@ name = "radicle-cli-test"
     }
 
     #[test]
-    fn test_example_spaced_brackets() {
+    fn example_spaced_brackets() {
         let input = r#"
 Running a simple command such as `head`:
 ```

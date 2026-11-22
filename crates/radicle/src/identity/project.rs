@@ -251,6 +251,10 @@ impl Project {
         &self.description
     }
 
+    /// Return the default branch of the project.
+    ///
+    /// To obtain the default branch of the repository, prefer
+    /// [`super::Doc::default_branch_name`].
     #[inline]
     pub fn default_branch(&self) -> &BranchName {
         &self.default_branch
@@ -279,7 +283,7 @@ mod test {
     use crate::assert_matches;
 
     #[test]
-    fn test_project_name() {
+    fn project_name() {
         assert_matches!(serde_json::from_str::<ProjectName>("\"\""), Err(_));
         assert_matches!(
             serde_json::from_str::<ProjectName>("\"invalid name\""),

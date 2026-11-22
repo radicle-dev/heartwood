@@ -1,0 +1,25 @@
+name: coverage
+on:
+  push: { branches: [ '*' ] }
+  workflow_dispatch:
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 512
+          fetch-tags: true
+          filter: 'tree:0'
+      - name: Tarpaulin
+        run: |
+          cargo +nightly build --verbose --all-features --workspace
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 3600 --out xml
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

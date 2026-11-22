@@ -46,3 +46,17 @@ $ git push rad master
 To rad://z3yXbb1sR6UG6ixxV2YF9jUP7ABra/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
    f2de534..b2b6432  master -> master
 ```
+
+Pushing an annotated tag outputs a URL to the source tree of the tagged commit,
+not the tag object.
+
+``` (stderr)
+$ git tag -a v1.0 -m "Release v1.0"
+$ git push rad v1.0
+✓ Synced with 1 seed(s)
+
+  https://radicle.network/nodes/[..]/rad:z3yXbb1sR6UG6ixxV2YF9jUP7ABra/tree/b2b6432af93f8fe188e32d400263021b602cfec8
+
+To rad://z3yXbb1sR6UG6ixxV2YF9jUP7ABra/z6Mkt67GdsW7715MEfRuP4pSZxJRJh6kj6Y48WRqVv4N1tRk
+ * [new tag]         v1.0 -> v1.0
+```

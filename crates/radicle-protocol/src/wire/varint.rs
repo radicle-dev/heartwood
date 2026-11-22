@@ -163,10 +163,21 @@ pub mod payload {
         buf.put_slice(payload);
     }
 
-    /// Decode varint-prefixed data payload.
-    pub fn decode(buf: &mut impl Buf) -> Result<Vec<u8>, wire::Error> {
+    /// Decode varint-prefixed data payload, if the size of the payload
+    /// is at most `limit` bytes.
+    pub fn decode(buf: &mut impl Buf, limit: usize) -> Result<Vec<u8>, wire::Error> {
         let size = VarInt::decode(buf)?;
-        let mut data = vec![0; *size as usize];
+
+        let size = *size as usize;
+
+        if size > limit {
+            return Err(wire::Error::FrameTooLong {
+                length: size,
+                limit,
+            });
+        }
+
+        let mut data = vec![0; size];
         buf.try_copy_to_slice(&mut data[..])?;
 
         Ok(data)
@@ -218,12 +229,12 @@ mod test {
 
     #[test]
     #[should_panic(expected = "overflow")]
-    fn test_encode_overflow() {
+    fn encode_overflow() {
         VarInt(u64::MAX).encode_to_vec();
     }
 
     #[test]
-    fn test_encoding() {
+    fn encoding() {
         assert_eq!(VarInt(0).encode_to_vec(), vec![0x0]);
         assert_eq!(VarInt(1).encode_to_vec(), vec![0x01]);
         assert_eq!(VarInt(10).encode_to_vec(), vec![0x0a]);

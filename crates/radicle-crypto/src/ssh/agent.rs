@@ -29,6 +29,8 @@ pub enum ConnectError {
     Agent(#[from] AgentError),
     #[error("Unable to read environment variable '{var}': {source}")]
     EnvVar { var: String, source: VarError },
+    #[error("Environment variable '{var}' is set to the empty string.")]
+    EnvVarEmpty { var: String },
 }
 
 impl ConnectError {
@@ -72,7 +74,10 @@ impl Agent {
         const SSH_AUTH_SOCK: &str = "SSH_AUTH_SOCK";
 
         let path = match std::env::var(SSH_AUTH_SOCK) {
-            Ok(path) => Ok(PathBuf::from(path)),
+            Ok(path) if !path.is_empty() => Ok(PathBuf::from(path)),
+            Ok(_) => Err(ConnectError::EnvVarEmpty {
+                var: SSH_AUTH_SOCK.to_string(),
+            }),
             #[cfg(windows)]
             Err(VarError::NotPresent) => {
                 // Windows exposes the SSH Agent on a default named pipe.
@@ -93,7 +98,7 @@ impl Agent {
     }
 
     /// Register a key with the agent.
-    pub fn register(&mut self, key: &SigningKey) -> Result<(), AgentError> {
+    pub fn register(&mut self, key: &SigningKey, comment: String) -> Result<(), AgentError> {
         use ssh_key::private::{Ed25519Keypair, KeypairData};
         self.client.add_identity(proto::AddIdentity {
             credential: PrivateCredential::Key {
@@ -103,7 +108,7 @@ impl Agent {
                     )
                     .unwrap(),
                 ),
-                comment: "".into(),
+                comment,
             },
         })
     }
@@ -216,7 +221,7 @@ mod test {
     use crate::VerifyingKey;
 
     #[test]
-    fn test_agent_encoding_remove() {
+    fn agent_encoding_remove() {
         use std::str::FromStr;
 
         let pk =
@@ -251,7 +256,7 @@ mod test {
     }
 
     #[test]
-    fn test_agent_encoding_sign() {
+    fn agent_encoding_sign() {
         use std::str::FromStr;
 
         let pk =

@@ -366,6 +366,20 @@ pub mod issue {
             } => term::format::secondary(s.to_string()),
         }
     }
+
+    /// Format issue state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Open => term::format::positive("●"),
+            State::Closed {
+                reason: CloseReason::Solved,
+            } => term::format::secondary("✓"),
+            State::Closed {
+                reason: CloseReason::Other,
+            } => term::format::negative("✗"),
+        }
+    }
 }
 
 /// Patch formatting
@@ -392,6 +406,17 @@ pub mod patch {
             State::Merged { .. } => term::format::secondary(s.to_string()),
         }
     }
+
+    /// Format patch state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Draft => term::format::dim("○"),
+            State::Open { .. } => term::format::positive("●"),
+            State::Archived => term::format::yellow("⊘"),
+            State::Merged { .. } => term::PREFIX_SUCCESS,
+        }
+    }
 }
 
 /// Identity formatting
@@ -408,15 +433,25 @@ pub mod identity {
             State::Rejected(_) | State::Redacted(_) => term::format::negative(s.to_string()),
         }
     }
+
+    /// Format identity revision state symbol.
+    #[must_use]
+    pub fn state_symbol(s: &State) -> term::Paint<&'static str> {
+        match s {
+            State::Active => term::format::tertiary("●"),
+            State::Accepted => term::PREFIX_SUCCESS,
+            State::Rejected(_) => term::PREFIX_ERROR,
+            State::Redacted(_) => term::format::dim("✗"),
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use html::strip_comments;
 
     #[test]
-    fn test_strip_comments() {
+    fn strip_comments() {
         let test = "\
         commit 2\n\
         \n\
@@ -428,7 +463,7 @@ mod test {
         commit 2\n\
         ";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -438,7 +473,7 @@ mod test {
         commit 2\n\
         -->";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -447,7 +482,7 @@ mod test {
         ";
         let exp = "";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
 
         let test = "\
@@ -464,17 +499,58 @@ mod test {
         \n\
         -->";
 
-        let res = strip_comments(test);
+        let res = html::strip_comments(test);
         assert_eq!(exp, res);
     }
 
     #[test]
-    fn test_bytes() {
-        assert_eq!(bytes(1023).to_string(), "1023 B");
-        assert_eq!(bytes(1024).to_string(), "1 KiB");
-        assert_eq!(bytes(1024 * 9).to_string(), "9 KiB");
-        assert_eq!(bytes(1024usize.pow(2)).to_string(), "1 MiB");
-        assert_eq!(bytes(1024usize.pow(2) * 56).to_string(), "56 MiB");
-        assert_eq!(bytes(1024usize.pow(3) * 1024).to_string(), "1024 GiB");
+    fn bytes() {
+        assert_eq!(super::bytes(1023).to_string(), "1023 B");
+        assert_eq!(super::bytes(1024).to_string(), "1 KiB");
+        assert_eq!(super::bytes(1024 * 9).to_string(), "9 KiB");
+        assert_eq!(super::bytes(1024usize.pow(2)).to_string(), "1 MiB");
+        assert_eq!(super::bytes(1024usize.pow(2) * 56).to_string(), "56 MiB");
+        assert_eq!(
+            super::bytes(1024usize.pow(3) * 1024).to_string(),
+            "1024 GiB"
+        );
+    }
+
+    #[test]
+    fn test_cob_state_symbols() {
+        use radicle::cob::identity::RejectedBy;
+        use radicle::cob::identity::State as IdState;
+        use radicle::issue::{CloseReason, State as IssueState};
+        use radicle::patch::State as PatchState;
+
+        assert_eq!(issue::state_symbol(&IssueState::Open).to_string(), "●");
+        assert_eq!(
+            issue::state_symbol(&IssueState::Closed {
+                reason: CloseReason::Solved
+            })
+            .to_string(),
+            "✓"
+        );
+        assert_eq!(
+            issue::state_symbol(&IssueState::Closed {
+                reason: CloseReason::Other
+            })
+            .to_string(),
+            "✗"
+        );
+
+        assert_eq!(patch::state_symbol(&PatchState::Draft).to_string(), "○");
+        assert_eq!(
+            patch::state_symbol(&PatchState::Open { conflicts: vec![] }).to_string(),
+            "●"
+        );
+        assert_eq!(patch::state_symbol(&PatchState::Archived).to_string(), "⊘");
+
+        assert_eq!(identity::state_symbol(&IdState::Active).to_string(), "●");
+        assert_eq!(identity::state_symbol(&IdState::Accepted).to_string(), "✓");
+        assert_eq!(
+            identity::state_symbol(&IdState::Rejected(RejectedBy::Vote)).to_string(),
+            "✗"
+        );
     }
 }

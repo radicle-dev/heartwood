@@ -9,7 +9,7 @@ use localtime::LocalTime;
 use radicle::cob::TypedId;
 use radicle::git::BranchName;
 use radicle::git::fmt::{Component, Qualified};
-use radicle::identity::Identity;
+use radicle::identity::{Identity, doc::GetPayload as _};
 use radicle::issue::cache::Issues as _;
 use radicle::node::notifications;
 use radicle::node::notifications::*;
@@ -145,9 +145,8 @@ where
     <R as ReadStorage>::Repository: cob::Store<Namespace = NodeId>,
 {
     let repo = storage.repository(rid)?;
-    let (_, head) = repo.head()?;
+    let head = repo.head().ok().map(|(_, head)| head);
     let doc = repo.identity_doc()?;
-    let proj = doc.project()?;
     let issues = term::cob::issues(profile, &repo)?;
     let patches = term::cob::patches(profile, &repo)?;
 
@@ -186,9 +185,13 @@ where
             state,
             name,
         } = match &n.kind {
-            NotificationKind::Branch { name } => match NotificationRow::branch(name, head, &n, &repo) {
-                Err(e) => return Some(Err(e)),
-                Ok(b) => b,
+            NotificationKind::Branch { name } =>
+            match head {
+                Some(head) => match NotificationRow::branch(name, head, &n, &repo) {
+                    Err(e) => return Some(Err(e)),
+                    Ok(b) => b,
+                },
+                None => return None
             },
             NotificationKind::Cob { typed_id } => {
                 match NotificationRow::cob(typed_id, &n, &issues, &patches, &repo) {
@@ -234,7 +237,11 @@ where
         Ok(Some(
             term::VStack::default()
                 .border(Some(term::colors::FAINT))
-                .child(term::label(term::format::bold(proj.name())))
+                .child(term::label(match doc.project() {
+                    Some(Ok(project)) => term::format::bold(project.name().to_string()),
+                    Some(Err(_)) => term::format::negative("Error determining name.".to_string()),
+                    None => term::format::dim("No name provided.".to_string()),
+                }))
                 .divider()
                 .child(table),
         ))

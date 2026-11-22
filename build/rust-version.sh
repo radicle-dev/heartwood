@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#! /usr/bin/env sh
 set -euo pipefail
 
 if ! version=$(grep -m 1 -oP '^\s*channel\s*=\s*"?\K([\d\.]+)' rust-toolchain.toml)

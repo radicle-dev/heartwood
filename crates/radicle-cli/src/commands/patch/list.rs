@@ -142,12 +142,7 @@ pub fn row(
     labels.sort();
 
     Ok([
-        match state {
-            patch::State::Open { .. } => term::format::positive("●").into(),
-            patch::State::Archived => term::format::yellow("●").into(),
-            patch::State::Draft => term::format::dim("●").into(),
-            patch::State::Merged { .. } => term::PREFIX_SUCCESS.into(),
-        },
+        term::format::patch::state_symbol(state).into(),
         term::format::tertiary(term::format::cob(id)).into(),
         term::format::default(patch.title().to_owned()).into(),
         alias.into(),

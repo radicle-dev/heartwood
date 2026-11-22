@@ -58,7 +58,18 @@ impl<const B: usize, D: wire::Decode> Deserializer<B, D> {
 
                 Ok(Some(msg))
             }
-            Err(wire::Error::UnexpectedEnd { .. }) => Ok(None),
+            Err(wire::Error::UnexpectedEnd { .. }) => {
+                log::debug!("Dropping incomplete frame: Expected more bytes.");
+                Ok(None)
+            }
+            Err(wire::Error::FrameTooLong { length, limit }) => {
+                log::debug!(
+                    "Dropping frame that is too large: Expected at most {} bytes, got {} bytes.",
+                    limit,
+                    length
+                );
+                Ok(None)
+            }
             Err(wire::Error::Invalid(err)) => Err(err),
         }
     }
@@ -126,7 +137,7 @@ mod test {
     const MSG_BYE: &[u8] = &[3, b'b', b'y', b'e'];
 
     #[test]
-    fn test_decode_next() {
+    fn decode_next() {
         let mut decoder = Deserializer::<1024, String>::new(8);
 
         decoder.input(&[3, b'b']).unwrap();
@@ -144,7 +155,7 @@ mod test {
     }
 
     #[test]
-    fn test_unparsed() {
+    fn unparsed() {
         let mut decoder = Deserializer::<1024, String>::new(8);
 
         decoder.input(&[3, b'b', b'y']).unwrap();

@@ -74,7 +74,7 @@ impl<'a> RevisionEntry<'a> {
             (
                 review.timestamp(),
                 Update::Reviewed {
-                    review: review.clone(),
+                    review: Box::new(review.clone()),
                 },
             )
         }));
@@ -157,7 +157,7 @@ impl<'a> RevisionEntry<'a> {
 /// An update in the [`Patch`]'s timeline.
 enum Update<'a> {
     /// A revision of the patch was reviewed.
-    Reviewed { review: Review },
+    Reviewed { review: Box<Review> },
     /// A revision of the patch was merged.
     Merged {
         author: Author<'a>,

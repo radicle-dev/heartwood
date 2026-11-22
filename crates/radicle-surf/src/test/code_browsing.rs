@@ -56,7 +56,7 @@ fn browse_repo_lazily() {
 }
 
 #[test]
-fn test_file_history() {
+fn file_history() {
     let repo = Repository::open(platinum::get()).unwrap();
     let history = repo.history(Branch::local(refname!("dev"))).unwrap();
     let path = Path::new("README.md");
@@ -67,7 +67,7 @@ fn test_file_history() {
 }
 
 #[test]
-fn test_commit_history() {
+fn commit_history() {
     let repo = Repository::open(platinum::get()).unwrap();
     let head = "a0dd9122d33dff2a35f564d564db127152c88e02";
 
@@ -82,7 +82,7 @@ fn test_commit_history() {
 }
 
 #[test]
-fn test_commit_signature() {
+fn commit_signature() {
     let repo = Repository::open(platinum::get()).unwrap();
     let commit_with_signature = "e24124b7538658220b5aaf3b6ef53758f0a106dc";
     let signature = repo.extract_signature(commit_with_signature, None).unwrap();

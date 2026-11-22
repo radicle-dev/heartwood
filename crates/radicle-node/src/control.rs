@@ -268,6 +268,7 @@ fn fetch<W: Write, H: Handle<Error = runtime::handle::Error>>(
     match handle.fetch(id, node, timeout, signed_references_minimum_feature_level) {
         Ok(result) => {
             json::to_writer(&mut writer, &result)?;
+            writer.write_all(b"\n")?;
         }
         Err(e) => {
             return Err(CommandError::Runtime(e));
@@ -291,7 +292,7 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_control_socket() {
+    fn control_socket() {
         let tmp = tempfile::tempdir().unwrap();
         let handle = test::handle::Handle::default();
         let socket = tmp.path().join("alice.sock");
@@ -341,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_seed_unseed() {
+    fn seed_unseed() {
         let tmp = tempfile::tempdir().unwrap();
         let socket = tmp.path().join("node.sock");
         let proj = arbitrary::r#gen::<RepoId>(1);

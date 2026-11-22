@@ -331,10 +331,7 @@ fn mk_issue_row(
     did: radicle_term::Label,
 ) -> [radicle_term::Line; 8] {
     [
-        match issue.state() {
-            State::Open => term::format::positive("●").into(),
-            State::Closed { .. } => term::format::negative("●").into(),
-        },
+        term::format::issue::state_symbol(issue.state()).into(),
         term::format::tertiary(term::format::cob(&id))
             .to_owned()
             .into(),

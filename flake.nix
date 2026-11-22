@@ -57,6 +57,8 @@
         ".txt" # might be included with `include_str!`
         "rad-cob-multiset" # testing external COBs
       ]
+      # Fixtures for testing `radicle-surf`.
+      || lib.hasPrefix (toString ./crates/radicle-surf/src/test/platinum + "/") path
       ||
       # Default filter from crane (allow .rs files)
       ((crane.mkLib pkgs).filterCargoSources path type);
@@ -292,7 +294,10 @@
                       clippy = rustup.toolchain;
                     };
                   };
-                  shellcheck.enable = true;
+                  shellcheck = {
+                    enable = true;
+                    args = ["--shell" "sh" "--exclude" "SC3040"];
+                  };
                 }
                 // grep.hooks;
             };
@@ -379,6 +384,7 @@
           cargo-audit
           cargo-deny
           cargo-watch
+          cargo-msrv
           cargo-nextest
           cargo-semver-checks
           cargo-shear

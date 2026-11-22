@@ -600,7 +600,7 @@ mod test {
 
     #[test]
     #[ignore]
-    fn test_pretty() {
+    fn pretty() {
         let repo = Repository::open_ext::<_, _, &[&OsStr]>(
             env!("CARGO_MANIFEST_DIR"),
             RepositoryOpenFlags::all(),

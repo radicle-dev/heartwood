@@ -86,7 +86,7 @@ mod tests {
     const PATCH_V2: &str = include_str!("samples/patch.v2.json");
 
     #[test]
-    fn test_migration_2() {
+    fn migration_2() {
         let mut db = StoreWriter::memory().unwrap();
         db.migrate_to(1, migrate::ignore).unwrap();
         db.raw_query(|conn| {
@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn test_patch_json_deserialization() {
+    fn patch_json_deserialization() {
         serde_json::from_str::<crate::cob::patch::Patch>(PATCH_V1).unwrap_err();
         serde_json::from_str::<crate::cob::patch::Patch>(PATCH_V2).unwrap();
     }

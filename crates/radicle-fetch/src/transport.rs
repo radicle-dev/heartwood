@@ -325,14 +325,5 @@ impl WantsHaves {
 }
 
 fn agent_name() -> String {
-    let version = match radicle::git::version() {
-        Ok(version) => version,
-        Err(err) => {
-            use radicle::git::VERSION_REQUIRED;
-            log::debug!("The git version could not be determined: {err}");
-            log::debug!("Pretending that we are on git version {VERSION_REQUIRED}.");
-            VERSION_REQUIRED
-        }
-    };
-    format!("git/{version}")
+    format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
 }

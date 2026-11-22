@@ -11,3 +11,19 @@ rustflags = [
     "-C", "incremental=false",
     "-C", "opt-level=3",
 ]
+
+# Both `libgit2-sys` and `libc` link `iconv` on Apple targets, so `rustc` passes
+# `-liconv` twice. Apple's `ld` deduplicates, but Zig does not, and
+# emits two `LC_LOAD_DYLIB` commands for `/usr/lib/libiconv.2.dylib`.
+# `dyld` on macOS 26 refuses to load such a binary ("duplicate linked dylib"),
+# while older versions tolerate it.
+# `-dead_strip_dylibs` drops the redundant entry.
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-Wl,-dead_strip_dylibs",
+]
+
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-Wl,-dead_strip_dylibs",
+]

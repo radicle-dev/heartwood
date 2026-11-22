@@ -9,7 +9,7 @@ use radicle::cob::identity::{self, IdentityMut, Revision, RevisionId};
 use radicle::identity::doc::update;
 use radicle::identity::{Doc, Identity, RawDoc, doc};
 use radicle::node::NodeId;
-use radicle::storage::{ReadStorage as _, WriteRepository};
+use radicle::storage::{ReadRepository as _, ReadStorage as _, WriteRepository};
 use radicle::{Profile, cob, crypto};
 use radicle_surf::diff::Diff;
 use radicle_term::Element;
@@ -219,36 +219,62 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
             revisions.divider();
 
             for r in identity.revisions().rev() {
-                let icon = match r.state {
-                    identity::State::Active => term::format::tertiary("●"),
-                    identity::State::Accepted => term::format::positive("●"),
-                    identity::State::Rejected(_) => term::format::negative("●"),
+                if matches!(r.state, identity::State::Redacted(_)) {
+                    continue;
+                }
+                let icon = term::format::identity::state_symbol(&r.state).into();
+                let state = match &r.state {
+                    identity::State::Active => "active".to_string(),
+                    identity::State::Accepted => "accepted".to_string(),
+                    identity::State::Rejected(identity::RejectedBy::Vote) => {
+                        "rejected ✘".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Parent) => {
+                        "rejected ↥".to_string()
+                    }
+                    identity::State::Rejected(identity::RejectedBy::Sibling(_)) => {
+                        "rejected ⇄".to_string()
+                    }
                     identity::State::Redacted(_) => continue,
                 }
                 .into();
-                let state = r.state.to_string().into();
-                let id = term::format::oid(r.id).into();
+                let id = if args.verbose {
+                    term::label(r.id.to_string())
+                } else {
+                    term::format::oid(r.id).into()
+                };
                 let title = term::label(r.title.to_string());
                 let (alias, author) =
                     term::format::Author::new(r.author.public_key(), &profile, true).labels();
                 let timestamp = term::format::timestamp(r.timestamp).into();
                 let parent = r
                     .parent
-                    .map(term::format::oid)
-                    .unwrap_or_else(|| term::Paint::new("none".to_string()));
+                    .map(|p| {
+                        if args.verbose {
+                            term::label(p.to_string())
+                        } else {
+                            term::format::oid(p).into()
+                        }
+                    })
+                    .unwrap_or_else(|| term::Paint::new("none".to_string()).into());
 
-                revisions.push([
-                    icon,
-                    id,
-                    title,
-                    alias,
-                    author,
-                    state,
-                    timestamp,
-                    parent.into(),
-                ]);
+                revisions.push([icon, id, title, alias, author, state, timestamp, parent]);
             }
             revisions.print();
+
+            term::blank();
+            term::println("Hints:");
+            term::println(format!(
+                "  {} active\n  {} accepted\n  {} rejected:\n    {} … by delegate votes   {} … by parent   {} … by sibling",
+                term::format::identity::state_symbol(&identity::State::Active),
+                term::format::identity::state_symbol(&identity::State::Accepted),
+                term::format::identity::state_symbol(&identity::State::Rejected(
+                    identity::RejectedBy::Vote
+                )),
+                "✘",
+                "↥",
+                "⇄",
+            ));
         }
         Command::Redact { revision } => {
             let revision = get(revision, &identity, &repo)?.clone();
@@ -275,6 +301,19 @@ pub fn run(args: Args, ctx: impl term::Context) -> anyhow::Result<()> {
                 .ok_or(anyhow!("revision `{previous}` not found"))?;
 
             print(revision, previous, &repo, &profile)?;
+        }
+        Command::Cache { storage: false } => {
+            set_identity_head(&repo)?;
+        }
+        Command::Cache { storage: true } => {
+            for info in profile.storage.repositories()? {
+                if let Err(err) = set_identity_head(&profile.storage.repository(info.rid)?) {
+                    term::error(format!(
+                        "Failed to cache identity for repository {}: {err}",
+                        info.rid
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -319,10 +358,31 @@ fn print_meta(revision: &Revision, previous: &Doc, profile: &Profile) -> anyhow:
         term::format::bold("Author").into(),
         term::label(revision.author.to_string()),
     ]);
-    attrs.push([
-        term::format::bold("State").into(),
-        term::label(revision.state.to_string()),
-    ]);
+    match &revision.state {
+        identity::State::Rejected(reason) => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(format!(
+                    "{} {}",
+                    term::format::negative(revision.state),
+                    term::format::dim(format!("by {reason}")),
+                )),
+            ]);
+        }
+        identity::State::Active => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::tertiary(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Accepted => {
+            attrs.push([
+                term::format::bold("State").into(),
+                term::label(term::format::positive(revision.state.to_string())),
+            ]);
+        }
+        identity::State::Redacted(_) => (),
+    }
     attrs.push([
         term::format::bold("Quorum").into(),
         if revision.is_accepted() {
@@ -466,6 +526,12 @@ fn update(
     }
 }
 
+fn set_identity_head(repo: &radicle::storage::git::Repository) -> anyhow::Result<()> {
+    repo.set_identity_head()?;
+    term::success!("Successfully cached identity of repository {}", repo.id());
+    Ok(())
+}
+
 fn on_identity_err(e: identity::Error, profile: &Profile) -> anyhow::Error {
     let e = anyhow::Error::from(e);
 
@@ -539,7 +605,21 @@ fn print_diff(
     };
     let current = radicle::git::write_tree(&doc::PATH, current.as_bytes(), &repo)?;
     let mut opts = radicle::git::raw::DiffOptions::new();
-    opts.context_lines(u32::MAX);
+
+    {
+        #[cfg(not(windows))]
+        const CONTEXT_LINES: u32 = u32::MAX;
+
+        // `xdiff`, which is commonly used on Windows, stores the number of
+        // context lines as a signed integer and doubles the value when
+        // merging hunks. Avoid overflow. See also:
+        // - <https://github.com/git-for-windows/git/tree/main/xdiff>
+        // - <https://github.com/libgit2/xdiff>
+        #[cfg(windows)]
+        const CONTEXT_LINES: u32 = (i32::MAX / 2) as u32;
+
+        opts.context_lines(CONTEXT_LINES);
+    }
 
     let diff = repo.diff_tree_to_tree(previous.as_ref(), Some(&current), Some(&mut opts))?;
     let diff = Diff::try_from(diff)?;

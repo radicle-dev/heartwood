@@ -4,7 +4,7 @@ use radicle_git_ref_format::pattern;
 use super::platinum;
 
 #[test]
-fn test_branches() {
+fn branches() {
     let repo = Repository::open(platinum::get()).unwrap();
     let heads = Glob::all_heads();
     let branches = repo.branches(heads.clone()).unwrap();
@@ -20,7 +20,7 @@ fn test_branches() {
 }
 
 #[test]
-fn test_tag_snapshot() {
+fn tag_snapshot() {
     let repo = Repository::open(platinum::get()).unwrap();
     let tags = repo
         .tags(&Glob::all_tags())
@@ -33,7 +33,7 @@ fn test_tag_snapshot() {
 }
 
 #[test]
-fn test_namespaces() {
+fn namespaces() {
     let repo = Repository::open(platinum::get()).unwrap();
 
     let namespaces = repo.namespaces(&Glob::all_namespaces()).unwrap();

@@ -285,7 +285,7 @@ When proposing changes via a patch:
 * Isolate changes in separate commits to make the review process easier.
 * Don't make unrelated changes, unless it happens to be an obvious improvement to
   code you are touching anyway ("boyscout rule").
-* Rebase on `master` when needed.
+* Rebase on `main` when needed.
 * Keep your changesets small, specific and uncontroversial, so that they can be
   merged more quickly.
 * If the change is substantial or requires re-architecting certain parts of the

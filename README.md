@@ -75,6 +75,33 @@ respond to you via email.
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [HACKING.md](HACKING.md) for an
 introduction to contributing to Radicle.
 
+## Packages
+
+Community members maintain packages for various package managers.
+This makes it a lot easier to install Radicle and allows tighter
+integration of Radicle with various distributions. Thanks!
+
+### APT (Debian, etc.)
+
+See <https://radicle.dev/apt/>
+and <rad:z2nDKoCF4hg6xVrv7v93LmWHDJKUr>
+maintained by [Lars Wirzenius](https://liw.fi) and [Richard Levitte](https://richard.levitte.org)
+
+### Arch
+
+See [archlinux.org/packages](https://archlinux.org/packages/?q=radicle)
+and [gitlab.archlinux.org](https://gitlab.archlinux.org/archlinux/packaging/packages/radicle)
+maintained by [tippfehlr](https://tippfehlr.dev) and [kpcyrd](https://vulns.xyz).
+
+### NixOS
+
+See [search.nixos.org/packages](https://search.nixos.org/packages?query=radicle)
+and [search.nixos.org/options](https://search.nixos.org/options?query=services.radicle)
+maintained by [@NixOS/radicle](https://github.com/orgs/NixOS/teams/radicle).
+
+Also see [home-manager-options.extranix.com](https://home-manager-options.extranix.com/?query=radicle)
+for usage with home-manager.
+
 ## License
 
 Radicle is distributed under the terms of both the MIT license and the Apache License (Version 2.0).

@@ -98,7 +98,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_wrapping() {
+    fn wrapping() {
         let t = TextArea::new(
             "Radicle enables users to run their own nodes, \
             ensuring censorship-resistant code collaboration \
@@ -120,7 +120,7 @@ mod test {
     }
 
     #[test]
-    fn test_wrapping_paragraphs() {
+    fn wrapping_paragraphs() {
         let t = TextArea::new(
             "Radicle enables users to run their own nodes, \
             ensuring censorship-resistant code collaboration \
@@ -151,7 +151,7 @@ mod test {
     }
 
     #[test]
-    fn test_wrapping_code_block() {
+    fn wrapping_code_block() {
         let t = TextArea::new(
             "\
 Here's an example:
@@ -179,7 +179,7 @@ Run the above and wait for your project to sync.\
     }
 
     #[test]
-    fn test_wrapping_fenced_block() {
+    fn wrapping_fenced_block() {
         let t = TextArea::new(
             "\
 Here's an example:

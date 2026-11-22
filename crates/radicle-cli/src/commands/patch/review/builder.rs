@@ -964,7 +964,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_review_comments_basic() {
+    fn review_comments_basic() {
         let input = r#"
 > @@ -2559,18 +2560,18 @@ where
 >                  // Only consider onion addresses if configured.
@@ -1081,7 +1081,7 @@ Comment #5.
     }
 
     #[test]
-    fn test_review_comments_multiline() {
+    fn review_comments_multiline() {
         let input = r#"
 > @@ -2559,9 +2560,7 @@ where
 >                  // Only consider onion addresses if configured.
@@ -1176,7 +1176,7 @@ Woof.
     }
 
     #[test]
-    fn test_review_comments_before() {
+    fn review_comments_before() {
         let input = r#"
 This is a top-level comment.
 
@@ -1228,7 +1228,7 @@ This is a top-level comment.
     }
 
     #[test]
-    fn test_review_comments_split_hunk() {
+    fn review_comments_split_hunk() {
         let input = r#"
 > @@ -2559,6 +2560,4 @@ where
 >                  // Only consider onion addresses if configured.

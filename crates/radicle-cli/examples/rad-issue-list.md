@@ -46,7 +46,7 @@ $ rad issue list --solved
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author           Labels             Assignees   Opened │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
+│ ✓   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -57,6 +57,6 @@ $ rad issue --solved
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ●   ID        Title                         Author           Labels             Assignees   Opened │
 ├────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ●   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
+│ ✓   d87dcfe   flux capacitor underpowered   alice    (you)   good-first-issue   alice       now    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```

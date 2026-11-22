@@ -40,6 +40,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("db/migrations/7.sql"),
     include_str!("db/migrations/8.sql"),
     include_str!("db/migrations/9.sql"),
+    include_str!("db/migrations/10.sql"),
 ];
 
 #[derive(Error, Debug)]
@@ -245,7 +246,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_version() {
+    fn version() {
         let n = MIGRATIONS.len();
         let db = Database::memory().unwrap();
         assert_eq!(db.version().unwrap(), n);

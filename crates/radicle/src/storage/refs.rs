@@ -519,7 +519,7 @@ mod tests {
     // to `london`. We expect that this does not cause the canonical head of the `london` repo
     // to change, despite Bob being a delegate of both repos, because the refs were signed for the
     // `paris` repo. We also don't expected the signed refs to validate without error.
-    fn test_rid_verification() {
+    fn rid_verification() {
         let tmp = tempfile::tempdir().unwrap();
         let alice = SigningKey::mock(9);
         let bob = SigningKey::mock(10);
@@ -675,7 +675,8 @@ mod tests {
         london
             .raw()
             .reference(
-                git::refs::storage::branch_of(bob.public_key(), &git::fmt::refname!("master"))
+                git::fmt::Qualified::from(git::fmt::lit::refs_heads(&git::fmt::refname!("master")))
+                    .with_namespace(bob.public_key().into())
                     .as_str(),
                 bob_head,
                 false,

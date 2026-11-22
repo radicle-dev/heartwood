@@ -135,7 +135,7 @@ mod test {
     }
 
     #[test]
-    fn test_assert_succeed() {
+    fn assert_succeed() {
         let a = Foo::A(123);
 
         assert_matches!(a, Foo::A(_));
@@ -166,7 +166,7 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_assert_panic_0() {
+    fn assert_panic_0() {
         let a = Foo::A(123);
 
         assert_matches!(a, Foo::B(_));
@@ -174,7 +174,7 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_assert_panic_1() {
+    fn assert_panic_1() {
         let b = Foo::B("foo");
 
         assert_matches!(b, Foo::B("bar"));
@@ -182,14 +182,14 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_assert_panic_2() {
+    fn assert_panic_2() {
         let b = Foo::B("foo");
 
         assert_matches!(b, Foo::B(s) if s == "bar");
     }
 
     #[test]
-    fn test_assert_no_move() {
+    fn assert_no_move() {
         let b = &mut Foo::A(0);
         assert_matches!(*b, Foo::A(0));
     }
@@ -226,7 +226,7 @@ mod test {
     }
 
     #[test]
-    fn test_panic_message() {
+    fn panic_message_format() {
         let a = Foo::A(1);
 
         // expr, pat

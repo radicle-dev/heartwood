@@ -312,7 +312,7 @@ mod serde_impls {
         use crate::LocalTime;
 
         #[test]
-        fn test_localtime() {
+        fn localtime() {
             #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
             struct Test {
                 time: LocalTime,

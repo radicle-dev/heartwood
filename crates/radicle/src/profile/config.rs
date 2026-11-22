@@ -157,7 +157,7 @@ impl Config {
 
         Self {
             public_explorer: Explorer::default(),
-            preferred_seeds: node.network.public_seeds(),
+            preferred_seeds: Vec::default(),
             web: web::Config::default(),
             cli: cli::Config::default(),
             node,

@@ -229,7 +229,7 @@ The full list of options follows:
 
 *patch.base*=_<oid>_::
   The base commit onto which this patch should be merged. By default, this is
-  your "master" branch. When building stacked patches, it may be useful to
+  your "main" branch. When building stacked patches, it may be useful to
   set this to the head of a previous patch.
 
 For more information on push options, see *git-push(1)*.
@@ -274,20 +274,20 @@ there, you can *git-push* to publish a patch update, or simply browse the code.
 == Merging a patch
 
 Once a patch is ready to merge, the repository maintainer simply has to use the
-*git-merge(1)* command from the "master" branch and push via *git*. For
+*git-merge(1)* command from the "main" branch and push via *git*. For
 example, if some patch *26e3e56* is ready to merge, the steps would be:
 
     $ rad patch checkout 26e3e56
     ✓ Switched to branch patch/26e3e56
-    $ git checkout master
+    $ git checkout main
     $ git merge patch/26e3e56
     $ git push rad
     ✓ Patch 26e3e563ddc7df8dd0c9f81274c0b3cb1b764568 merged
     To rad://z42hL2jL4XNk6K8oHQaSWfMgCL7ji/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi
-       f2de534..d6399c7  master -> master
+       f2de534..d6399c7  main -> main
 
 In the above, we created a checkout for the patch, and merged that branch into
-our master branch. Then we pushed to our *rad* remote.
+our main branch. Then we pushed to our *rad* remote.
 
 == Listing patches
 

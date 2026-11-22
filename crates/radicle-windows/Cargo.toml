@@ -17,6 +17,7 @@ features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_JobObjects",
+    "Win32_System_Threading",
 ]
 
 [package.metadata.docs.rs]

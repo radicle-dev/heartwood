@@ -536,22 +536,24 @@ pub(super) fn init() -> TempDir {
     };
 
     let master = {
-        for path in [
-            "special/-dash-",
-            "special/...",
-            "special/:colon:",
-            "special/;semicolon;",
-            "special/@at@",
-            "special/_underscore_",
-            "special/c++",
-            "special/faux\\path",
-            "special/i need some space",
-            "special/qs?param1=value?param2=value2#hash",
-            "special/~tilde~",
-            "special/👹👹👹",
+        let mut special = repo.treebuilder(None).unwrap();
+        for name in [
+            "-dash-",
+            "...",
+            ":colon:",
+            ";semicolon;",
+            "@at@",
+            "_underscore_",
+            "c++",
+            "faux\\path",
+            "i need some space",
+            "qs?param1=value?param2=value2#hash",
+            "~tilde~",
+            "👹👹👹",
         ] {
-            tree.upsert(path, empty, Regular);
+            special.insert(name, empty, Regular.into()).unwrap();
         }
+        tree.upsert("special", special.write().unwrap(), git2::FileMode::Tree);
 
         let sign = |author: Author| author.signature(&Time::new(1_602_778_504, 120));
 

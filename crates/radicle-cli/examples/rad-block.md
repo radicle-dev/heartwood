@@ -35,11 +35,11 @@ And a 'block' policy was added:
 
 ```
 $ rad seed
-╭───────────────────────────────────────────────────────────╮
-│ Repository                          Name   Policy   Scope │
-├───────────────────────────────────────────────────────────┤
-│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji          block          │
-╰───────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Repository                          Name                      Policy   Scope │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ rad:z42hL2jL4XNk6K8oHQaSWfMgCL7ji   Error determining name.   block          │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 If we want to reverse the blocking of the RID we can use `rad unblock`:

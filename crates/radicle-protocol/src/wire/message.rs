@@ -422,7 +422,7 @@ mod tests {
     prop_roundtrip!(Message);
 
     #[test]
-    fn test_refs_ann_max_size() {
+    fn refs_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(235);
         let refs: [RefsAt; REF_REMOTE_LIMIT] = arbitrary::r#gen(1);
         let ann = AnnouncementMessage::Refs(RefsAnnouncement {
@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inv_ann_max_size() {
+    fn inv_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(147);
         let inv: [RepoId; INVENTORY_LIMIT] = arbitrary::r#gen(1);
         let ann = AnnouncementMessage::Inventory(InventoryAnnouncement {
@@ -453,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_node_ann_max_size() {
+    fn node_ann_max_size() {
         let signer = radicle::crypto::SigningKey::mock(247);
         let addrs: [Address; ADDRESS_LIMIT] = arbitrary::r#gen(1);
         let alias = ['@'; radicle::node::MAX_ALIAS_LENGTH];
@@ -474,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pingpong_encode_max_size() {
+    fn pingpong_encode_max_size() {
         Message::Ping(Ping {
             ponglen: 0,
             zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES),
@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "advance out of bounds")]
-    fn test_ping_encode_size_overflow() {
+    fn ping_encode_size_overflow() {
         Message::Ping(Ping {
             ponglen: 0,
             zeroes: ZeroBytes::new(Ping::MAX_PING_ZEROES + 1),
@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "advance out of bounds")]
-    fn test_pong_encode_size_overflow() {
+    fn pong_encode_size_overflow() {
         Message::Pong {
             zeroes: ZeroBytes::new(Ping::MAX_PONG_ZEROES + 1),
         }

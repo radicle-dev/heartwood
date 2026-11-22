@@ -25,7 +25,7 @@ chrono = { workspace = true, features = ["clock", "std"] }
 clap = { version = "4.5.44", features = ["derive"] }
 clap_complete = "4.5"
 dunce = { workspace = true }
-getrandom = "0.4.3"
+getrandom = { workspace = true, features = ["std"] }
 human-panic.workspace = true
 humantime.workspace = true
 itertools.workspace = true
@@ -57,12 +57,14 @@ tree-sitter-ruby = "0.23.1"
 tree-sitter-rust = "0.23.2"
 tree-sitter-toml-ng = "0.6.0"
 tree-sitter-typescript = "0.23.2"
+rs-release = "0.1.11"
 
 [target.'cfg(unix)'.dependencies]
 backtrace = { workspace = true, optional = true }
 shlex = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+radicle-windows = { workspace = true }
 winsplit = { workspace = true }
 
 [dev-dependencies]

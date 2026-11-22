@@ -38,7 +38,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_version() {
+    fn version() {
         let mut buffer = Vec::new();
         Version {
             name: "rad",

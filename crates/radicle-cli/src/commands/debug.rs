@@ -1,11 +1,12 @@
 mod args;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::anyhow;
+use rs_release::get_os_release;
 use serde::Serialize;
 
 use radicle::Profile;
@@ -55,14 +56,37 @@ fn debug(profile: Option<&Profile>) -> anyhow::Result<()> {
         log: profile.map(|p| LogFile::new(p.node().join("node.log"))),
         old_log: profile.map(|p| LogFile::new(p.node().join("node.log.old"))),
         operating_system: std::env::consts::OS,
+        os_release: os_release(),
         arch: std::env::consts::ARCH,
         env,
         warnings: collect_warnings(profile),
+        hardened_bsd: hardened_bsd(),
     };
 
     term::println(serde_json::to_string_pretty(&debug).unwrap());
 
     Ok(())
+}
+
+fn os_release() -> Option<HashMap<String, String>> {
+    get_os_release()
+        .ok()
+        .map(|map| map.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
+#[cfg(target_os = "freebsd")]
+fn hardened_bsd() -> Option<String> {
+    let mut cmd = Command::new("sysctl");
+    cmd.args(["sysctl", "--values", "hardening.version"]);
+    cmd.output()
+        .ok()
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(not(target_os = "freebsd"))]
+#[inline]
+const fn hardened_bsd() -> Option<String> {
+    None
 }
 
 #[derive(Debug, Serialize)]
@@ -79,8 +103,11 @@ struct DebugInfo {
     log: Option<LogFile>,
     old_log: Option<LogFile>,
     operating_system: &'static str,
+    os_release: Option<HashMap<String, String>>,
     arch: &'static str,
     env: BTreeMap<String, String>,
+
+    hardened_bsd: Option<String>,
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
     warnings: Vec<String>,
